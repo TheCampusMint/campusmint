@@ -10,6 +10,8 @@ import type { CampusMintUser } from "@/types/profile";
 import type { Follow, Friendship, UserBlock } from "@/types/social";
 import type { OrganizationMembership } from "@/types/organization";
 import { canViewOrganizationContent } from "@/lib/organizationPermissions";
+import { rankEventContentInMixedFeed } from "@/lib/content/eventRanking";
+import { getMintEventWindow } from "@/lib/social/mintEventRanking";
 
 export type MintFeed = "following" | "campus" | "discover";
 
@@ -47,7 +49,7 @@ export function createMintPermissionContext(
 
 export function getMintFeed(mints: Mint[], feed: MintFeed, state: MintFeedState) {
   const viewerNetworkId = getCampusNetworkForUniversity(state.viewer.account.universityId)?.id;
-  return mints.filter((mint) => {
+  const chronologicalFeed = mints.filter((mint) => {
     const author = state.users.find((user) => user.account.id === mint.authorId);
     if (!author) return false;
     const context = createMintPermissionContext(mint, author, state);
@@ -69,6 +71,7 @@ export function getMintFeed(mints: Mint[], feed: MintFeed, state: MintFeedState)
     return true;
   }).sort((first, second) =>
     new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime());
+  return rankEventContentInMixedFeed(chronologicalFeed, getMintEventWindow, state.currentTime);
 }
 
 export function getVisibleProfileMintz(mints: Mint[], profileUserId: string, state: MintFeedState) {

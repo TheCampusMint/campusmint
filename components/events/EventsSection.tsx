@@ -12,6 +12,7 @@ import {
   type Event,
   type EventCategory,
 } from "@/types/event";
+import { rankEventContent } from "@/lib/content/eventRanking";
 
 type CategoryFilter = "All" | EventCategory;
 
@@ -34,9 +35,9 @@ export function EventsSection({
     () => new Set(),
   );
 
-  const campusEvents = events.filter((event) =>
+  const campusEvents = rankEventContent(events.filter((event) =>
     accessibleCampuses.includes(event.campus),
-  );
+  ));
   const visibleEvents = campusEvents.filter(
     (event) =>
       activeCategory === "All" || event.category === activeCategory,

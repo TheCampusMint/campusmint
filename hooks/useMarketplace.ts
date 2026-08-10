@@ -34,8 +34,9 @@ export function useMarketplace() {
     if (!campusNetwork) throw new Error(`Marketplace Campus Network is not configured for ${universityId}.`);
     const now = new Date().toISOString();
     const id = sessionId("market-local");
+    const { photo, ...listingInput } = input;
     const listing: MarketplaceListing = {
-      ...input,
+      ...listingInput,
       id,
       sellerId: currentDemoSellerId,
       seller: {
@@ -49,7 +50,12 @@ export function useMarketplace() {
       },
       universityId,
       campusNetworkId: campusNetwork.id,
-      photos: [{ id: `${id}-placeholder`, url: null, alt: `Development placeholder for ${input.title}`, isDevelopmentPlaceholder: true }],
+      photos: [{
+        id: `${id}-photo`,
+        url: photo?.url ?? null,
+        alt: photo?.alt ?? `Development placeholder for ${input.title}`,
+        isDevelopmentPlaceholder: photo?.isDevelopmentPlaceholder ?? true,
+      }],
       createdAt: now,
       updatedAt: now,
       status: "active",

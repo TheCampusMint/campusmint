@@ -1,5 +1,6 @@
 export type EventTimingStatus =
   | "live"
+  | "ending_soon"
   | "starting_soon"
   | "countdown"
   | "tonight"
@@ -84,17 +85,23 @@ export function getEventTimingStatus(
     return { status: "ended", label: "ENDED", secondaryLabel: null, isUrgent: false, hoursUntilStart: 0 };
   }
   if (current >= start) {
+    if (end - current <= 30 * MINUTE) {
+      return { status: "ending_soon", label: "ENDING SOON", secondaryLabel: null, isUrgent: true, hoursUntilStart: 0 };
+    }
     return { status: "live", label: "LIVE NOW", secondaryLabel: null, isUrgent: true, hoursUntilStart: 0 };
   }
 
   const millisecondsUntilStart = start - current;
   const hoursUntilStart = millisecondsUntilStart / HOUR;
-  if (millisecondsUntilStart <= 30 * MINUTE) {
+  if (millisecondsUntilStart <= 15 * MINUTE) {
     return { status: "starting_soon", label: "STARTING SOON", secondaryLabel: null, isUrgent: true, hoursUntilStart };
+  }
+  if (millisecondsUntilStart <= 30 * MINUTE) {
+    return { status: "countdown", label: "IN 30M", secondaryLabel: "30 minutes or less away", isUrgent: true, hoursUntilStart };
   }
   if (millisecondsUntilStart <= 3 * HOUR) {
     const roundedHours = Math.ceil(hoursUntilStart);
-    return { status: "countdown", label: `${roundedHours}H`, secondaryLabel: `${roundedHours} hour${roundedHours === 1 ? "" : "s"} away`, isUrgent: true, hoursUntilStart };
+    return { status: "countdown", label: `IN ${roundedHours}H`, secondaryLabel: `${roundedHours} hour${roundedHours === 1 ? "" : "s"} away`, isUrgent: true, hoursUntilStart };
   }
 
   const zone = resolvedTimeZone(timeZone);
@@ -106,11 +113,11 @@ export function getEventTimingStatus(
   if (startDay === currentDay) {
     const eventHour = zonedParts(start, zone).hour;
     return eventHour >= EVENING_HOUR
-      ? { status: "tonight", label: "TONIGHT", secondaryLabel: null, isUrgent: true, hoursUntilStart }
-      : { status: "today", label: "TODAY", secondaryLabel: null, isUrgent: true, hoursUntilStart };
+      ? { status: "tonight", label: "TONIGHT", secondaryLabel: null, isUrgent: false, hoursUntilStart }
+      : { status: "today", label: "TODAY", secondaryLabel: null, isUrgent: false, hoursUntilStart };
   }
   if (startDay === currentDay + 1 && millisecondsUntilStart <= 24 * HOUR) {
-    return { status: "tomorrow", label: "TOMORROW", secondaryLabel: `${Math.ceil(hoursUntilStart)} hours away`, isUrgent: true, hoursUntilStart };
+    return { status: "tomorrow", label: "TOMORROW", secondaryLabel: `${Math.ceil(hoursUntilStart)} hours away`, isUrgent: false, hoursUntilStart };
   }
   return { status: "future", label: "EVENT", secondaryLabel: null, isUrgent: false, hoursUntilStart };
 }

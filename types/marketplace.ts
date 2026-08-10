@@ -98,7 +98,9 @@ export type MarketplaceListing = {
 export type NewMarketplaceListingInput = Pick<
   MarketplaceListing,
   "title" | "description" | "category" | "condition" | "askingPrice" | "negotiable" | "pickupArea" | "deliveryAvailable" | "sportsTicket"
->;
+> & {
+  photo?: Pick<MarketplacePhoto, "url" | "alt" | "isDevelopmentPlaceholder">;
+};
 
 export type MarketplaceOfferStatus = "offer_sent" | "withdrawn" | "accepted" | "declined" | "countered";
 

@@ -1,0 +1,15 @@
+import { getAcademicCatalog } from "@/data/development/campusData";
+import type { UniversityId, UniversityTheme } from "@/data/universities";
+import type { AcademicProfile } from "@/types/campus-data";
+
+export function CareerSkeleton({ universityId, theme, profile }: { universityId: UniversityId; theme: UniversityTheme; profile: AcademicProfile }) {
+  const catalog = getAcademicCatalog(universityId);
+  const program = catalog.programs.find((candidate) => candidate.id === profile.programId);
+  const plannedCredits = profile.enrollments.reduce((total, enrollment) => total + (catalog.courses.find((course) => course.id === enrollment.courseId)?.creditHours ?? 0), 0);
+  return (
+    <div className="space-y-5"><div className="px-1"><p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Plan your path</p><h1 className="mt-1 text-3xl font-black text-slate-950">Career</h1><p className="mt-2 text-sm text-slate-600">An early planning view built from user-controlled academic data—not an official degree audit.</p></div>
+      <section className="rounded-[1.75rem] p-6 text-white shadow-lg" style={{ background: `linear-gradient(145deg, ${theme.primary}, color-mix(in srgb, ${theme.primary} 70%, #111827))` }}><p className="text-xs font-bold uppercase tracking-wider opacity-70">Current plan</p><h2 className="mt-2 text-2xl font-black">{profile.customProgram ?? program?.name ?? "Choose a degree plan"}</h2><div className="mt-6 grid grid-cols-2 gap-3"><div className="rounded-2xl bg-white/10 p-4"><p className="text-xs opacity-70">Planned classes</p><p className="mt-1 text-2xl font-black">{profile.enrollments.length}</p></div><div className="rounded-2xl bg-white/10 p-4"><p className="text-xs opacity-70">Planned credits</p><p className="mt-1 text-2xl font-black">{plannedCredits}</p></div></div></section>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{[["Degree progress", "Completed classes and future semesters will remain user controlled."], ["Professional profile", "LinkedIn and portfolio links already belong to the existing profile system."], ["Reviews", "Professor and class review infrastructure is planned; no ratings are invented."]].map(([title, description]) => <section key={title} className="rounded-[1.5rem] border border-white/80 bg-white/90 p-5 shadow-sm"><h2 className="font-black text-slate-950">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-500">{description}</p></section>)}</div>
+    </div>
+  );
+}
