@@ -1,4 +1,5 @@
 import type { UniversityTheme } from "@/data/universities";
+import { getOrganizationById } from "@/data/organizations";
 import type { Event } from "@/types/event";
 
 type EventCardProps = {
@@ -17,6 +18,7 @@ export function EventCard({
   onToggleRsvp,
 }: EventCardProps) {
   const displayedRsvpCount = event.rsvpCount + (isGoing ? 1 : 0);
+  const organization = getOrganizationById(event.organizationId);
 
   return (
     <article className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -36,6 +38,8 @@ export function EventCard({
       </div>
 
       <h3 className="mt-4 text-xl font-bold text-slate-950">{event.title}</h3>
+
+      {organization && <p className="mt-2 text-sm font-semibold" style={{ color: theme.primary }}>Hosted by {organization.name}</p>}
 
       <dl className="mt-4 grid gap-3 text-sm text-slate-600">
         <div>

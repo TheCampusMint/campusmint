@@ -19,4 +19,6 @@ export type Event = {
   location: string;
   audience: string;
   rsvpCount: number;
+  organizationId?: string;
+  crossCampus?: boolean;
 };
