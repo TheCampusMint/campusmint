@@ -20,7 +20,7 @@ export function ClubMintBadge({ membershipStatus, onMembershipAction }: ClubMint
     && membershipStatus !== "member"
     && membershipStatus !== "officer"
     && membershipStatus !== "leader";
-  const className = "inline-flex rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em]";
+  const className = "interactive-pop inline-flex rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em]";
   if (accepted) return <span className={className} style={clubBadgeStyles}>YOUR CLUB</span>;
   return (
     <span className="inline-flex flex-wrap gap-2">

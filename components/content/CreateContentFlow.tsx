@@ -43,6 +43,8 @@ type CreateContentFlowProps = {
   onClose: () => void;
   organizationMemberships: OrganizationMembership[];
   organizationRoles: OrganizationRoleAssignment[];
+  defaultCommentsEnabled?: boolean;
+  defaultHideLikeCounts?: boolean;
 };
 
 const fieldClass = "mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm";
@@ -64,7 +66,7 @@ function placeholderMedia(contentType: SocialContentType): SocialMedia[] {
   }));
 }
 
-export function CreateContentFlow({ viewer, users, theme, onCreateMint, onCreateStory, onClose, organizationMemberships, organizationRoles }: CreateContentFlowProps) {
+export function CreateContentFlow({ viewer, users, theme, onCreateMint, onCreateStory, onClose, organizationMemberships, organizationRoles, defaultCommentsEnabled = true, defaultHideLikeCounts = false }: CreateContentFlowProps) {
   const [step, setStep] = useState<"media" | "settings">("media");
   const [destination, setDestination] = useState<ContentDestination>("mint");
   const [contentType, setContentType] = useState<SocialContentType>("text");
@@ -73,8 +75,8 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onCreate
   const [hashtags, setHashtags] = useState("");
   const [mentionInput, setMentionInput] = useState("");
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
-  const [commentsEnabled, setCommentsEnabled] = useState(true);
-  const [likesVisible, setLikesVisible] = useState(true);
+  const [commentsEnabled, setCommentsEnabled] = useState(defaultCommentsEnabled);
+  const [likesVisible, setLikesVisible] = useState(!defaultHideLikeCounts);
   const [privacy, setPrivacy] = useState<SocialContentPrivacy>("account");
   const [audience, setAudience] = useState<StoryAudience>("students-only");
   const [durationHours, setDurationHours] = useState<string>("permanent");

@@ -8,20 +8,30 @@ type EventMintBadgeProps = {
   contextLabel?: string;
 };
 
+const eventBadgeStyles = {
+  backgroundColor: "#ecfdf5",
+  borderColor: "#10b981",
+  color: "#047857",
+  boxShadow: "0 7px 20px rgba(16, 185, 129, 0.16)",
+};
+
+const eventTimeBadgeStyles = {
+  backgroundColor: "#fff1f2",
+  borderColor: "#f43f5e",
+  color: "#be123c",
+  boxShadow: "0 7px 20px rgba(244, 63, 94, 0.14)",
+};
+
 /** Event identity and urgency are separate so EVENT always keeps its semantic green treatment. */
 export function EventMintBadge({ eventStartAt, eventEndAt, currentTime, timeZone, contextLabel = "Event" }: EventMintBadgeProps) {
   const timing = getEventTimingStatus(eventStartAt, eventEndAt, currentTime, timeZone);
   const showTimingLabel = timing.label !== "EVENT";
-  const timingClasses = timing.isUrgent
-    ? "border-rose-500 bg-rose-500 text-white shadow-[0_7px_20px_rgba(244,63,94,0.25)]"
-    : timing.status === "ended"
-      ? "border-slate-300 bg-slate-100 text-slate-600"
-      : "border-emerald-200 bg-emerald-50 text-emerald-800";
+  const badgeClassName = "inline-flex rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em]";
 
   return (
-    <div className="inline-flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em]" data-event-status={timing.status} aria-label={`${contextLabel} ${showTimingLabel ? timing.label : ""}`.trim()} title={timing.secondaryLabel ?? undefined}>
-      <span className="rounded-full border border-emerald-500 bg-emerald-500 px-3 py-1.5 text-white shadow-[0_7px_20px_rgba(16,185,129,0.22)]">{contextLabel}</span>
-      {showTimingLabel && <span className={`rounded-full border px-3 py-1.5 ${timingClasses}`}>{timing.label}</span>}
+    <div className="inline-flex items-center gap-2" data-event-status={timing.status} aria-label={`${contextLabel} ${showTimingLabel ? timing.label : ""}`.trim()} title={timing.secondaryLabel ?? undefined}>
+      <span className={badgeClassName} style={eventBadgeStyles}>{contextLabel}</span>
+      {showTimingLabel && <span className={badgeClassName} style={eventTimeBadgeStyles}>{timing.label}</span>}
     </div>
   );
 }

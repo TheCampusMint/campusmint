@@ -20,9 +20,11 @@ type MintFeedListProps = {
   onOpenProfile: (userId: string) => void;
   onRequestOrganization: (organizationId: string) => void;
   onNotice: (message: string) => void;
+  reducedMotion?: boolean;
+  autoplayVideo?: boolean;
 };
 
-export function MintFeedList({ mints, viewer, theme, profiles, mintz, organizations, feedState, onOpenProfile, onRequestOrganization, onNotice }: MintFeedListProps) {
+export function MintFeedList({ mints, viewer, theme, profiles, mintz, organizations, feedState, onOpenProfile, onRequestOrganization, onNotice, reducedMotion, autoplayVideo }: MintFeedListProps) {
   return <div className="space-y-5">{mints.length > 0 ? mints.map((item) => {
     const author = feedState.users.find((user) => user.account.id === item.authorId);
     if (!author) return null;
@@ -47,6 +49,8 @@ export function MintFeedList({ mints, viewer, theme, profiles, mintz, organizati
       saved={mintz.saves.some((save) => save.mintId === item.id && save.userId === viewer.account.id)}
       comments={mintz.comments.filter((comment) => comment.targetId === item.id)}
       organizationMembershipStatus={organizationStatus}
+      reducedMotion={reducedMotion}
+      autoplayVideo={autoplayVideo}
       onOrganizationMembershipAction={organizationAction}
       onOpenProfile={onOpenProfile}
       onToggleLike={() => mintz.toggleLike(permissionContext)}
