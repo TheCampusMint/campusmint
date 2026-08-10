@@ -1,4 +1,15 @@
 import type { UserRole } from "@/data/userRoles";
+import type {
+  ContentLocation,
+  ContentMention,
+  EventContentData,
+  MusicMetadata,
+  SocialContentStatus,
+  SocialContentType,
+  SocialMedia,
+  SocialPostType,
+  OrganizationContentAudience,
+} from "@/types/content";
 
 export const storyCategories = [
   "Social",
@@ -33,17 +44,37 @@ export const storyFilterOptions = [
 ] as const;
 
 export type StoryFilter = (typeof storyFilterOptions)[number];
-export type StoryContentType = "text" | "image-placeholder";
+export type StoryContentType = SocialContentType;
 
 export type StoryComment = {
   id: string;
+  authorId: string | null;
   authorName: string;
-  text: string;
+  body: string;
+  mentions: ContentMention[];
+  parentCommentId: string | null;
+  status: "active" | "deleted" | "removed";
   createdAt: string;
+  updatedAt: string;
+};
+
+export type StoryView = {
+  storyId: string;
+  viewerId: string;
+  viewedAt: string;
+};
+
+export type StoryReaction = {
+  storyId: string;
+  userId: string;
+  reaction: "like" | "love" | "laugh" | "wow" | "support";
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type Story = {
   id: string;
+  publishFormat?: "story";
   authorUserId?: string;
   authorName: string;
   authorUniversity: string;
@@ -51,6 +82,17 @@ export type Story = {
   avatarPlaceholder: string;
   contentType: StoryContentType;
   text: string;
+  postType?: SocialPostType;
+  media?: SocialMedia[];
+  caption?: string;
+  music?: MusicMetadata | null;
+  mentions?: ContentMention[];
+  taggedUserIds?: string[];
+  location?: ContentLocation | null;
+  eventData?: EventContentData | null;
+  commentsEnabled?: boolean;
+  likesVisible?: boolean;
+  status?: SocialContentStatus;
   imagePlaceholder?: string;
   category: StoryCategory;
   campus: string;
@@ -62,4 +104,6 @@ export type Story = {
   likedByCurrentUser: boolean;
   comments: StoryComment[];
   organizationId?: string;
+  taggedOrganizationIds?: string[];
+  organizationAudience?: OrganizationContentAudience;
 };

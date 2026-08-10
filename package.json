@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:event-timing": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/eventTiming.test.mjs",
+    "test:organizations": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/organizationMembership.test.mjs",
+    "test:organization-identity": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/organizationIdentity.test.mjs",
+    "test:social": "npm run test:event-timing && npm run test:organizations && npm run test:organization-identity"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2",

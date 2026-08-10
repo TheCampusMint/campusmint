@@ -1,4 +1,7 @@
+import Link from "next/link";
+
 import { universities, type UniversityTheme } from "@/data/universities";
+import { getClubHref } from "@/data/organizations";
 import type { Event } from "@/types/event";
 import type { Organization, OrganizationMembershipStatus } from "@/types/organization";
 
@@ -20,8 +23,11 @@ function officialStatusLabel(organization: Organization) {
 
 function membershipButtonLabel(organization: Organization, status: OrganizationMembershipStatus, allowed: boolean) {
   if (!allowed) return "View only";
-  if (status === "member" || status === "officer") return "Leave Club";
-  if (status === "requested") return "Cancel Request";
+  if (status === "member") return "Leave Club";
+  if (status === "officer") return "Officer";
+  if (status === "leader") return "Leader";
+  if (status === "requested") return "Request Pending";
+  if (status === "blocked") return "Membership unavailable";
   if (organization.membershipType === "open") return "Join Club";
   if (organization.membershipType === "application") return "Request to Join";
   if (organization.membershipType === "invitation") return "Invitation only";
@@ -38,7 +44,8 @@ export function OrganizationCard({
   onMembershipAction,
 }: OrganizationCardProps) {
   const membershipDisabled = !membershipAllowed || (membershipStatus === "none"
-    && (organization.membershipType === "invitation" || organization.membershipType === "restricted"));
+    && (organization.membershipType === "invitation" || organization.membershipType === "restricted"))
+    || membershipStatus === "officer" || membershipStatus === "leader" || membershipStatus === "blocked";
   const initials = organization.name.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
 
   return (
@@ -54,6 +61,7 @@ export function OrganizationCard({
             </div>
             <h3 className="mt-3 text-lg font-extrabold leading-6 text-slate-950">{organization.name}</h3>
             <p className="mt-1 text-xs font-semibold text-slate-500">{universities[organization.universityId].name}</p>
+            <Link href={getClubHref(organization)} className="mt-1 inline-flex text-xs font-bold hover:underline" style={{ color: theme.primary }}>/clubs/{organization.handle}</Link>
           </div>
         </div>
 

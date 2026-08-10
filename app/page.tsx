@@ -10,12 +10,14 @@ import { DiningHub } from "@/components/dining/DiningHub";
 import { EventsSection } from "@/components/events/EventsSection";
 import { HousingHub } from "@/components/housing/HousingHub";
 import { MarketplaceHub } from "@/components/marketplace/MarketplaceHub";
+import { MintzHub } from "@/components/mintz/MintzHub";
 import { ProfilesHub } from "@/components/profile/ProfilesHub";
 import { StoriesFeed } from "@/components/stories/StoriesFeed";
+import { CampusSocialHub } from "@/components/social/CampusSocialHub";
 import { DeveloperUniversitySwitcher } from "@/components/university/DeveloperUniversitySwitcher";
 import { sampleEvents } from "@/data/events";
 import { CURRENT_DEVELOPMENT_USER_ID } from "@/data/development/users";
-import { getOrganizationsForUniversity } from "@/data/organizations";
+import { getOrganizationById, getOrganizationsForUniversity } from "@/data/organizations";
 import { getUserRoleLabel, type UserRole } from "@/data/userRoles";
 import {
   universities,
@@ -23,14 +25,19 @@ import {
 } from "@/data/universities";
 import { useAcademics } from "@/hooks/useAcademics";
 import { useMarketplace } from "@/hooks/useMarketplace";
+import { useMintz } from "@/hooks/useMintz";
 import { useOrganizations } from "@/hooks/useOrganizations";
 import { useProfiles } from "@/hooks/useProfiles";
 import { useStories } from "@/hooks/useStories";
 import { getVisibleStories } from "@/lib/storyPermissions";
+import { canJoinOrganization } from "@/lib/organizationPermissions";
+import type { Organization } from "@/types/organization";
 import type { TemporaryUser } from "@/types/user";
 
 const navItems = [
+  "Campus",
   "Dashboard",
+  "Mintz",
   "Stories",
   "Events",
   "Dining",
@@ -61,12 +68,13 @@ const marketplacePermissionMode = process.env.NODE_ENV === "development"
   : "verified_student";
 
 export default function Home() {
-  const [active, setActive] = useState<NavItem>("Dashboard");
+  const [active, setActive] = useState<NavItem>("Campus");
   const [selectedProfileUserId, setSelectedProfileUserId] = useState(CURRENT_DEVELOPMENT_USER_ID);
   const [user, setUser] = useState<TemporaryUser>(initialUser);
   const academics = useAcademics();
   const marketplace = useMarketplace();
-  const organizations = useOrganizations();
+  const mintz = useMintz();
+  const organizations = useOrganizations(CURRENT_DEVELOPMENT_USER_ID);
   const profiles = useProfiles();
   const {
     stories,
@@ -96,10 +104,12 @@ export default function Home() {
     theme.accessibleCampuses,
     user.role,
     currentTime,
+    { id: user.id, universityId: user.universityId },
+    organizations.memberships,
   );
   const joinedClubCount = user.role === "student" ? getOrganizationsForUniversity(user.universityId).filter((organization) => {
     const status = organizations.getMembershipStatus(organization.id);
-    return status === "member" || status === "officer";
+    return status === "member" || status === "officer" || status === "leader";
   }).length : 0;
 
   function changeUniversity(universityId: UniversityId) {
@@ -113,6 +123,16 @@ export default function Home() {
   function openProfile(userId: string) {
     setSelectedProfileUserId(userId);
     setActive("Profile");
+  }
+
+  function handleOrganizationMembership(organization: Organization) {
+    if (!canJoinOrganization(user, organization)) return;
+    const status = organizations.getMembershipStatus(organization.id);
+    if (status === "requested" || status === "member") {
+      organizations.leaveOrganization(organization);
+      return;
+    }
+    if (status === "none" || status === "rejected") organizations.joinOrRequest(organization);
   }
 
   return (
@@ -209,7 +229,7 @@ export default function Home() {
         </aside>
 
         <section className="space-y-6">
-          {active !== "People" && active !== "Profile" && <div
+          {active !== "People" && active !== "Profile" && active !== "Campus" && <div
             className="rounded-2xl p-8 shadow-sm"
             style={{ backgroundColor: theme.accent }}
           >
@@ -251,6 +271,41 @@ export default function Home() {
             />
           )}
 
+          {active === "Campus" && (
+            <CampusSocialHub
+              viewer={viewer}
+              user={user}
+              theme={theme}
+              profiles={profiles}
+              mintz={mintz}
+              organizations={organizations}
+              stories={stories}
+              currentTime={currentTime}
+              onToggleStoryLike={toggleLike}
+              onAddStoryComment={addComment}
+              onCreateStory={addStory}
+              onOpenProfile={openProfile}
+              onMembershipAction={handleOrganizationMembership}
+              onOpenClubs={() => setActive("Clubs")}
+            />
+          )}
+
+          {active === "Mintz" && (
+            <MintzHub
+              viewer={viewer}
+              theme={theme}
+              profiles={profiles}
+              mintz={mintz}
+              onCreateStory={addStory}
+              onOpenProfile={openProfile}
+              organizations={organizations}
+              onRequestOrganization={(organizationId) => {
+                const organization = getOrganizationById(organizationId);
+                if (organization) handleOrganizationMembership(organization);
+              }}
+            />
+          )}
+
           {active === "Stories" && (
             <StoriesFeed
               stories={stories}
@@ -262,6 +317,8 @@ export default function Home() {
               onAddComment={addComment}
               onCreateStory={addStory}
               onOpenProfile={openProfile}
+              organizations={organizations}
+              onMembershipAction={handleOrganizationMembership}
             />
           )}
 
@@ -311,6 +368,8 @@ export default function Home() {
               events={sampleEvents}
               stories={visibleStories}
               organizations={organizations}
+              viewer={viewer}
+              profiles={profiles}
             />
           )}
 
@@ -323,6 +382,8 @@ export default function Home() {
               visibleStories={visibleStories}
               marketplaceListings={marketplace.listings}
               profiles={profiles}
+              mintz={mintz}
+              organizations={organizations}
               onOpenProfile={openProfile}
               onBackToPeople={() => setActive("People")}
             />
@@ -347,7 +408,9 @@ export default function Home() {
             />
           )}
 
-          {active !== "Dashboard" &&
+          {active !== "Campus" &&
+            active !== "Dashboard" &&
+            active !== "Mintz" &&
             active !== "Stories" &&
             active !== "Events" &&
             active !== "Dining" &&

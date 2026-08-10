@@ -1,6 +1,10 @@
 import { useState } from "react";
 
+import { EventMintBadge } from "@/components/content/EventMintBadge";
+import { EventDetailsPanel } from "@/components/content/EventDetailsPanel";
+import { ClubMintBadge } from "@/components/content/ClubMintBadge";
 import { CommentsSection } from "@/components/stories/CommentsSection";
+import { sampleEvents } from "@/data/events";
 import { getOrganizationById } from "@/data/organizations";
 import { getUserRoleLabel } from "@/data/userRoles";
 import {
@@ -11,7 +15,9 @@ import {
   formatStoryAge,
   getAudienceLabel,
 } from "@/lib/storyPermissions";
+import { formatEventDateTimeRange } from "@/lib/content/eventTiming";
 import type { Story } from "@/types/story";
+import type { OrganizationMembershipStatus } from "@/types/organization";
 
 type StoryCardProps = {
   story: Story;
@@ -20,6 +26,8 @@ type StoryCardProps = {
   onToggleLike: (storyId: Story["id"]) => void;
   onAddComment: (storyId: Story["id"], text: string) => void;
   onOpenProfile?: (userId: string) => void;
+  organizationMembershipStatus?: OrganizationMembershipStatus;
+  onOrganizationMembershipAction?: () => void;
 };
 
 export function StoryCard({
@@ -29,9 +37,21 @@ export function StoryCard({
   onToggleLike,
   onAddComment,
   onOpenProfile,
+  organizationMembershipStatus,
+  onOrganizationMembershipAction,
 }: StoryCardProps) {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const organization = getOrganizationById(story.organizationId);
+  const taggedOrganizations = (story.taggedOrganizationIds ?? []).flatMap((organizationId) => {
+    const tagged = getOrganizationById(organizationId);
+    return tagged ? [tagged] : [];
+  });
+  const canonicalEvent = story.eventData?.eventId
+    ? sampleEvents.find((event) => event.id === story.eventData?.eventId) ?? null
+    : null;
+  const eventStartAt = canonicalEvent?.eventStartAt ?? story.eventData?.eventStartAt ?? null;
+  const eventEndAt = canonicalEvent?.eventEndAt ?? story.eventData?.eventEndAt ?? null;
+  const eventTimeZone = canonicalEvent?.timeZone ?? story.eventData?.timeZone ?? null;
 
   return (
     <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -87,13 +107,17 @@ export function StoryCard({
           </span>
         </div>
 
-        {organization && <p className="mt-3 text-xs font-bold uppercase tracking-wide" style={{ color: theme.primary }}>Posted for {organization.name}</p>}
+        {story.postType === "event" && <div className="mt-4"><EventMintBadge eventStartAt={eventStartAt} eventEndAt={eventEndAt} currentTime={currentTime} timeZone={eventTimeZone} /></div>}
+        {story.postType === "event" && (canonicalEvent || story.eventData) && <EventDetailsPanel title={canonicalEvent?.title ?? story.eventData?.title} when={formatEventDateTimeRange(eventStartAt, eventEndAt, eventTimeZone)} where={canonicalEvent?.location ?? story.eventData?.location?.label} description={story.eventData?.description} linkedToCanonicalEvent={Boolean(canonicalEvent)} />}
+
+        {organization && <div className="mt-4 flex flex-wrap items-center gap-2"><ClubMintBadge membershipStatus={organizationMembershipStatus} onMembershipAction={onOrganizationMembershipAction} /><p className="text-sm font-black text-slate-900">{organization.name}</p></div>}
+        {taggedOrganizations.length > 0 && <p className="mt-3 text-xs font-semibold text-slate-500">Tagged club · {taggedOrganizations.map((tagged) => tagged.name).join(", ")}</p>}
 
         <p className="mt-4 whitespace-pre-wrap text-[15px] leading-7 text-slate-700">
           {story.text}
         </p>
 
-        {story.contentType === "image-placeholder" &&
+        {(story.contentType === "image" || story.contentType === "video" || story.contentType === "carousel") &&
           story.imagePlaceholder && (
             <div
               className="mt-5 flex aspect-video items-center justify-center rounded-2xl border border-white/50 p-6 text-center"
@@ -123,17 +147,17 @@ export function StoryCard({
             outlineColor: theme.primary,
           }}
         >
-          {story.likedByCurrentUser ? "Liked" : "Like"} ·{" "}
-          {story.likeCount.toLocaleString("en-US")}
+          {story.likedByCurrentUser ? "Liked" : "Like"}{story.likesVisible === false ? "" : ` · ${story.likeCount.toLocaleString("en-US")}`}
         </button>
         <button
           type="button"
-          aria-expanded={commentsOpen}
+          aria-expanded={story.commentsEnabled === false ? undefined : commentsOpen}
+          disabled={story.commentsEnabled === false}
           onClick={() => setCommentsOpen((isOpen) => !isOpen)}
           className="rounded-xl px-2 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2"
           style={{ outlineColor: theme.primary }}
         >
-          Comments · {story.commentCount.toLocaleString("en-US")}
+          {story.commentsEnabled === false ? "Comments off" : `Comments · ${story.commentCount.toLocaleString("en-US")}`}
         </button>
         <button
           type="button"
@@ -145,7 +169,7 @@ export function StoryCard({
         </button>
       </div>
 
-      {commentsOpen && (
+      {commentsOpen && story.commentsEnabled !== false && (
         <CommentsSection
           storyId={story.id}
           comments={story.comments}

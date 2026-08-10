@@ -1,17 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 import { ClubChatPlaceholder } from "@/components/clubs/ClubChatPlaceholder";
+import { OrganizationMembershipPanel } from "@/components/clubs/OrganizationMembershipPanel";
 import { getCampusNetwork } from "@/data/campusNetworks";
 import { universities, type UniversityTheme } from "@/data/universities";
+import { getClubHref } from "@/data/organizations";
 import type { Event } from "@/types/event";
 import type {
   Organization,
   OrganizationAnnouncement,
   OrganizationMembershipStatus,
+  OrganizationMembership,
   OrganizationOfficer,
 } from "@/types/organization";
+import type { CampusMintUser } from "@/types/profile";
+import type { ProfilesState } from "@/hooks/useProfiles";
 import type { Story } from "@/types/story";
 
 type OrganizationDetailModalProps = {
@@ -26,13 +32,27 @@ type OrganizationDetailModalProps = {
   onClose: () => void;
   onMembershipAction: (organization: Organization) => void;
   onViewEvents: () => void;
+  viewer: CampusMintUser;
+  profiles: ProfilesState;
+  pendingRequests: OrganizationMembership[];
+  canModerateRequests: boolean;
+  canAccessChat: boolean;
+  isChatParticipant: boolean;
+  memberCount: number;
+  isFollowing: boolean;
+  onToggleFollow: () => void;
+  onAcceptRequest: (userId: string) => void;
+  onRejectRequest: (userId: string) => void;
+  onMessageOrganization: () => boolean;
 };
 
 function membershipLabel(organization: Organization, status: OrganizationMembershipStatus, allowed: boolean) {
   if (!allowed) return "View only";
   if (status === "member") return "Leave Club";
   if (status === "officer") return "Officer";
+  if (status === "leader") return "Leader";
   if (status === "requested") return "Cancel Request";
+  if (status === "blocked") return "Membership unavailable";
   if (organization.membershipType === "open") return "Join Club";
   if (organization.membershipType === "application") return "Request to Join";
   if (organization.membershipType === "invitation") return "Invitation only";
@@ -51,12 +71,23 @@ export function OrganizationDetailModal({
   onClose,
   onMembershipAction,
   onViewEvents,
+  viewer,
+  profiles,
+  pendingRequests,
+  canModerateRequests,
+  canAccessChat,
+  isChatParticipant,
+  memberCount,
+  isFollowing,
+  onToggleFollow,
+  onAcceptRequest,
+  onRejectRequest,
+  onMessageOrganization,
 }: OrganizationDetailModalProps) {
-  const [messageFeedback, setMessageFeedback] = useState(false);
+  const [messageFeedback, setMessageFeedback] = useState<string | null>(null);
   const campusNetwork = organization.campusNetworkId ? getCampusNetwork(organization.campusNetworkId) : null;
   const membershipDisabled = !membershipAllowed || (membershipStatus === "none"
     && (organization.membershipType === "invitation" || organization.membershipType === "restricted"));
-  const isMember = membershipStatus === "member" || membershipStatus === "officer";
   const initials = organization.name.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
 
   return (
@@ -71,6 +102,7 @@ export function OrganizationDetailModal({
                 <div className="flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-wide"><span className="rounded-full bg-white/15 px-3 py-1">{organization.category}</span><span className="rounded-full bg-white/15 px-3 py-1">Development record</span></div>
                 <h2 id="organization-detail-title" className="mt-3 max-w-3xl text-2xl font-extrabold leading-tight sm:text-4xl">{organization.name}</h2>
                 <p className="mt-2 text-sm opacity-85">{universities[organization.universityId].name}</p>
+                <Link href={getClubHref(organization)} className="mt-2 inline-flex text-xs font-bold underline decoration-white/40 underline-offset-4">/clubs/{organization.handle}</Link>
               </div>
             </div>
             <button type="button" onClick={onClose} className="relative rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-sm font-bold">Close</button>
@@ -118,15 +150,18 @@ export function OrganizationDetailModal({
 
           <aside className="space-y-5 p-5 sm:p-7">
             <div className="grid gap-3">
-              <button type="button" disabled={membershipDisabled || membershipStatus === "officer"} onClick={() => onMembershipAction(organization)} className="rounded-xl px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500" style={!membershipDisabled && membershipStatus !== "officer" ? { backgroundColor: theme.primary, color: theme.secondary } : undefined}>{membershipLabel(organization, membershipStatus, membershipAllowed)}</button>
-              <button type="button" onClick={() => setMessageFeedback(true)} className="rounded-xl border px-4 py-3 text-sm font-bold" style={{ borderColor: theme.primary, color: theme.primary }}>Message Club</button>
+              <button type="button" disabled={membershipDisabled || membershipStatus === "officer" || membershipStatus === "leader" || membershipStatus === "blocked"} onClick={() => onMembershipAction(organization)} className="rounded-xl px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500" style={!membershipDisabled && membershipStatus !== "officer" && membershipStatus !== "leader" && membershipStatus !== "blocked" ? { backgroundColor: theme.primary, color: theme.secondary } : undefined}>{membershipLabel(organization, membershipStatus, membershipAllowed)}</button>
+              <button type="button" onClick={onToggleFollow} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700">{isFollowing ? "Following Club" : "Follow Club"}</button>
+              <button type="button" onClick={() => setMessageFeedback(onMessageOrganization() ? "A limited direct conversation with the club's membership contact is ready locally. It is separate from the member group chat." : "No separate membership contact is available for this local record.")} className="rounded-xl border px-4 py-3 text-sm font-bold" style={{ borderColor: theme.primary, color: theme.primary }}>Message Club</button>
               <button type="button" onClick={onViewEvents} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700">View Events</button>
             </div>
-            {messageFeedback && <p aria-live="polite" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Direct club messages are not connected yet.</p>}
+            {messageFeedback && <p aria-live="polite" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">{messageFeedback}</p>}
 
-            <section className="rounded-2xl border border-slate-200 p-5"><h3 className="font-bold text-slate-900">Membership</h3><p className="mt-2 text-sm leading-6 text-slate-600">Current status: <span className="font-bold capitalize text-slate-900">{membershipStatus}</span></p><p className="mt-2 text-xs leading-5 text-slate-500">{organization.memberCount > 0 ? `${organization.memberCount} recorded members` : "No verified membership total is available."}</p></section>
+            <section className="rounded-2xl border border-slate-200 p-5"><h3 className="font-bold text-slate-900">Membership</h3><p className="mt-2 text-sm leading-6 text-slate-600">Current status: <span className="font-bold capitalize text-slate-900">{membershipStatus}</span></p><p className="mt-2 text-xs leading-5 text-slate-500">{memberCount > 0 ? `${memberCount} members in local state` : "No accepted members in local state."}</p></section>
 
-            <ClubChatPlaceholder theme={theme} isMember={isMember} />
+            <ClubChatPlaceholder theme={theme} canAccess={canAccessChat} participantAdded={isChatParticipant} />
+
+            {canModerateRequests && <OrganizationMembershipPanel requests={pendingRequests} viewer={viewer} users={profiles.users.map((user) => user.account.id === viewer.account.id ? viewer : user)} theme={theme} getFriendshipStatus={profiles.getFriendshipStatus} onAccept={onAcceptRequest} onReject={onRejectRequest} />}
 
             <section className="rounded-2xl border border-slate-200 p-5"><h3 className="font-bold text-slate-900">Contact information</h3><dl className="mt-3 space-y-3 text-sm"><div><dt className="text-xs font-bold uppercase tracking-wide text-slate-400">Email</dt><dd className="mt-1 break-all font-semibold text-slate-700">{organization.contactEmail}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-slate-400">Website</dt><dd className="mt-1 text-slate-600">{organization.website ?? "Not configured"}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-slate-400">Instagram</dt><dd className="mt-1 text-slate-600">{organization.instagram ?? "Not configured"}</dd></div></dl><p className="mt-3 text-xs leading-5 text-amber-700">Development contact information only.</p></section>
           </aside>

@@ -10,10 +10,12 @@ import {
   getFriendshipStatus as findFriendshipStatus,
   getNextFriendshipStatus,
 } from "@/lib/social/relationships";
+import { isUsernameAvailable } from "@/lib/social/usernames";
 import type {
   CampusMintProfile,
   CampusMintUser,
   ProfilePrivacySettings,
+  ProfileSocialSettings,
 } from "@/types/profile";
 import type {
   Follow,
@@ -23,7 +25,7 @@ import type {
   UserReportReason,
 } from "@/types/social";
 
-type EditableProfilePatch = Partial<Omit<CampusMintProfile, "id" | "accountId" | "createdAt">>;
+type EditableProfilePatch = Partial<Omit<CampusMintProfile, "id" | "accountId" | "createdAt" | "usernameNormalized">>;
 
 function localId(prefix: string) {
   return `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -46,6 +48,11 @@ export function useProfiles() {
   }
 
   function updateCurrentProfile(patch: EditableProfilePatch) {
+    const currentProfile = users.find((candidate) => candidate.account.id === CURRENT_DEVELOPMENT_USER_ID);
+    const username = patch.username ?? currentProfile?.profile.username ?? "";
+    const usernameResult = isUsernameAvailable(username, users, CURRENT_DEVELOPMENT_USER_ID);
+    if (!usernameResult.valid) return { ok: false, error: usernameResult.error } as const;
+
     setUsers((currentUsers) => currentUsers.map((user) =>
       user.account.id === CURRENT_DEVELOPMENT_USER_ID
         ? {
@@ -53,16 +60,26 @@ export function useProfiles() {
             profile: {
               ...user.profile,
               ...patch,
+              username,
+              usernameNormalized: usernameResult.normalized,
               updatedAt: new Date().toISOString(),
             },
           }
         : user));
+    return { ok: true, error: null } as const;
   }
 
   function updateCurrentPrivacy(patch: Partial<ProfilePrivacySettings>) {
     setUsers((currentUsers) => currentUsers.map((user) =>
       user.account.id === CURRENT_DEVELOPMENT_USER_ID
         ? { ...user, privacy: { ...user.privacy, ...patch } }
+        : user));
+  }
+
+  function updateCurrentSocialSettings(patch: Partial<ProfileSocialSettings>) {
+    setUsers((currentUsers) => currentUsers.map((user) =>
+      user.account.id === CURRENT_DEVELOPMENT_USER_ID
+        ? { ...user, socialSettings: { ...user.socialSettings, ...patch } }
         : user));
   }
 
@@ -101,6 +118,11 @@ export function useProfiles() {
   function isFollowing(targetUserId: string) {
     return follows.some((follow) =>
       follow.followerId === CURRENT_DEVELOPMENT_USER_ID && follow.followingId === targetUserId);
+  }
+
+  function isFollowedBy(targetUserId: string) {
+    return follows.some((follow) =>
+      follow.followerId === targetUserId && follow.followingId === CURRENT_DEVELOPMENT_USER_ID);
   }
 
   function toggleFollow(targetUserId: string) {
@@ -167,9 +189,11 @@ export function useProfiles() {
     getUserById,
     updateCurrentProfile,
     updateCurrentPrivacy,
+    updateCurrentSocialSettings,
     getFriendshipStatus,
     cycleFriendship,
     isFollowing,
+    isFollowedBy,
     toggleFollow,
     isBlocked,
     blockUser,

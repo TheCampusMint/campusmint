@@ -16,11 +16,13 @@ import {
 import { getUserRoleLabel } from "@/data/userRoles";
 import { universities, type UniversityTheme } from "@/data/universities";
 import type { useOrganizations } from "@/hooks/useOrganizations";
-import { canJoinOrganization, canSubmitOrganization, canViewOrganization } from "@/lib/organizationPermissions";
+import type { ProfilesState } from "@/hooks/useProfiles";
+import { canAccessOrganizationChat, canJoinOrganization, canModerateOrganizationMemberships, canSubmitOrganization, canViewOrganization } from "@/lib/organizationPermissions";
 import { organizationCategories, type Organization, type OrganizationCategory, type OrganizationMembershipStatus } from "@/types/organization";
 import type { Event } from "@/types/event";
 import type { Story } from "@/types/story";
 import type { TemporaryUser } from "@/types/user";
+import type { CampusMintUser } from "@/types/profile";
 
 type ClubsHubProps = {
   user: TemporaryUser;
@@ -28,6 +30,8 @@ type ClubsHubProps = {
   events: Event[];
   stories: Story[];
   organizations: ReturnType<typeof useOrganizations>;
+  viewer: CampusMintUser;
+  profiles: ProfilesState;
 };
 
 type ClubsView = "discover" | "my-clubs" | "events" | "recruitment";
@@ -43,16 +47,21 @@ function membershipStatusLabel(status: OrganizationMembershipStatus) {
   if (status === "requested") return "Membership requested";
   if (status === "member") return "Member";
   if (status === "officer") return "Officer";
+  if (status === "leader") return "Leader";
+  if (status === "rejected") return "Request rejected";
+  if (status === "blocked") return "Blocked";
   return "Not joined";
 }
 
 function membershipActionLabel(organization: Organization, status: OrganizationMembershipStatus) {
-  if (status === "member" || status === "officer") return "Leave Club";
-  if (status === "requested") return "Cancel Request";
+  if (status === "member") return "Leave Club";
+  if (status === "officer") return "Officer";
+  if (status === "leader") return "Leader";
+  if (status === "requested") return "Request Pending";
   return organization.membershipType === "application" ? "Request to Join" : "Join Club";
 }
 
-export function ClubsHub({ user, theme, events, stories, organizations }: ClubsHubProps) {
+export function ClubsHub({ user, viewer, profiles, theme, events, stories, organizations }: ClubsHubProps) {
   const [view, setView] = useState<ClubsView>("discover");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<OrganizationCategory | "All">("All");
@@ -74,11 +83,11 @@ export function ClubsHub({ user, theme, events, stories, organizations }: ClubsH
   const clubEvents = events.filter((event) => event.organizationId && directoryIds.has(event.organizationId));
   const joinedOrganizations = user.role === "student" ? directory.filter((organization) => {
     const status = organizations.getMembershipStatus(organization.id);
-    return status === "member" || status === "officer" || status === "requested";
+    return status === "member" || status === "officer" || status === "leader" || status === "requested";
   }) : [];
   const joinedCount = joinedOrganizations.filter((organization) => {
     const status = organizations.getMembershipStatus(organization.id);
-    return status === "member" || status === "officer";
+    return status === "member" || status === "officer" || status === "leader";
   }).length;
   const requestedCount = joinedOrganizations.filter((organization) => organizations.getMembershipStatus(organization.id) === "requested").length;
   const recruitment = developmentOrganizationRecruitment.flatMap((item) => {
@@ -101,7 +110,11 @@ export function ClubsHub({ user, theme, events, stories, organizations }: ClubsH
     }
     const status = organizations.getMembershipStatus(organization.id);
     if (status !== "none") {
-      organizations.leaveOrganization(organization.id);
+      if (status === "officer" || status === "leader" || status === "blocked") {
+        setFeedback("Organization-managed roles cannot be changed from this local member control.");
+        return;
+      }
+      organizations.leaveOrganization(organization);
       setFeedback(status === "requested" ? "Membership request cancelled." : "You left the club for this local session.");
       return;
     }
@@ -110,7 +123,7 @@ export function ClubsHub({ user, theme, events, stories, organizations }: ClubsH
       setFeedback("This organization does not accept direct membership requests.");
       return;
     }
-    setFeedback(membership.status === "member" ? "Club joined for this local session." : "Membership request saved locally.");
+    setFeedback("Membership request saved locally. Club chat remains locked until an officer or leader accepts it.");
   }
 
   return (
@@ -148,8 +161,8 @@ export function ClubsHub({ user, theme, events, stories, organizations }: ClubsH
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-6"><div><p className="text-sm font-bold" style={{ color: theme.primary }}>Can&apos;t find your organization?</p><h3 className="mt-1 text-xl font-extrabold text-slate-950">Submit it for review</h3><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">A suggestion becomes a pending community submission, not an official organization.</p>{organizations.submissions.filter((submission) => submission.universityId === user.universityId).length > 0 && <p className="mt-2 text-xs font-bold text-amber-700">{organizations.submissions.filter((submission) => submission.universityId === user.universityId).length} pending local submission</p>}</div><button type="button" disabled={!canSubmitOrganization(user)} onClick={() => setSubmissionOpen(true)} className="mt-4 rounded-xl px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 sm:mt-0" style={canSubmitOrganization(user) ? { backgroundColor: theme.primary, color: theme.secondary } : undefined}>{canSubmitOrganization(user) ? "Suggest Organization" : "Student submissions only"}</button></section>
 
-      {selectedOrganization && <OrganizationDetailModal organization={selectedOrganization} events={events.filter((event) => event.organizationId === selectedOrganization.id)} stories={stories.filter((story) => story.organizationId === selectedOrganization.id)} announcements={developmentOrganizationAnnouncements.filter((announcement) => announcement.organizationId === selectedOrganization.id)} officers={developmentOrganizationOfficers.filter((officer) => officer.organizationId === selectedOrganization.id)} membershipStatus={organizations.getMembershipStatus(selectedOrganization.id)} membershipAllowed={canJoinOrganization(user, selectedOrganization)} theme={theme} onClose={() => setSelectedOrganizationId(null)} onMembershipAction={handleMembership} onViewEvents={() => { setSelectedOrganizationId(null); setView("events"); }} />}
-      {submissionOpen && <OrganizationSubmissionModal universityId={user.universityId} theme={theme} onClose={() => setSubmissionOpen(false)} onSubmit={(submission) => { organizations.submitOrganization(submission); setSubmissionOpen(false); setFeedback("Organization suggestion saved locally as pending review."); }} />}
+      {selectedOrganization && <OrganizationDetailModal organization={selectedOrganization} events={events.filter((event) => event.organizationId === selectedOrganization.id)} stories={stories.filter((story) => story.organizationId === selectedOrganization.id)} announcements={developmentOrganizationAnnouncements.filter((announcement) => announcement.organizationId === selectedOrganization.id)} officers={developmentOrganizationOfficers.filter((officer) => officer.organizationId === selectedOrganization.id)} membershipStatus={organizations.getMembershipStatus(selectedOrganization.id)} membershipAllowed={canJoinOrganization(user, selectedOrganization)} theme={theme} onClose={() => setSelectedOrganizationId(null)} onMembershipAction={handleMembership} onViewEvents={() => { setSelectedOrganizationId(null); setView("events"); }} viewer={viewer} profiles={profiles} pendingRequests={organizations.getPendingRequests(selectedOrganization.id)} canModerateRequests={canModerateOrganizationMemberships({ id: viewer.account.id, universityId: viewer.account.universityId }, selectedOrganization, organizations.memberships, organizations.roles)} canAccessChat={canAccessOrganizationChat({ id: viewer.account.id, universityId: viewer.account.universityId }, selectedOrganization, organizations.memberships)} isChatParticipant={Boolean(selectedOrganization.organizationConversationId && organizations.isConversationParticipant(selectedOrganization.organizationConversationId))} memberCount={organizations.getMemberCount(selectedOrganization.id)} isFollowing={organizations.followedOrganizationIds.includes(selectedOrganization.id)} onToggleFollow={() => organizations.toggleFollowOrganization(selectedOrganization.id)} onAcceptRequest={(userId) => organizations.acceptMembership(selectedOrganization, userId)} onRejectRequest={(userId) => organizations.rejectMembership(selectedOrganization.id, userId)} onMessageOrganization={() => Boolean(organizations.messageOrganization(selectedOrganization).conversation)} />}
+      {submissionOpen && <OrganizationSubmissionModal universityId={user.universityId} theme={theme} onClose={() => setSubmissionOpen(false)} onSubmit={(submission) => { const result = organizations.submitOrganization(submission); if (result.ok) { setSubmissionOpen(false); setFeedback("Organization suggestion saved locally as pending review."); } return result; }} />}
     </div>
   );
 }

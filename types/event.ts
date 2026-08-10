@@ -16,6 +16,9 @@ export type Event = {
   category: EventCategory;
   date: string;
   time: string;
+  eventStartAt: string;
+  eventEndAt?: string;
+  timeZone: string;
   location: string;
   audience: string;
   rsvpCount: number;

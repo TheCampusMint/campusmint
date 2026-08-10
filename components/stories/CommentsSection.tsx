@@ -62,7 +62,7 @@ export function CommentsSection({
                     {formatStoryAge(comment.createdAt, currentTime)}
                   </span>
                 </div>
-                <p className="mt-1 leading-5 text-slate-600">{comment.text}</p>
+                <p className="mt-1 leading-5 text-slate-600">{comment.body}</p>
               </div>
             </div>
           ))}

@@ -3,6 +3,8 @@ import type { UserRole } from "@/data/userRoles";
 import type {
   CampusMintUser,
   ProfilePrivacySettings,
+  SocialAccountType,
+  SocialDiscoveryScope,
 } from "@/types/profile";
 
 export const CURRENT_DEVELOPMENT_USER_ID = "current-demo-student";
@@ -30,6 +32,7 @@ type DevelopmentUserInput = {
   firstName: string;
   lastName: string;
   displayName: string;
+  username: string;
   initials: string;
   bio: string;
   major: string | null;
@@ -40,6 +43,8 @@ type DevelopmentUserInput = {
   hometown?: string | null;
   linkedin?: string | null;
   privacy?: Partial<ProfilePrivacySettings>;
+  accountType?: SocialAccountType;
+  discoveryScope?: SocialDiscoveryScope;
 };
 
 function developmentUser(input: DevelopmentUserInput): CampusMintUser {
@@ -57,6 +62,8 @@ function developmentUser(input: DevelopmentUserInput): CampusMintUser {
     profile: {
       id: `profile-${input.id}`,
       accountId: input.id,
+      username: input.username,
+      usernameNormalized: input.username.toLocaleLowerCase(),
       firstName: input.firstName,
       lastName: input.lastName,
       displayName: input.displayName,
@@ -76,6 +83,10 @@ function developmentUser(input: DevelopmentUserInput): CampusMintUser {
       updatedAt: timestamp,
     },
     privacy: { ...publicPrivacy, ...input.privacy },
+    socialSettings: {
+      accountType: input.accountType ?? "public",
+      discoveryScope: input.discoveryScope ?? "campus_network",
+    },
   };
 }
 
@@ -87,6 +98,7 @@ export const developmentUsers: CampusMintUser[] = [
     firstName: "Campus",
     lastName: "Student",
     displayName: "Campus Student (Demo)",
+    username: "campus.student.demo",
     initials: "CS",
     bio: "Development profile used to test Campus Mint without authentication.",
     major: "Computer Science",
@@ -102,6 +114,7 @@ export const developmentUsers: CampusMintUser[] = [
     firstName: "Maya",
     lastName: "Rodriguez",
     displayName: "Maya Rodriguez (Demo)",
+    username: "maya.rodriguez.demo",
     initials: "MR",
     bio: "Fictional student profile for testing Stories and Marketplace connections.",
     major: "Marketing",
@@ -118,6 +131,7 @@ export const developmentUsers: CampusMintUser[] = [
     firstName: "Jordan",
     lastName: "Lee",
     displayName: "Jordan Lee (Demo)",
+    username: "jordan.lee.demo",
     initials: "JL",
     bio: "Fictional engineering student profile for local People search testing.",
     major: "Computer Engineering",
@@ -126,6 +140,7 @@ export const developmentUsers: CampusMintUser[] = [
     clubIds: ["dev-tamu-robotics"],
     interests: ["Robotics", "Tacos", "Product design"],
     privacy: { major: "friends_only", interests: "students_only" },
+    accountType: "private",
   }),
   developmentUser({
     id: "demo-seller-blinn",
@@ -133,6 +148,7 @@ export const developmentUsers: CampusMintUser[] = [
     firstName: "Avery",
     lastName: "Collins",
     displayName: "Avery Collins (Demo)",
+    username: "avery.collins.demo",
     initials: "AC",
     bio: "Fictional Blinn student profile for campus-network discovery testing.",
     major: "Engineering",
@@ -149,6 +165,7 @@ export const developmentUsers: CampusMintUser[] = [
     firstName: "Noah",
     lastName: "Williams",
     displayName: "Noah Williams (Demo)",
+    username: "noah.williams.demo",
     initials: "NW",
     bio: "Fictional alumni mentor profile used for relationship controls.",
     major: "Mechanical Engineering",
@@ -163,6 +180,7 @@ export const developmentUsers: CampusMintUser[] = [
     firstName: "MSC",
     lastName: "Town Hall",
     displayName: "MSC Town Hall (Demo)",
+    username: "msc.townhall.demo",
     initials: "TH",
     bio: "Development-only university-admin profile used to test institutional Story authors.",
     major: null,
@@ -175,6 +193,7 @@ export const developmentUsers: CampusMintUser[] = [
     firstName: "Taylor",
     lastName: "Brooks",
     displayName: "Taylor Brooks (Demo)",
+    username: "taylor.brooks.demo",
     initials: "TB",
     bio: "Fictional student profile for Stories author navigation.",
     major: "Biology",
@@ -188,6 +207,7 @@ export const developmentUsers: CampusMintUser[] = [
     firstName: "Demo",
     lastName: "Officer",
     displayName: "Demo Officer (Texas A&M)",
+    username: "tamu.officer.demo",
     initials: "DO",
     bio: "Development-only club officer profile.",
     major: "Computer Science",
@@ -201,6 +221,7 @@ export const developmentUsers: CampusMintUser[] = [
     firstName: "Demo",
     lastName: "Officer",
     displayName: "Demo Officer (Blinn)",
+    username: "blinn.officer.demo",
     initials: "DO",
     bio: "Development-only club officer profile.",
     major: "Computer Science",

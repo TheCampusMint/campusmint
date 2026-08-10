@@ -49,6 +49,8 @@ export type CampusMintAccount = {
 export type CampusMintProfile = {
   id: string;
   accountId: string;
+  username: string;
+  usernameNormalized: string;
   firstName: string;
   lastName: string;
   displayName: string;
@@ -68,10 +70,19 @@ export type CampusMintProfile = {
   updatedAt: string;
 };
 
+export type SocialAccountType = "public" | "private";
+export type SocialDiscoveryScope = "university" | "campus_network" | "community";
+
+export type ProfileSocialSettings = {
+  accountType: SocialAccountType;
+  discoveryScope: SocialDiscoveryScope;
+};
+
 export type CampusMintUser = {
   account: CampusMintAccount;
   profile: CampusMintProfile;
   privacy: ProfilePrivacySettings;
+  socialSettings: ProfileSocialSettings;
 };
 
 export type ProfileViewerContext = {

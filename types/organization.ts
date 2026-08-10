@@ -21,8 +21,21 @@ export const organizationCategories = [
 
 export type OrganizationCategory = (typeof organizationCategories)[number];
 export type OrganizationOfficialStatus = "university_verified" | "community_verified" | "pending";
+export type OrganizationRecordStatus = "active" | "pending" | "archived" | "inactive";
 export type OrganizationMembershipType = "open" | "application" | "invitation" | "restricted";
-export type OrganizationMembershipStatus = "none" | "requested" | "member" | "officer";
+export const organizationMembershipStatuses = [
+  "none",
+  "requested",
+  "member",
+  "officer",
+  "leader",
+  "rejected",
+  "blocked",
+] as const;
+export type OrganizationMembershipStatus = (typeof organizationMembershipStatuses)[number];
+
+export const organizationRoleKinds = ["member", "officer", "leader", "social_media_manager"] as const;
+export type OrganizationRoleKind = (typeof organizationRoleKinds)[number];
 
 export const organizationOfficerRoles = [
   "President",
@@ -47,6 +60,9 @@ export type Organization = {
   universityId: UniversityId;
   campusNetworkId: CampusNetworkId | null;
   name: string;
+  normalizedName: string;
+  handle: string;
+  recordStatus: OrganizationRecordStatus;
   shortDescription: string;
   fullDescription: string;
   category: OrganizationCategory;
@@ -61,6 +77,9 @@ export type Organization = {
   meetingSchedule: string;
   memberCount: number;
   crossCampus: boolean;
+  organizationConversationId: string | null;
+  leaderUserId: string | null;
+  membershipContactUserIds: string[];
   keywords: string[];
   sourceType: RecordSourceType;
   confidenceLevel: DataConfidenceLevel;
@@ -72,18 +91,45 @@ export type Organization = {
 export type OrganizationMembership = {
   id: string;
   organizationId: string;
+  userId: string;
   status: Exclude<OrganizationMembershipStatus, "none">;
+  requestedAt: string | null;
+  decidedAt: string | null;
+  decidedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type OrganizationRoleAssignment = {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: OrganizationRoleKind;
+  canPublish: boolean;
+  createdAt: string;
 };
 
 export type OrganizationOfficer = {
   id: string;
   organizationId: string;
+  userId: string | null;
   displayName: string;
   role: OrganizationOfficerRole;
   customRole: string | null;
   isDevelopmentPlaceholder: boolean;
+};
+
+export type OrganizationConversation = {
+  id: string;
+  organizationId: string;
+  kind: "organization_group" | "organization_contact";
+  createdAt: string;
+};
+
+export type ConversationParticipant = {
+  conversationId: string;
+  userId: string;
+  addedAt: string;
 };
 
 export type OrganizationAnnouncement = {
@@ -119,6 +165,8 @@ export type OrganizationSubmission = {
   id: string;
   universityId: UniversityId;
   name: string;
+  normalizedName: string;
+  handle: string;
   category: OrganizationCategory;
   description: string;
   contact: string;
@@ -127,4 +175,4 @@ export type OrganizationSubmission = {
   createdAt: string;
 };
 
-export type NewOrganizationSubmission = Omit<OrganizationSubmission, "id" | "status" | "confidenceLevel" | "createdAt">;
+export type NewOrganizationSubmission = Omit<OrganizationSubmission, "id" | "normalizedName" | "status" | "confidenceLevel" | "createdAt">;

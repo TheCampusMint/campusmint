@@ -42,6 +42,7 @@ type ProfileViewProps = {
   onToggleFollow: () => void;
   onBlock: () => void;
   onReport: (reason: UserReportReason, details: string | null) => void;
+  socialContent: React.ReactNode;
 };
 
 const friendLabels: Record<FriendshipStatus, string> = {
@@ -59,7 +60,7 @@ function ExternalProfileLink({ href, label }: { href: string; label: string }) {
   return <a href={href} target="_blank" rel="noreferrer" className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">{label}</a>;
 }
 
-export function ProfileView({ viewer, owner, theme, friendshipStatus, following, recentStories, marketplaceListings, onBack, onEdit, onEditPrivacy, onCycleFriendship, onToggleFollow, onBlock, onReport }: ProfileViewProps) {
+export function ProfileView({ viewer, owner, theme, friendshipStatus, following, recentStories, marketplaceListings, onBack, onEdit, onEditPrivacy, onCycleFriendship, onToggleFollow, onBlock, onReport, socialContent }: ProfileViewProps) {
   const [messageNotice, setMessageNotice] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState<UserReportReason>("spam");
@@ -87,7 +88,7 @@ export function ProfileView({ viewer, owner, theme, friendshipStatus, following,
           <div className="-mt-12 flex flex-col gap-5 sm:-mt-14 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
               <ProfileAvatar user={owner} size="lg" primaryColor={theme.primary} accentColor={theme.accent} />
-              <div className="pb-1"><div className="flex flex-wrap items-center gap-2"><h2 className="text-2xl font-black text-slate-950 sm:text-3xl">{owner.profile.displayName}</h2>{owner.account.isDevelopment && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">Demo</span>}{(owner.account.verifiedStudent || owner.account.verifiedAlumni) && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">Verified</span>}</div><p className="mt-1 text-sm font-semibold text-slate-600">{ownerUniversity.name} · {getUserRoleLabel(owner.account.role)}</p></div>
+              <div className="pb-1"><div className="flex flex-wrap items-center gap-2"><h2 className="text-2xl font-black text-slate-950 sm:text-3xl">{owner.profile.displayName}</h2>{owner.account.isDevelopment && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">Demo</span>}{(owner.account.verifiedStudent || owner.account.verifiedAlumni) && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">Verified</span>}<span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{owner.socialSettings.accountType}</span></div><p className="mt-1 text-sm font-semibold text-slate-600">@{owner.profile.username} · {ownerUniversity.name} · {getUserRoleLabel(owner.account.role)}</p></div>
             </div>
             <div className="flex flex-wrap gap-2 pb-1">
               {isOwnProfile ? <><button type="button" onClick={onEdit} className="rounded-xl px-4 py-2.5 text-sm font-bold text-white" style={{ backgroundColor: theme.primary }}>Edit profile</button><button type="button" onClick={onEditPrivacy} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">Privacy</button></> : <><button type="button" disabled={friendshipStatus === "blocked"} onClick={onCycleFriendship} className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50" style={{ backgroundColor: theme.primary }}>{friendLabels[friendshipStatus]}</button><button type="button" onClick={onToggleFollow} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">{following ? "Following" : "Follow"}</button><button type="button" onClick={() => setMessageNotice(true)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">Message</button></>}
@@ -105,6 +106,7 @@ export function ProfileView({ viewer, owner, theme, friendshipStatus, following,
           {classes.length > 0 && <Section title="Academics"><ul className="space-y-2">{classes.map((course) => <li key={course.id} className="text-sm text-slate-700"><strong>{course.subjectCode} {course.courseNumber}</strong><br />{course.title}</li>)}</ul></Section>}
           {clubs.length > 0 && <Section title="Clubs"><ul className="space-y-2">{clubs.map((club) => <li key={club.id} className="text-sm font-semibold text-slate-700">{club.name}</li>)}</ul></Section>}
           {socialLinks.length > 0 && <Section title="Social Links"><div className="flex flex-wrap gap-2">{socialLinks.map((link) => <ExternalProfileLink key={link.label} {...link} />)}</div></Section>}
+          {socialContent}
           <Section title="Recent Stories">{recentStories.length > 0 ? <div className="space-y-3">{recentStories.map((story) => <article key={story.id} className="rounded-2xl bg-slate-50 p-4"><div className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-400"><span>{story.category}</span><span>·</span><span>{universities[story.authorUniversity as keyof typeof universities]?.shortName ?? story.authorUniversity}</span></div><p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-700">{story.text}</p></article>)}</div> : <p className="text-sm text-slate-500">No active Stories are visible to you right now.</p>}</Section>
         </div>
         <aside className="space-y-5">

@@ -1,22 +1,38 @@
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
 import type { UniversityId } from "@/data/universities";
+import { normalizeOrganizationName, suggestOrganizationHandle } from "@/lib/organizationIdentity";
 import type {
   Organization,
   OrganizationAnnouncement,
+  OrganizationMembership,
   OrganizationOfficer,
   OrganizationRecruitment,
+  OrganizationRoleAssignment,
 } from "@/types/organization";
 
+type DevelopmentOrganizationInput = Omit<
+  Organization,
+  "campusNetworkId" | "normalizedName" | "handle" | "recordStatus" | "logo" | "photo" | "memberCount" | "organizationConversationId" |
+  "leaderUserId" | "membershipContactUserIds" | "sourceType" | "confidenceLevel" |
+  "isDevelopment" | "createdAt" | "updatedAt"
+> & Partial<Pick<Organization, "leaderUserId" | "membershipContactUserIds">>;
+
 function developmentOrganization(
-  input: Omit<Organization, "campusNetworkId" | "logo" | "photo" | "memberCount" | "sourceType" | "confidenceLevel" | "isDevelopment" | "createdAt" | "updatedAt">,
+  input: DevelopmentOrganizationInput,
 ): Organization {
   const campusNetwork = getCampusNetworkForUniversity(input.universityId);
   return {
     ...input,
     campusNetworkId: campusNetwork?.id ?? null,
+    normalizedName: normalizeOrganizationName(input.name),
+    handle: suggestOrganizationHandle(input.universityId, input.name),
+    recordStatus: "active",
     logo: { url: null, alt: `Development logo placeholder for ${input.name}`, isDevelopmentPlaceholder: true },
     photo: { url: null, alt: `Development photo placeholder for ${input.name}`, isDevelopmentPlaceholder: true },
     memberCount: 0,
+    organizationConversationId: `organization-conversation-${input.id}`,
+    leaderUserId: input.leaderUserId ?? null,
+    membershipContactUserIds: input.membershipContactUserIds ?? [],
     sourceType: "development_seed",
     confidenceLevel: "pending",
     isDevelopment: true,
@@ -34,6 +50,7 @@ export const developmentOrganizations: Organization[] = [
     website: null, instagram: null, contactEmail: "robotics-demo@campusmint.example",
     meetingLocation: "Engineering building area (development placeholder)", meetingSchedule: "Weekly schedule to be confirmed",
     crossCampus: false, keywords: ["robotics", "engineering", "coding", "build"],
+    leaderUserId: "demo-tamu-officer", membershipContactUserIds: ["demo-tamu-officer"],
   }),
   developmentOrganization({
     id: "dev-tamu-product-builders", universityId: "tamu", name: "Product Builders — Development Example",
@@ -61,6 +78,7 @@ export const developmentOrganizations: Organization[] = [
     website: null, instagram: null, contactEmail: "coding-demo@campusmint.example",
     meetingLocation: "Learning center area (development placeholder)", meetingSchedule: "Weekly schedule to be confirmed",
     crossCampus: false, keywords: ["coding", "software", "computer science", "beginner"],
+    leaderUserId: "current-demo-student", membershipContactUserIds: ["current-demo-student", "demo-blinn-officer"],
   }),
   developmentOrganization({
     id: "dev-blinn-service-crew", universityId: "blinn", name: "Community Service Crew — Development Example",
@@ -70,6 +88,7 @@ export const developmentOrganizations: Organization[] = [
     website: null, instagram: null, contactEmail: "service-demo@campusmint.example",
     meetingLocation: "Student center area (development placeholder)", meetingSchedule: "Monthly planning meeting; date not configured",
     crossCampus: true, keywords: ["service", "volunteer", "community", "cross-campus"],
+    leaderUserId: "demo-blinn-officer", membershipContactUserIds: ["demo-blinn-officer"],
   }),
   developmentOrganization({
     id: "dev-blinn-creative-arts", universityId: "blinn", name: "Creative Arts Society — Development Example",
@@ -110,10 +129,24 @@ export const developmentOrganizations: Organization[] = [
 ];
 
 export const developmentOrganizationOfficers: OrganizationOfficer[] = [
-  { id: "dev-officer-tamu-robotics-president", organizationId: "dev-tamu-robotics", displayName: "Demo Officer", role: "President", customRole: null, isDevelopmentPlaceholder: true },
-  { id: "dev-officer-tamu-robotics-treasurer", organizationId: "dev-tamu-robotics", displayName: "Demo Officer", role: "Treasurer", customRole: null, isDevelopmentPlaceholder: true },
-  { id: "dev-officer-blinn-coding-president", organizationId: "dev-blinn-coding-circle", displayName: "Demo Officer", role: "President", customRole: null, isDevelopmentPlaceholder: true },
-  { id: "dev-officer-blinn-service-recruitment", organizationId: "dev-blinn-service-crew", displayName: "Demo Officer", role: "Recruitment", customRole: null, isDevelopmentPlaceholder: true },
+  { id: "dev-officer-tamu-robotics-president", organizationId: "dev-tamu-robotics", userId: "demo-tamu-officer", displayName: "Demo Officer", role: "President", customRole: null, isDevelopmentPlaceholder: true },
+  { id: "dev-officer-tamu-robotics-treasurer", organizationId: "dev-tamu-robotics", userId: null, displayName: "Demo Officer", role: "Treasurer", customRole: null, isDevelopmentPlaceholder: true },
+  { id: "dev-officer-blinn-coding-president", organizationId: "dev-blinn-coding-circle", userId: "current-demo-student", displayName: "Campus Student (Demo)", role: "President", customRole: null, isDevelopmentPlaceholder: true },
+  { id: "dev-officer-blinn-service-recruitment", organizationId: "dev-blinn-service-crew", userId: "demo-blinn-officer", displayName: "Demo Officer", role: "Recruitment", customRole: null, isDevelopmentPlaceholder: true },
+];
+
+const developmentTimestamp = "2026-08-10T12:00:00.000Z";
+
+export const developmentOrganizationMemberships: OrganizationMembership[] = [
+  { id: "dev-membership-current-coding", organizationId: "dev-blinn-coding-circle", userId: "current-demo-student", status: "leader", requestedAt: developmentTimestamp, decidedAt: developmentTimestamp, decidedByUserId: "current-demo-student", createdAt: developmentTimestamp, updatedAt: developmentTimestamp },
+  { id: "dev-membership-tamu-officer", organizationId: "dev-tamu-robotics", userId: "demo-tamu-officer", status: "leader", requestedAt: developmentTimestamp, decidedAt: developmentTimestamp, decidedByUserId: "demo-tamu-officer", createdAt: developmentTimestamp, updatedAt: developmentTimestamp },
+  { id: "dev-membership-blinn-officer", organizationId: "dev-blinn-service-crew", userId: "demo-blinn-officer", status: "officer", requestedAt: developmentTimestamp, decidedAt: developmentTimestamp, decidedByUserId: "demo-blinn-officer", createdAt: developmentTimestamp, updatedAt: developmentTimestamp },
+];
+
+export const developmentOrganizationRoles: OrganizationRoleAssignment[] = [
+  { id: "dev-role-current-coding-leader", organizationId: "dev-blinn-coding-circle", userId: "current-demo-student", role: "leader", canPublish: true, createdAt: developmentTimestamp },
+  { id: "dev-role-tamu-robotics-leader", organizationId: "dev-tamu-robotics", userId: "demo-tamu-officer", role: "leader", canPublish: true, createdAt: developmentTimestamp },
+  { id: "dev-role-blinn-service-officer", organizationId: "dev-blinn-service-crew", userId: "demo-blinn-officer", role: "officer", canPublish: true, createdAt: developmentTimestamp },
 ];
 
 export const developmentOrganizationAnnouncements: OrganizationAnnouncement[] = [
@@ -132,6 +165,15 @@ export const developmentOrganizationRecruitment: OrganizationRecruitment[] = [
 export function getOrganizationById(organizationId: string | null | undefined) {
   if (!organizationId) return null;
   return developmentOrganizations.find((organization) => organization.id === organizationId) ?? null;
+}
+
+export function getOrganizationByHandle(handle: string | null | undefined) {
+  if (!handle) return null;
+  return developmentOrganizations.find((organization) => organization.handle === handle) ?? null;
+}
+
+export function getClubHref(organization: Pick<Organization, "handle">) {
+  return `/clubs/${organization.handle}`;
 }
 
 export function getOrganizationsForUniversity(universityId: UniversityId) {

@@ -11,7 +11,7 @@ import type { CampusMintProfile, CampusMintUser } from "@/types/profile";
 type EditProfileModalProps = {
   user: CampusMintUser;
   primaryColor: string;
-  onSave: (profile: Partial<CampusMintProfile>) => void;
+  onSave: (profile: Partial<CampusMintProfile>) => { ok: boolean; error: string | null };
   onClose: () => void;
 };
 
@@ -19,6 +19,7 @@ const inputClass = "mt-1 w-full rounded-xl border border-slate-200 bg-white px-3
 
 export function EditProfileModal({ user, primaryColor, onSave, onClose }: EditProfileModalProps) {
   const [draft, setDraft] = useState(user.profile);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const catalog = getAcademicCatalog(user.account.universityId);
   const organizations = getOrganizationsForUniversity(user.account.universityId);
 
@@ -49,6 +50,7 @@ export function EditProfileModal({ user, primaryColor, onSave, onClose }: EditPr
           <label className="text-sm font-semibold text-slate-700">First name<input className={inputClass} value={draft.firstName} onChange={(event) => setDraft({ ...draft, firstName: event.target.value })} /></label>
           <label className="text-sm font-semibold text-slate-700">Last name<input className={inputClass} value={draft.lastName} onChange={(event) => setDraft({ ...draft, lastName: event.target.value })} /></label>
           <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Display name<input className={inputClass} value={draft.displayName} onChange={(event) => setDraft({ ...draft, displayName: event.target.value })} /></label>
+          <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Campus Mint username<input className={inputClass} value={draft.username} onChange={(event) => setDraft({ ...draft, username: event.target.value })} /><span className="mt-1 block text-xs font-normal text-slate-500">Globally unique; letters, numbers, underscores, and periods.</span></label>
           <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Bio<textarea rows={3} className={inputClass} value={draft.bio ?? ""} onChange={(event) => setDraft({ ...draft, bio: event.target.value || null })} /></label>
           <label className="text-sm font-semibold text-slate-700">Major<input className={inputClass} value={draft.major ?? ""} onChange={(event) => setDraft({ ...draft, major: event.target.value || null })} /></label>
           <label className="text-sm font-semibold text-slate-700">Graduation year<input type="number" min="1990" max="2100" className={inputClass} value={draft.graduationYear ?? ""} onChange={(event) => setDraft({ ...draft, graduationYear: event.target.value ? Number(event.target.value) : null })} /></label>
@@ -65,7 +67,8 @@ export function EditProfileModal({ user, primaryColor, onSave, onClose }: EditPr
         {organizations.length > 0 && <fieldset className="mt-6"><legend className="text-sm font-bold text-slate-900">Clubs</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{organizations.map((organization) => <label key={organization.id} className="flex gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-700"><input type="checkbox" checked={draft.clubIds.includes(organization.id)} onChange={() => toggleId("clubIds", organization.id)} /><span>{organization.name}</span></label>)}</div></fieldset>}
 
         <p className="mt-6 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">Photo uploads are not enabled yet. The profile model already separates a future storage path from development placeholders.</p>
-        <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</button><button type="button" onClick={() => { onSave(draft); onClose(); }} className="rounded-xl px-4 py-2.5 text-sm font-bold text-white" style={{ backgroundColor: primaryColor }}>Save profile</button></div>
+        {saveError && <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{saveError}</p>}
+        <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</button><button type="button" onClick={() => { const result = onSave(draft); if (result.ok) onClose(); else setSaveError(result.error); }} className="rounded-xl px-4 py-2.5 text-sm font-bold text-white" style={{ backgroundColor: primaryColor }}>Save profile</button></div>
       </section>
     </div>
   );

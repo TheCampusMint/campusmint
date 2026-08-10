@@ -4,6 +4,9 @@ import {
   type Story,
   type StoryAudience,
 } from "@/types/story";
+import { isActiveContent } from "@/lib/content/expiration";
+import { canViewOrganizationContent, type OrganizationActor } from "@/lib/organizationPermissions";
+import type { OrganizationMembership } from "@/types/organization";
 
 const visibleAudiencesByRole: Record<UserRole, StoryAudience[]> = {
   student: ["students-only", "students-alumni", "everyone"],
@@ -34,7 +37,7 @@ export function getAudienceLabel(audience: StoryAudience) {
 }
 
 export function isStoryActive(story: Story, currentTime: number) {
-  return new Date(story.expiresAt).getTime() > currentTime;
+  return isActiveContent(story.status ?? "active", story.expiresAt, currentTime);
 }
 
 export function getVisibleStories(
@@ -42,13 +45,18 @@ export function getVisibleStories(
   accessibleCampuses: string[],
   role: UserRole,
   currentTime: number,
+  viewer?: OrganizationActor,
+  memberships: OrganizationMembership[] = [],
 ) {
   return stories
     .filter(
       (story) =>
         accessibleCampuses.includes(story.campus) &&
         canRoleViewAudience(role, story.audience) &&
-        isStoryActive(story, currentTime),
+        isStoryActive(story, currentTime) &&
+        (!story.organizationId || (viewer
+          ? canViewOrganizationContent(viewer, story.organizationId, story.organizationAudience, memberships)
+          : story.organizationAudience !== "members")),
     )
     .sort(
       (firstStory, secondStory) =>

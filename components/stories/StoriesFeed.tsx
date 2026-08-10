@@ -13,6 +13,10 @@ import type {
   StoryFilter,
 } from "@/types/story";
 import type { TemporaryUser } from "@/types/user";
+import type { OrganizationsState } from "@/hooks/useOrganizations";
+import { getOrganizationById } from "@/data/organizations";
+import type { Organization } from "@/types/organization";
+import { canJoinOrganization } from "@/lib/organizationPermissions";
 
 type StoriesFeedProps = {
   stories: Story[];
@@ -24,6 +28,8 @@ type StoriesFeedProps = {
   onAddComment: (storyId: Story["id"], comment: StoryComment) => void;
   onCreateStory: (story: Story) => void;
   onOpenProfile?: (userId: string) => void;
+  organizations: OrganizationsState;
+  onMembershipAction: (organization: Organization) => void;
 };
 
 const categoryFilters: Partial<Record<StoryFilter, Story["category"][]>> = {
@@ -44,6 +50,8 @@ export function StoriesFeed({
   onAddComment,
   onCreateStory,
   onOpenProfile,
+  organizations,
+  onMembershipAction,
 }: StoriesFeedProps) {
   const [activeFilter, setActiveFilter] = useState<StoryFilter>("For You");
   const [createStoryOpen, setCreateStoryOpen] = useState(false);
@@ -53,6 +61,8 @@ export function StoriesFeed({
     accessibleCampuses,
     currentUser.role,
     currentTime,
+    { id: currentUser.id, universityId: currentUser.universityId },
+    organizations.memberships,
   );
   const visibleStories = eligibleStories.filter((story) => {
     if (activeFilter === "For You") {
@@ -69,9 +79,14 @@ export function StoriesFeed({
   function addLocalComment(storyId: Story["id"], text: string) {
     onAddComment(storyId, {
       id: `local-comment-${globalThis.crypto.randomUUID()}`,
+      authorId: currentUser.id,
       authorName: currentUser.firstName,
-      text,
+      body: text,
+      mentions: [],
+      parentCommentId: null,
+      status: "active",
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
   }
 
@@ -131,8 +146,10 @@ export function StoriesFeed({
         </div>
 
         {visibleStories.length > 0 ? (
-          visibleStories.map((story) => (
-            <StoryCard
+          visibleStories.map((story) => {
+            const organization = getOrganizationById(story.organizationId);
+            const status = organization ? organizations.getMembershipStatus(organization.id) : undefined;
+            return <StoryCard
               key={story.id}
               story={story}
               currentTime={currentTime}
@@ -140,8 +157,10 @@ export function StoriesFeed({
               onToggleLike={onToggleLike}
               onAddComment={addLocalComment}
               onOpenProfile={onOpenProfile}
+              organizationMembershipStatus={status}
+              onOrganizationMembershipAction={organization && canJoinOrganization(currentUser, organization) && (status === "none" || status === "rejected") ? () => onMembershipAction(organization) : undefined}
             />
-          ))
+          })
         ) : (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
             <h3 className="text-lg font-semibold text-slate-900">

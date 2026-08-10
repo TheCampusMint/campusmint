@@ -5,9 +5,12 @@ import { useState } from "react";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { PeopleSearch } from "@/components/profile/PeopleSearch";
 import { ProfilePrivacyModal } from "@/components/profile/ProfilePrivacyModal";
+import { ProfileMintz } from "@/components/profile/ProfileMintz";
 import { ProfileView } from "@/components/profile/ProfileView";
 import type { UniversityTheme } from "@/data/universities";
 import type { ProfilesState } from "@/hooks/useProfiles";
+import type { MintzState } from "@/hooks/useMintz";
+import type { OrganizationsState } from "@/hooks/useOrganizations";
 import type { MarketplaceListing } from "@/types/marketplace";
 import type { CampusMintUser } from "@/types/profile";
 import type { Story } from "@/types/story";
@@ -20,11 +23,13 @@ type ProfilesHubProps = {
   visibleStories: Story[];
   marketplaceListings: MarketplaceListing[];
   profiles: ProfilesState;
+  mintz: MintzState;
+  organizations: OrganizationsState;
   onOpenProfile: (userId: string) => void;
   onBackToPeople: () => void;
 };
 
-export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStories, marketplaceListings, profiles, onOpenProfile, onBackToPeople }: ProfilesHubProps) {
+export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStories, marketplaceListings, profiles, mintz, organizations, onOpenProfile, onBackToPeople }: ProfilesHubProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -57,8 +62,9 @@ export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStorie
       onToggleFollow={() => profiles.toggleFollow(owner.account.id)}
       onBlock={() => { profiles.blockUser(owner.account.id); onBackToPeople(); }}
       onReport={(reason, details) => { profiles.reportUser(owner.account.id, reason, details); setNotice("Report saved locally for development testing."); }}
+      socialContent={<ProfileMintz viewer={viewer} owner={owner} theme={theme} profiles={profiles} mintz={mintz} organizations={organizations} onOpenProfile={onOpenProfile} />}
     />
     {editOpen && <EditProfileModal user={viewer} primaryColor={theme.primary} onSave={profiles.updateCurrentProfile} onClose={() => setEditOpen(false)} />}
-    {privacyOpen && <ProfilePrivacyModal settings={viewer.privacy} primaryColor={theme.primary} onSave={profiles.updateCurrentPrivacy} onClose={() => setPrivacyOpen(false)} />}
+    {privacyOpen && <ProfilePrivacyModal settings={viewer.privacy} socialSettings={viewer.socialSettings} primaryColor={theme.primary} onSave={profiles.updateCurrentPrivacy} onSaveSocial={profiles.updateCurrentSocialSettings} onClose={() => setPrivacyOpen(false)} />}
   </>;
 }

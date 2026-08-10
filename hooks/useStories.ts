@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { createSampleStories } from "@/data/stories";
+import { resolveContentStatus } from "@/lib/content/expiration";
 import type { Story, StoryComment } from "@/types/story";
 
 export function useStories() {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
-  const [stories, setStories] = useState<Story[]>(() =>
+  const [storedStories, setStoredStories] = useState<Story[]>(() =>
     createSampleStories(currentTime),
   );
+  const stories = useMemo(() => storedStories.map((story) => ({
+    ...story,
+    status: resolveContentStatus(story.status ?? "active", story.expiresAt, currentTime),
+  })), [currentTime, storedStories]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 60_000);
@@ -18,7 +23,7 @@ export function useStories() {
   }, []);
 
   function toggleLike(storyId: Story["id"]) {
-    setStories((currentStories) =>
+    setStoredStories((currentStories) =>
       currentStories.map((story) => {
         if (story.id !== storyId) {
           return story;
@@ -39,9 +44,9 @@ export function useStories() {
   }
 
   function addComment(storyId: Story["id"], comment: StoryComment) {
-    setStories((currentStories) =>
+    setStoredStories((currentStories) =>
       currentStories.map((story) =>
-        story.id === storyId
+        story.id === storyId && story.commentsEnabled !== false
           ? {
               ...story,
               commentCount: story.commentCount + 1,
@@ -53,7 +58,7 @@ export function useStories() {
   }
 
   function addStory(story: Story) {
-    setStories((currentStories) => [story, ...currentStories]);
+    setStoredStories((currentStories) => [story, ...currentStories]);
     setCurrentTime(Date.now());
   }
 

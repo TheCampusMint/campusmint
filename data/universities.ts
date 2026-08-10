@@ -9,6 +9,7 @@ export type UniversityTheme = {
   primary: string;
   secondary: string;
   accent: string;
+  timeZone: string;
   accessibleCampuses: string[];
   campusNetworkId: CampusNetworkId;
   marketplace: {
@@ -26,6 +27,7 @@ export const universities = {
     primary: "#500000",
     secondary: "#ffffff",
     accent: "#D6D3C4",
+    timeZone: "America/Chicago",
     accessibleCampuses: ["tamu"],
     campusNetworkId: "bryan-college-station",
     marketplace: {
@@ -41,6 +43,7 @@ export const universities = {
     primary: "#003366",
     secondary: "#ffffff",
     accent: "#EAF2F8",
+    timeZone: "America/Chicago",
     accessibleCampuses: ["blinn", "tamu"],
     campusNetworkId: "bryan-college-station",
     marketplace: {
@@ -56,6 +59,7 @@ export const universities = {
     primary: "#BF5700",
     secondary: "#ffffff",
     accent: "#F2EDE7",
+    timeZone: "America/Chicago",
     accessibleCampuses: ["texas"],
     campusNetworkId: "austin",
     marketplace: {
@@ -69,6 +73,7 @@ export const universities = {
     primary: "#35145F",
     secondary: "#F4D35E",
     accent: "#EEE9F4",
+    timeZone: "America/Chicago",
     accessibleCampuses: ["lsu"],
     campusNetworkId: "baton-rouge",
     marketplace: {
@@ -82,6 +87,7 @@ export const universities = {
     primary: "#7A1426",
     secondary: "#F8F8F8",
     accent: "#EFE7E9",
+    timeZone: "America/Chicago",
     accessibleCampuses: ["alabama"],
     campusNetworkId: "tuscaloosa",
     marketplace: {
