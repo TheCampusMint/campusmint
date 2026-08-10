@@ -55,7 +55,7 @@ type NavItem = (typeof navItems)[number] | "Profile";
 const initialUser: TemporaryUser = {
   id: CURRENT_DEVELOPMENT_USER_ID,
   firstName: "Student",
-  universityId: "blinn",
+  universityId: "tamu",
   role: "student",
   major: "Computer Science",
   graduationYear: 2029,
