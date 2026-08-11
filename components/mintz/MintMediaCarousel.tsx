@@ -20,6 +20,7 @@ type MintMediaCarouselProps = {
   fallbackDetail?: string | null;
   children?: ReactNode;
   autoplayVideo?: boolean;
+  onDoubleTap?: () => void;
 };
 
 type ZoomView = {
@@ -61,9 +62,11 @@ function touchDistance(
 function ZoomableMedia({
   active,
   children,
+  onDoubleTap,
 }: {
   active: boolean;
   children: ReactNode;
+  onDoubleTap?: () => void;
 }) {
   const containerRef =
     useRef<HTMLDivElement>(null);
@@ -85,6 +88,15 @@ function ZoomableMedia({
     startX: number;
     startY: number;
   } | null>(null);
+
+  const tapRef = useRef<{
+    x: number;
+    y: number;
+    time: number;
+    moved: boolean;
+  } | null>(null);
+
+  const lastTapTimeRef = useRef(0);
 
   function updateView(next: ZoomView) {
     viewRef.current = next;
@@ -121,6 +133,18 @@ function ZoomableMedia({
 
     if (
       event.touches.length === 1 &&
+      viewRef.current.scale <= 1.02
+    ) {
+      tapRef.current = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY,
+        time: Date.now(),
+        moved: false,
+      };
+    }
+
+    if (
+      event.touches.length === 1 &&
       viewRef.current.scale > 1
     ) {
       event.stopPropagation();
@@ -137,6 +161,22 @@ function ZoomableMedia({
   function handleTouchMove(
     event: TouchEvent<HTMLDivElement>,
   ) {
+    if (
+      event.touches.length === 1 &&
+      tapRef.current
+    ) {
+      const dx =
+        event.touches[0].clientX -
+        tapRef.current.x;
+
+      const dy =
+        event.touches[0].clientY -
+        tapRef.current.y;
+
+      if (Math.hypot(dx, dy) > 10) {
+        tapRef.current.moved = true;
+      }
+    }
     if (
       event.touches.length >= 2 &&
       pinchRef.current
@@ -249,6 +289,27 @@ function ZoomableMedia({
       panRef.current = null;
     }
 
+    if (
+      event.touches.length === 0 &&
+      viewRef.current.scale <= 1.02 &&
+      tapRef.current &&
+      !tapRef.current.moved &&
+      Date.now() - tapRef.current.time < 360
+    ) {
+      const now = Date.now();
+
+      if (now - lastTapTimeRef.current <= 320) {
+        lastTapTimeRef.current = 0;
+        onDoubleTap?.();
+      } else {
+        lastTapTimeRef.current = now;
+      }
+    }
+
+    if (event.touches.length === 0) {
+      tapRef.current = null;
+    }
+
     if (viewRef.current.scale <= 1.02) {
       reset();
     }
@@ -295,6 +356,7 @@ export function MintMediaCarousel({
   fallbackDetail,
   children,
   autoplayVideo = true,
+  onDoubleTap,
 }: MintMediaCarouselProps) {
   const [activeIndex, setActiveIndex] =
     useState(0);
@@ -409,6 +471,7 @@ export function MintMediaCarousel({
                 active={
                   index === activeIndex
                 }
+                onDoubleTap={onDoubleTap}
               >
                 {item.type === "image" ? (
                   <Image
@@ -433,7 +496,11 @@ export function MintMediaCarousel({
                 )}
               </ZoomableMedia>
             ) : (
-              <div
+              <ZoomableMedia
+                active={index === activeIndex}
+                onDoubleTap={onDoubleTap}
+              >
+                <div
                 className="flex h-full flex-col justify-end p-7 text-white"
                 style={{
                   background:
@@ -453,7 +520,8 @@ export function MintMediaCarousel({
                     {fallbackDetail}
                   </span>
                 )}
-              </div>
+                </div>
+              </ZoomableMedia>
             )}
           </div>
         ))}

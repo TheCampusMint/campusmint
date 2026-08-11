@@ -81,7 +81,15 @@ export function ProfileView({ viewer, owner, theme, friendshipStatus, following,
 
   return (
     <div className="space-y-5">
-      <button type="button" onClick={onBack} className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-600 shadow-sm">← Back to People</button>
+      <button
+        type="button"
+        onClick={onBack}
+        aria-label="Go back"
+        title="Back"
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[24px] font-semibold leading-none text-slate-800 shadow-sm"
+      >
+        ←
+      </button>
       <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
         <div className="h-28 sm:h-36" style={{ background: `linear-gradient(120deg, ${theme.primary}, ${theme.accent})` }} />
         <div className="px-5 pb-6 sm:px-8 sm:pb-8">

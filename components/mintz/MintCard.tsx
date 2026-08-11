@@ -161,7 +161,7 @@ export function MintCard(props: MintCardProps) {
           )}
         </header>
 
-        <MintMediaCarousel media={mint.media} theme={theme} fallbackLabel={fallbackLabel} fallbackDetail={fallbackDetail} autoplayVideo={props.autoplayVideo}>
+        <MintMediaCarousel media={mint.media} theme={theme} fallbackLabel={fallbackLabel} fallbackDetail={fallbackDetail} autoplayVideo={props.autoplayVideo} onDoubleTap={toggleLike}>
           <div className="absolute bottom-4 right-3 flex flex-col items-center gap-2 sm:bottom-5 sm:right-4" aria-label="Mint actions">
             <button type="button" onClick={toggleLike} aria-pressed={props.liked} aria-label={props.liked ? "Unlike Mint" : "Like Mint"} className={`interactive-pop flex min-h-12 min-w-12 flex-col items-center justify-center p-2 text-xs font-black focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white ${props.liked ? "text-rose-500" : "text-white"}`}>
               <span key={likePulse} className={likePulse > 0 ? "like-pop" : ""} style={{ filter: "drop-shadow(0 2px 3px rgba(0,0,0,.88))" }}><HeartGlyph filled={props.liked} /></span>

@@ -27,7 +27,7 @@ export function TopUtilityBar({
       aria-hidden={hidden}
       className={
         `sticky top-0 z-40 overflow-hidden border-b bg-white/78 backdrop-blur-xl ` +
-        `transition-[max-height,transform,opacity,border-color] duration-300 ease-out ` +
+        `transition-[max-height,transform,opacity,border-color] duration-[460ms] ease-[cubic-bezier(.22,1,.36,1)] ` +
         (
           hidden
             ? "pointer-events-none max-h-0 -translate-y-full border-transparent opacity-0"

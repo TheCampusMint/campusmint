@@ -26,10 +26,10 @@ type ProfilesHubProps = {
   mintz: MintzState;
   organizations: OrganizationsState;
   onOpenProfile: (userId: string) => void;
-  onBackToPeople: () => void;
+  onBack: () => void;
 };
 
-export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStories, marketplaceListings, profiles, mintz, organizations, onOpenProfile, onBackToPeople }: ProfilesHubProps) {
+export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStories, marketplaceListings, profiles, mintz, organizations, onOpenProfile, onBack }: ProfilesHubProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStorie
   }
 
   if (!owner || profiles.isBlocked(owner.account.id)) {
-    return <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center"><h2 className="text-xl font-black text-slate-900">Profile unavailable</h2><p className="mt-2 text-sm text-slate-500">This development profile is missing or blocked.</p><button type="button" onClick={onBackToPeople} className="mt-5 rounded-xl px-4 py-2 text-sm font-bold text-white" style={{ backgroundColor: theme.primary }}>Back to People</button></div>;
+    return <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center"><h2 className="text-xl font-black text-slate-900">Profile unavailable</h2><p className="mt-2 text-sm text-slate-500">This development profile is missing or blocked.</p><button type="button" onClick={onBack} className="mt-5 rounded-xl px-4 py-2 text-sm font-bold text-white" style={{ backgroundColor: theme.primary }}>←</button></div>;
   }
 
   const friendshipStatus = profiles.getFriendshipStatus(owner.account.id);
@@ -55,12 +55,12 @@ export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStorie
       following={profiles.isFollowing(owner.account.id)}
       recentStories={visibleStories.filter((story) => story.authorUserId === owner.account.id)}
       marketplaceListings={marketplaceListings}
-      onBack={onBackToPeople}
+      onBack={onBack}
       onEdit={() => setEditOpen(true)}
       onEditPrivacy={() => setPrivacyOpen(true)}
       onCycleFriendship={() => profiles.cycleFriendship(owner.account.id)}
       onToggleFollow={() => profiles.toggleFollow(owner.account.id)}
-      onBlock={() => { profiles.blockUser(owner.account.id); onBackToPeople(); }}
+      onBlock={() => { profiles.blockUser(owner.account.id); onBack(); }}
       onReport={(reason, details) => { profiles.reportUser(owner.account.id, reason, details); setNotice("Report saved locally for development testing."); }}
       socialContent={<ProfileMintz viewer={viewer} owner={owner} theme={theme} profiles={profiles} mintz={mintz} organizations={organizations} onOpenProfile={onOpenProfile} />}
     />

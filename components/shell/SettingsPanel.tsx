@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type TouchEvent,
+} from "react";
 
 import { curatedTints } from "@/data/appearance";
 import { getUserRoleLabel } from "@/data/userRoles";
@@ -56,6 +62,12 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
   const [notice, setNotice] = useState<string | null>(null);
   const closeTimer = useRef<number | null>(null);
   const closingRef = useRef(false);
+  const categoryTouchRef = useRef<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [categoryDirection, setCategoryDirection] =
+    useState<-1 | 1>(1);
   const onCloseRef = useRef(onClose);
   const { preferences, updateAppearance, updateNotifications, updateContent } = preferenceState;
   const selectedTint = curatedTints.find((tint) => tint.id === preferences.appearance.tint) ?? curatedTints[0];
@@ -91,6 +103,71 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
       if (closeTimer.current) window.clearTimeout(closeTimer.current);
     };
   }, [requestClose]);
+
+  function selectCategory(next: SettingsCategory) {
+    const currentIndex = categories.findIndex(
+      (category) => category.id === activeCategory,
+    );
+
+    const nextIndex = categories.findIndex(
+      (category) => category.id === next,
+    );
+
+    if (nextIndex === currentIndex || nextIndex < 0) return;
+
+    setCategoryDirection(nextIndex > currentIndex ? 1 : -1);
+    setActiveCategory(next);
+  }
+
+  function beginCategorySwipe(
+    event: TouchEvent<HTMLDivElement>,
+  ) {
+    if (event.touches.length !== 1) {
+      categoryTouchRef.current = null;
+      return;
+    }
+
+    categoryTouchRef.current = {
+      x: event.touches[0].clientX,
+      y: event.touches[0].clientY,
+    };
+  }
+
+  function finishCategorySwipe(
+    event: TouchEvent<HTMLDivElement>,
+  ) {
+    const start = categoryTouchRef.current;
+    categoryTouchRef.current = null;
+
+    if (!start || event.changedTouches.length !== 1) return;
+
+    const dx = event.changedTouches[0].clientX - start.x;
+    const dy = event.changedTouches[0].clientY - start.y;
+
+    if (
+      Math.abs(dx) < 58 ||
+      Math.abs(dx) < Math.abs(dy) * 1.35
+    ) {
+      return;
+    }
+
+    const currentIndex = categories.findIndex(
+      (category) => category.id === activeCategory,
+    );
+
+    const nextIndex = Math.max(
+      0,
+      Math.min(
+        categories.length - 1,
+        currentIndex + (dx < 0 ? 1 : -1),
+      ),
+    );
+
+    if (nextIndex !== currentIndex) {
+      setCategoryDirection(dx < 0 ? 1 : -1);
+      setActiveCategory(categories[nextIndex].id);
+    }
+  }
 
   const section = (() => {
     if (activeCategory === "appearance") return (
@@ -173,9 +250,23 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
           <button type="button" onClick={requestClose} aria-label="Close settings" className="interactive-pop flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-600">×</button>
         </div>
         <div className="flex gap-2 overflow-x-auto border-b border-slate-100 px-4 py-3 sm:px-6" aria-label="Settings categories">
-          {categories.map((category) => <button key={category.id} type="button" onClick={() => setActiveCategory(category.id)} data-static-control aria-pressed={activeCategory === category.id} className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border px-3 py-2 text-center text-xs font-black transition" style={activeCategory === category.id ? { backgroundColor: "var(--app-accent)", borderColor: "var(--app-accent)", color: "var(--app-accent-contrast)" } : { borderColor: "var(--app-border)", color: "var(--app-text-secondary)" }}>{category.label}</button>)}
+          {categories.map((category) => <button key={category.id} type="button" onClick={() => selectCategory(category.id)} data-static-control aria-pressed={activeCategory === category.id} className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border px-3 py-2 text-center text-xs font-black transition" style={activeCategory === category.id ? { backgroundColor: "var(--app-accent)", borderColor: "var(--app-accent)", color: "var(--app-accent-contrast)" } : { borderColor: "var(--app-border)", color: "var(--app-text-secondary)" }}>{category.label}</button>)}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-6"><div key={activeCategory} className="cm-content-swap">{section}</div>{notice && <div role="status" className="mt-5 flex items-start justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"><span>{notice}</span><button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}>×</button></div>}</div>
+        <div
+          className="min-h-0 flex-1 touch-pan-y overflow-y-auto px-5 py-6 sm:px-6"
+          onTouchStart={beginCategorySwipe}
+          onTouchEnd={finishCategorySwipe}
+          onTouchCancel={() => {
+            categoryTouchRef.current = null;
+          }}
+        >
+          <div
+            key={activeCategory}
+            className="cm-content-swap"
+            data-direction={categoryDirection}
+          >
+            {section}
+          </div>{notice && <div role="status" className="mt-5 flex items-start justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"><span>{notice}</span><button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}>×</button></div>}</div>
       </section>
     </div>
   );

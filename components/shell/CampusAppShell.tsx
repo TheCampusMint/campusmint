@@ -121,6 +121,10 @@ export function CampusAppShell() {
   const settleTimerRef = useRef<number | null>(null);
   const pageDragRef = useRef<PageDragState | null>(null);
   const searchTouchRef = useRef<SearchTouchState>(null);
+  const profileReturnSectionRef =
+    useRef<SwipeSection>("mint");
+  const [specialPageLeaving, setSpecialPageLeaving] =
+    useState(false);
 
   const academics = useAcademics();
   const marketplace = useMarketplace();
@@ -230,8 +234,102 @@ export function CampusAppShell() {
     clearSettleTimer();
     setGestureProgress(0);
     setSwipeSettling(false);
+
+    if (!specialSection) {
+      profileReturnSectionRef.current =
+        currentNavigationSection;
+    }
+
+    setSpecialPageLeaving(false);
     setSelectedProfileUserId(userId);
     setSpecialSection("profile");
+  }
+
+  function leaveProfileTo(section: SwipeSection) {
+    const finish = () => {
+      const targetIndex =
+        sectionSequence.indexOf(section);
+
+      if (targetIndex >= 0) {
+        setNavIndex((current) =>
+          nearestVirtualIndex(
+            current,
+            targetIndex,
+          ),
+        );
+      }
+
+      setSpecialSection(null);
+      setSpecialPageLeaving(false);
+      setGestureProgress(0);
+    };
+
+    if (
+      preferenceState.preferences.content
+        .reducedMotion
+    ) {
+      finish();
+      return;
+    }
+
+    setSpecialPageLeaving(true);
+
+    window.setTimeout(finish, 420);
+  }
+
+  function goBackFromProfile() {
+    leaveProfileTo(
+      profileReturnSectionRef.current,
+    );
+  }
+
+  function handleMintTap() {
+    if (specialSection === "profile") {
+      leaveProfileTo("mint");
+      return;
+    }
+
+    if (currentNavigationSection !== "mint") {
+      const mintIndex =
+        sectionSequence.indexOf("mint");
+
+      if (mintIndex >= 0) {
+        setSwipeSettling(true);
+
+        window.setTimeout(() => {
+          setNavIndex((current) =>
+            nearestVirtualIndex(
+              current,
+              mintIndex,
+            ),
+          );
+          setGestureProgress(0);
+          setSwipeSettling(false);
+
+          window.requestAnimationFrame(() => {
+            document
+              .querySelector<HTMLElement>(
+                "[data-mint-snap-feed]",
+              )
+              ?.scrollTo({
+                top: 0,
+                behavior: "smooth",
+              });
+          });
+        }, 260);
+      }
+
+      return;
+    }
+
+    document
+      .querySelector<HTMLElement>(
+        "[data-mint-snap-feed]",
+      )
+      ?.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
   }
 
   function handleOrganizationMembership(organization: Organization) {
@@ -499,6 +597,9 @@ export function CampusAppShell() {
     // EVENT / CLUB floating tabs intentionally stay solid.
     if (control.hasAttribute("data-static-badge")) return null;
 
+    // Settings category controls keep perfectly stable geometry.
+    if (control.hasAttribute("data-static-control")) return null;
+
     return control;
   }
 
@@ -745,19 +846,27 @@ export function CampusAppShell() {
 
     if (section === "profile") {
       return (
-        <ProfilesHub
-          mode="profile"
-          selectedUserId={selectedProfileUserId}
-          viewer={viewer}
-          theme={theme}
-          visibleStories={visibleStories}
-          marketplaceListings={marketplace.listings}
-          profiles={profiles}
-          mintz={mintz}
-          organizations={organizations}
-          onOpenProfile={openProfile}
-          onBackToPeople={() => selectSection("people")}
-        />
+        <div
+          className={`cm-special-page ${
+            specialPageLeaving
+              ? "is-leaving"
+              : ""
+          }`}
+        >
+          <ProfilesHub
+            mode="profile"
+            selectedUserId={selectedProfileUserId}
+            viewer={viewer}
+            theme={theme}
+            visibleStories={visibleStories}
+            marketplaceListings={marketplace.listings}
+            profiles={profiles}
+            mintz={mintz}
+            organizations={organizations}
+            onOpenProfile={openProfile}
+            onBack={goBackFromProfile}
+          />
+        </div>
       );
     }
 
@@ -767,7 +876,7 @@ export function CampusAppShell() {
   function sectionFrame(section: SwipeSection, isActive: boolean) {
     return (
       <div
-        className={`mx-auto px-4 pb-36 pt-5 sm:px-6 ${
+        className={`mx-auto px-4 pb-3 pt-3 sm:px-6 sm:pb-36 sm:pt-5 ${
           section === "mint" ? "max-w-[42rem]" : "max-w-5xl"
         }`}
       >
@@ -888,7 +997,7 @@ export function CampusAppShell() {
         onSwipeDelta={applyHorizontalDelta}
         onSwipeEnd={finishHorizontalGesture}
         onSwipeCancel={cancelHorizontalGesture}
-        onMintTap={scrollMintFeedToTop}
+        onMintTap={handleMintTap}
       />
 
       {settingsOpen && (

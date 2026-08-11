@@ -184,25 +184,11 @@ export function BubbleNavItem({
     };
   }, [selected]);
 
-  const iconColors: Record<PrimarySection, string> = {
-    messages: "#1e3a5f",
-    search: "#155e63",
-    mint: "#166534",
-    people: "#3730a3",
-    clubs: "#6b214f",
-    career: "#8a6116",
-    housing: "#8c3b32",
-    groups: "#5b358c",
-    food: "#9a4d16",
-    marketplace: "#176b52",
-    profile: "#334155",
-  };
-
-  const color = iconColors[id];
+  const color = "#050505";
 
   const filter = selected
-    ? `drop-shadow(0 7px 7px ${color}55) drop-shadow(0 2px 2px ${color}30)`
-    : `drop-shadow(0 5px 4px ${color}35)`;
+    ? "drop-shadow(0 6px 7px rgba(0,0,0,.22)) drop-shadow(0 2px 2px rgba(0,0,0,.12))"
+    : "drop-shadow(0 4px 4px rgba(0,0,0,.14))";
 
   return (
     <button

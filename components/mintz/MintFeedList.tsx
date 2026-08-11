@@ -164,7 +164,7 @@ export function MintFeedList({
   return (
     <div
       ref={feedRef}
-      className="relative h-[calc(100dvh-7rem)] touch-pan-y overflow-y-auto overscroll-y-contain snap-y snap-mandatory scroll-smooth sm:h-[calc(100dvh-12rem)]"
+      className="relative touch-pan-y overflow-y-visible overscroll-y-contain scroll-smooth"
       style={{
         scrollbarWidth: "none",
         WebkitOverflowScrolling: "touch",
@@ -264,7 +264,7 @@ export function MintFeedList({
             return (
               <div
                 key={item.id}
-                className="flex min-h-full snap-start snap-always items-start"
+                className="flex snap-start snap-always items-start"
                 style={{
                   scrollSnapStop: "always",
                 }}

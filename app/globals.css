@@ -282,3 +282,121 @@ summary {
 .campus-app-shell[data-reduced-motion="true"] .cm-content-swap {
   animation: none !important;
 }
+
+
+/* IOS_MOTION_POLISH_2026 */
+
+/* Settings content feels like an actual page moving in. */
+.cm-content-swap {
+  animation: cm-content-slide-right 520ms cubic-bezier(.22,1,.36,1) both;
+  will-change: transform, opacity;
+}
+
+.cm-content-swap[data-direction="-1"] {
+  animation-name: cm-content-slide-left;
+}
+
+@keyframes cm-content-slide-right {
+  from {
+    opacity: .72;
+    transform: translate3d(42px,0,0) scale(.992);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0,0,0) scale(1);
+  }
+}
+
+@keyframes cm-content-slide-left {
+  from {
+    opacity: .72;
+    transform: translate3d(-42px,0,0) scale(.992);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0,0,0) scale(1);
+  }
+}
+
+/* General section swaps use the same family of timing. */
+.section-enter {
+  animation-duration: 520ms !important;
+  animation-timing-function: cubic-bezier(.22,1,.36,1) !important;
+}
+
+/* Settings category geometry never shifts on press/selection. */
+.campus-app-shell button[data-static-control],
+.campus-app-shell button[data-static-control]:hover,
+.campus-app-shell button[data-static-control]:active {
+  transform: none !important;
+}
+
+/* Keep mobile feed area clear behind the micro notch. */
+@media (max-width: 639px) {
+  [data-bottom-bubble-nav] {
+    background: transparent !important;
+    pointer-events: none;
+  }
+
+  [data-bottom-bubble-nav] > div {
+    pointer-events: auto;
+  }
+}
+
+
+/* SPECIAL_PAGE_NAVIGATION */
+.cm-special-page {
+  animation:
+    cm-special-enter 480ms
+    cubic-bezier(.22,1,.36,1)
+    both;
+  will-change: transform, opacity;
+}
+
+.cm-special-page.is-leaving {
+  animation:
+    cm-special-leave 420ms
+    cubic-bezier(.4,0,.2,1)
+    both;
+  pointer-events: none;
+}
+
+@keyframes cm-special-enter {
+  from {
+    opacity: .78;
+    transform:
+      translate3d(44px,0,0)
+      scale(.992);
+  }
+  to {
+    opacity: 1;
+    transform:
+      translate3d(0,0,0)
+      scale(1);
+  }
+}
+
+@keyframes cm-special-leave {
+  from {
+    opacity: 1;
+    transform:
+      translate3d(0,0,0)
+      scale(1);
+  }
+  to {
+    opacity: .72;
+    transform:
+      translate3d(46px,0,0)
+      scale(.992);
+  }
+}
+
+/*
+  The bottom nav is purely an overlay.
+  It must never paint a full-width/safe-area block.
+*/
+[data-bottom-bubble-nav] {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+}

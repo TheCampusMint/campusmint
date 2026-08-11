@@ -40,10 +40,10 @@ type DragState = {
 
 const navigation = [...dailyNavigation, ...secondaryNavigation];
 
-const ITEM_STRIDE = 42;
+const ITEM_STRIDE = 38;
 const NAV_WIDTH = ITEM_STRIDE * 5;
 const WINDOW_RADIUS = 7;
-const HOLD_MS = 190;
+const HOLD_MS = 230;
 
 function mod(value: number, length: number) {
   return ((value % length) + length) % length;
@@ -185,8 +185,12 @@ export function BottomBubbleNav({
     );
 
     drag.distance += Math.abs(deltaX);
-    drag.velocity =
+    const instantaneousVelocity =
       deltaX / ITEM_STRIDE / elapsed;
+
+    drag.velocity =
+      drag.velocity * 0.74 +
+      instantaneousVelocity * 0.26;
 
     drag.lastX = event.clientX;
     drag.lastTime = event.timeStamp;
@@ -196,7 +200,7 @@ export function BottomBubbleNav({
     if (!expandedRef.current) return;
 
     queueSwipe(
-      deltaX / ITEM_STRIDE,
+      deltaX / (ITEM_STRIDE * 1.08),
       drag.velocity,
     );
   }
@@ -278,7 +282,7 @@ export function BottomBubbleNav({
     <nav
       data-bottom-bubble-nav
       aria-label="Campus Mint navigation"
-      className="fixed inset-x-0 bottom-0 z-50 mx-auto w-fit pb-[max(0.25rem,env(safe-area-inset-bottom))]"
+      className="pointer-events-none fixed bottom-[max(0.4rem,env(safe-area-inset-bottom))] left-1/2 z-50 h-0 w-0 -translate-x-1/2 overflow-visible bg-transparent p-0"
     >
       <div
         onPointerDown={beginInteraction}
@@ -287,24 +291,24 @@ export function BottomBubbleNav({
         onPointerCancel={cancelInteraction}
         className={
           expanded
-            ? "relative flex h-[52px] items-center justify-center overflow-visible rounded-full border border-slate-200 bg-white/95 px-1.5 shadow-[0_10px_28px_rgba(15,23,42,0.16)] backdrop-blur-xl"
-            : "relative flex h-10 w-20 items-center justify-center"
+            ? "pointer-events-auto absolute bottom-0 left-1/2 flex h-11 -translate-x-1/2 items-center justify-center overflow-visible rounded-full border border-slate-200 bg-white/95 px-1 shadow-[0_8px_24px_rgba(15,23,42,0.14)] backdrop-blur-xl"
+            : "pointer-events-auto absolute bottom-0 left-1/2 flex h-5 w-10 -translate-x-1/2 items-center justify-center overflow-visible bg-transparent"
         }
         style={{
           touchAction: expanded ? "none" : "manipulation",
           transition: reducedMotion
             ? "none"
-            : "width 230ms cubic-bezier(.22,1,.36,1), height 230ms cubic-bezier(.22,1,.36,1), background-color 180ms ease, box-shadow 220ms ease",
+            : "width 360ms cubic-bezier(.22,1,.36,1), height 360ms cubic-bezier(.22,1,.36,1), background-color 260ms ease, box-shadow 300ms ease",
         }}
       >
         {!expanded ? (
           <div
-            className="pointer-events-none flex h-8 w-8 items-center justify-center text-emerald-700"
+            className="pointer-events-none flex h-4 w-4 items-center justify-center text-black"
             aria-hidden="true"
           >
             <svg
               viewBox="0 0 32 32"
-              className="h-4 w-4 overflow-visible"
+              className="h-3 w-3 overflow-visible"
               fill="none"
               stroke="currentColor"
               strokeLinecap="round"
@@ -341,7 +345,7 @@ export function BottomBubbleNav({
                 transition:
                   reducedMotion || !swipeSettling
                     ? "none"
-                    : "transform 300ms cubic-bezier(.22,1,.36,1)",
+                    : "transform 390ms cubic-bezier(.22,1,.36,1)",
               }}
             >
               {visibleWindow.map(
