@@ -20,13 +20,14 @@ export function ClubMintBadge({ membershipStatus, onMembershipAction }: ClubMint
     && membershipStatus !== "member"
     && membershipStatus !== "officer"
     && membershipStatus !== "leader";
-  const className = "interactive-pop inline-flex rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em]";
+  const className = "inline-flex rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em]";
+  const actionClassName = `interactive-pop ${className}`;
   if (accepted) return <span className={className} style={clubBadgeStyles}>YOUR CLUB</span>;
   return (
     <span className="inline-flex flex-wrap gap-2">
       <span className={className} style={clubBadgeStyles}>CLUB</span>
       {membershipStatus === "requested" && <span className={className} style={clubBadgeStyles}>REQUEST PENDING</span>}
-      {actionable && <button type="button" onClick={onMembershipAction} className={className} style={clubBadgeStyles}>JOIN CLUB</button>}
+      {actionable && <button type="button" onClick={onMembershipAction} data-static-badge className={actionClassName} style={clubBadgeStyles}>JOIN CLUB</button>}
     </span>
   );
 }

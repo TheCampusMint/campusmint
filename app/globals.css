@@ -29,11 +29,7 @@ summary {
 }
 
 .campus-app-shell {
-  background:
-    radial-gradient(circle at 8% 2%, color-mix(in srgb, var(--app-accent-soft) 54%, transparent), transparent 30rem),
-    radial-gradient(circle at 96% 18%, color-mix(in srgb, var(--app-accent) 8%, transparent), transparent 28rem),
-    linear-gradient(180deg, color-mix(in srgb, var(--app-surface-elevated) 24%, var(--app-background)), var(--app-background) 42%, color-mix(in srgb, var(--app-accent-soft) 10%, var(--app-background)));
-  background-attachment: fixed;
+  background: var(--app-background);
   color: var(--app-text-primary);
   transition: background-color 220ms ease, color 220ms ease;
 }
@@ -215,4 +211,20 @@ summary {
     transition: none !important;
     transform: none !important;
   }
+}
+
+
+
+/* FEED_MOTION_TAB_BUTTON_SHELL */
+.campus-app-shell button[data-feed-motion-tab],
+.campus-app-shell button[data-feed-motion-tab]:hover,
+.campus-app-shell button[data-feed-motion-tab]:active {
+  transform: none !important;
+}
+
+/* Event / Club floating tabs stay solid and motionless. */
+.campus-app-shell button[data-static-badge],
+.campus-app-shell button[data-static-badge]:hover,
+.campus-app-shell button[data-static-badge]:active {
+  transform: none !important;
 }

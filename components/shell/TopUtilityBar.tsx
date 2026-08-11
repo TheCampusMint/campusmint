@@ -17,8 +17,21 @@ export function TopUtilityBar({ viewer, theme, developerControls, onOpenSettings
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/78 backdrop-blur-xl">
       <div className="relative mx-auto flex min-h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
-        <button type="button" onClick={onOpenSettings} aria-label="Open settings" className="interactive-pop flex h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2" style={{ outlineColor: "var(--app-accent)" }}>
-          <MintLeafIcon /><span className="hidden sm:inline">Settings</span>
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          aria-label="Open settings"
+          title="Settings"
+          className="relative flex h-11 w-11 items-center justify-center overflow-visible rounded-full p-0 text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2"
+          style={{
+            outlineColor: "var(--app-accent)",
+            background: "transparent",
+            perspective: "180px",
+          }}
+        >
+          <span className="flex h-7 w-7 items-center justify-center [&>svg]:h-7 [&>svg]:w-7">
+            <MintLeafIcon />
+          </span>
         </button>
 
         <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-center">
@@ -26,7 +39,7 @@ export function TopUtilityBar({ viewer, theme, developerControls, onOpenSettings
           <p className="max-w-36 truncate text-sm font-black" style={{ color: "var(--app-accent)" }}>{theme.shortName}</p>
         </div>
 
-        <button type="button" aria-label="Open my profile" onClick={onOpenProfile} className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2" style={{ outlineColor: theme.primary }}>
+        <button type="button" aria-label="Open my profile" onClick={onOpenProfile} className="relative overflow-visible rounded-full focus-visible:outline-2 focus-visible:outline-offset-2" style={{ outlineColor: theme.primary }}>
           <ProfileAvatar user={viewer} size="sm" primaryColor={theme.primary} accentColor={theme.accent} />
         </button>
       </div>

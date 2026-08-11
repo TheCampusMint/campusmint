@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type PointerEvent } from "react";
+import { useRef, type PointerEvent } from "react";
 
 import { BubbleNavItem } from "@/components/shell/BubbleNavItem";
 import {
@@ -11,122 +11,68 @@ import {
 
 type BottomBubbleNavProps = {
   activeSection: PrimarySection;
-  activeSet: 0 | 1;
+  virtualIndex: number;
+  swipeProgress: number;
+  swipeSettling: boolean;
   reducedMotion: boolean;
   onSelect: (section: PrimarySection) => void;
-  onSetChange: (set: 0 | 1) => void;
+  onSwipeDelta: (deltaSections: number, velocitySectionsPerMs: number) => void;
+  onSwipeEnd: (velocitySectionsPerMs: number) => void;
+  onSwipeCancel: () => void;
 };
 
 type DragState = {
   pointerId: number;
   lastX: number;
   lastTime: number;
-  velocity: number;
   distance: number;
+  velocity: number;
 };
 
-const pageSets = [dailyNavigation, secondaryNavigation] as const;
-const REPEAT_COUNT = 7;
-const CENTER_REPEAT = 3;
-const SNAP_DURATION = 430;
+const navigation = [...dailyNavigation, ...secondaryNavigation];
+const ITEM_STRIDE = 52;
+const NAV_WIDTH = ITEM_STRIDE * 5;
+const WINDOW_RADIUS = 7;
+
+function mod(value: number, length: number) {
+  return ((value % length) + length) % length;
+}
 
 export function BottomBubbleNav({
   activeSection,
-  activeSet,
+  virtualIndex,
+  swipeProgress,
+  swipeSettling,
   reducedMotion,
   onSelect,
-  onSetChange,
+  onSwipeDelta,
+  onSwipeEnd,
+  onSwipeCancel,
 }: BottomBubbleNavProps) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const shellRef = useRef<HTMLDivElement>(null);
-
-  const pageWidthRef = useRef(288);
-  const offsetRef = useRef(0);
   const dragRef = useRef<DragState | null>(null);
-
-  const trackFrameRef = useRef<number | null>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const shellFrameRef = useRef<number | null>(null);
-  const settleTimerRef = useRef<number | null>(null);
-
   const didDragRef = useRef(false);
 
-  function canonicalPage(set: 0 | 1) {
-    return CENTER_REPEAT * 2 + set;
-  }
+  const activeSet =
+    mod(virtualIndex, navigation.length) < dailyNavigation.length ? 0 : 1;
 
-  function normalizeOffset(value: number) {
-    const pageWidth = pageWidthRef.current;
-    const loopWidth = pageWidth * 2;
+  const visibleWindow = Array.from(
+    { length: WINDOW_RADIUS * 2 + 1 },
+    (_, slot) => {
+      const itemVirtualIndex = virtualIndex + slot - WINDOW_RADIUS;
+      return {
+        virtualIndex: itemVirtualIndex,
+        item: navigation[mod(itemVirtualIndex, navigation.length)],
+      };
+    },
+  );
 
-    const upper = -(CENTER_REPEAT - 1) * loopWidth;
-    const lower = -(CENTER_REPEAT + 1) * loopWidth - pageWidth;
+  const baseOffset =
+    NAV_WIDTH / 2 - (WINDOW_RADIUS + 0.5) * ITEM_STRIDE;
 
-    let next = value;
-
-    while (next > upper) next -= loopWidth;
-    while (next < lower) next += loopWidth;
-
-    return next;
-  }
-
-  function paintTrack(
-    value: number,
-    settling = false,
-    normalize = true,
-  ) {
-    const next = normalize ? normalizeOffset(value) : value;
-    offsetRef.current = next;
-
-    if (trackFrameRef.current) {
-      window.cancelAnimationFrame(trackFrameRef.current);
-    }
-
-    trackFrameRef.current = window.requestAnimationFrame(() => {
-      trackFrameRef.current = null;
-      if (!trackRef.current) return;
-
-      trackRef.current.style.transition =
-        reducedMotion || !settling
-          ? "none"
-          : `transform ${SNAP_DURATION}ms cubic-bezier(.18,1.18,.28,1)`;
-
-      trackRef.current.style.transform =
-        `translate3d(${offsetRef.current}px, 0, 0)`;
-    });
-  }
-
-  function recenter(set: 0 | 1) {
-    const pageWidth = pageWidthRef.current;
-    paintTrack(-canonicalPage(set) * pageWidth, false, false);
-  }
-
-  function snapToClosestPage(velocity = 0) {
-    const pageWidth = pageWidthRef.current;
-
-    // Small velocity projection gives the release a magnetic/flick feel.
-    const projectedOffset = offsetRef.current + velocity * 85;
-    let page = Math.round(-projectedOffset / pageWidth);
-
-    const nextSet = (((page % 2) + 2) % 2) as 0 | 1;
-
-    // Keep the animation in the nearby repeated copies.
-    while (page < CENTER_REPEAT * 2 - 2) page += 2;
-    while (page > CENTER_REPEAT * 2 + 3) page -= 2;
-
-    paintTrack(-page * pageWidth, true, false);
-
-    onSetChange(nextSet);
-    onSelect(nextSet === 0 ? "mint" : "groups");
-
-    if (settleTimerRef.current) {
-      window.clearTimeout(settleTimerRef.current);
-    }
-
-    settleTimerRef.current = window.setTimeout(() => {
-      recenter(nextSet);
-    }, SNAP_DURATION + 30);
-  }
+  const trackOffset =
+    baseOffset + swipeProgress * ITEM_STRIDE;
 
   function paintShell(x: number, y: number, settling = false) {
     if (reducedMotion || !shellRef.current) return;
@@ -140,8 +86,8 @@ export function BottomBubbleNav({
       if (!shellRef.current) return;
 
       shellRef.current.style.transition = settling
-        ? "transform 420ms cubic-bezier(.2,1.35,.3,1)"
-        : "transform 85ms linear";
+        ? "transform 400ms cubic-bezier(.22,1,.36,1)"
+        : "transform 55ms linear";
 
       shellRef.current.style.transform =
         `translate3d(${x}px, ${y}px, 0) rotateX(${y * -0.22}deg) rotateY(${x * 0.18}deg)`;
@@ -163,40 +109,30 @@ export function BottomBubbleNav({
   }
 
   function beginSwipe(event: PointerEvent<HTMLDivElement>) {
-    if (settleTimerRef.current) {
-      window.clearTimeout(settleTimerRef.current);
-      settleTimerRef.current = null;
-    }
-
     dragRef.current = {
       pointerId: event.pointerId,
       lastX: event.clientX,
       lastTime: event.timeStamp,
-      velocity: 0,
       distance: 0,
+      velocity: 0,
     };
 
     didDragRef.current = false;
-
-    if (trackRef.current) {
-      trackRef.current.style.transition = "none";
-    }
   }
 
   function updateSwipe(event: PointerEvent<HTMLDivElement>) {
     const drag = dragRef.current;
-
     if (!drag || drag.pointerId !== event.pointerId) return;
 
-    const delta = event.clientX - drag.lastX;
+    const deltaX = event.clientX - drag.lastX;
     const elapsed = Math.max(1, event.timeStamp - drag.lastTime);
 
-    drag.velocity = delta / elapsed;
-    drag.distance += Math.abs(delta);
+    drag.distance += Math.abs(deltaX);
+    drag.velocity = deltaX / ITEM_STRIDE / elapsed;
     drag.lastX = event.clientX;
     drag.lastTime = event.timeStamp;
 
-    if (drag.distance > 3) {
+    if (drag.distance > 5) {
       didDragRef.current = true;
 
       if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -204,77 +140,30 @@ export function BottomBubbleNav({
       }
     }
 
-    // No edge resistance. Keep dragging through repeating copies forever.
-    paintTrack(offsetRef.current + delta);
+    onSwipeDelta(deltaX / ITEM_STRIDE, drag.velocity);
   }
 
   function finishSwipe(event: PointerEvent<HTMLDivElement>) {
     const drag = dragRef.current;
-
     if (!drag || drag.pointerId !== event.pointerId) return;
 
-    const velocity = drag.velocity;
     dragRef.current = null;
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
-    snapToClosestPage(velocity);
+    onSwipeEnd(drag.velocity);
   }
 
   function cancelSwipe() {
-    const velocity = dragRef.current?.velocity ?? 0;
     dragRef.current = null;
-    snapToClosestPage(velocity);
+    onSwipeCancel();
   }
-
-  function selectSection(section: PrimarySection) {
-    const nextSet: 0 | 1 = secondaryNavigation.some(
-      (item) => item.id === section,
-    )
-      ? 1
-      : 0;
-
-    onSetChange(nextSet);
-    onSelect(section);
-
-    if (nextSet !== activeSet) {
-      recenter(nextSet);
-    }
-  }
-
-  useEffect(() => {
-    function measure() {
-      if (!viewportRef.current) return;
-
-      pageWidthRef.current = viewportRef.current.clientWidth;
-      recenter(activeSet);
-    }
-
-    const frame = window.requestAnimationFrame(measure);
-    window.addEventListener("resize", measure);
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", measure);
-
-      if (trackFrameRef.current) {
-        window.cancelAnimationFrame(trackFrameRef.current);
-      }
-
-      if (shellFrameRef.current) {
-        window.cancelAnimationFrame(shellFrameRef.current);
-      }
-
-      if (settleTimerRef.current) {
-        window.clearTimeout(settleTimerRef.current);
-      }
-    };
-  }, []);
 
   return (
     <nav
+      data-bottom-bubble-nav
       aria-label="Primary Campus Mint navigation"
       className="fixed inset-x-0 bottom-0 z-50 mx-auto w-fit max-w-full pb-[max(0.4rem,env(safe-area-inset-bottom))]"
     >
@@ -283,17 +172,14 @@ export function BottomBubbleNav({
         onPointerMove={moveShell}
         onPointerLeave={resetShell}
         onPointerCancel={resetShell}
-        className="relative isolate overflow-visible rounded-full border border-slate-200 bg-white/95 px-2.5 py-0.5 shadow-[0_12px_34px_rgba(15,23,42,0.18)] backdrop-blur-xl will-change-transform"
-        style={{
-          transformStyle: "preserve-3d",
-        }}
+        className="relative isolate overflow-visible rounded-full border border-slate-200 bg-white/95 px-3 py-0.5 shadow-[0_12px_34px_rgba(15,23,42,0.18)] backdrop-blur-xl will-change-transform"
+        style={{ transformStyle: "preserve-3d" }}
       >
         <div
-          ref={viewportRef}
           className="relative touch-pan-y select-none py-1"
           style={{
-            width: "min(288px, calc(100vw - 24px))",
-            clipPath: "inset(-22px 0 -22px 0)",
+            width: NAV_WIDTH,
+            clipPath: "inset(-26px 0 -26px 0)",
           }}
           onPointerDown={beginSwipe}
           onPointerMove={updateSwipe}
@@ -301,38 +187,36 @@ export function BottomBubbleNav({
           onPointerCancel={cancelSwipe}
           onClickCapture={(event) => {
             if (!didDragRef.current) return;
-
             event.preventDefault();
             event.stopPropagation();
             didDragRef.current = false;
           }}
         >
           <div
-            ref={trackRef}
             className="flex w-max transform-gpu items-center will-change-transform"
+            style={{
+              transform: `translate3d(${trackOffset}px, 0, 0)`,
+              transition:
+                reducedMotion || !swipeSettling
+                  ? "none"
+                  : "transform 340ms cubic-bezier(.22,1,.36,1)",
+            }}
           >
-            {Array.from({ length: REPEAT_COUNT }, (_, repeatIndex) =>
-              pageSets.map((set, setIndex) => (
-                <div
-                  key={`${repeatIndex}-${setIndex}`}
-                  className="grid shrink-0 grid-cols-5 items-center gap-1 px-1.5"
-                  style={{
-                    width: "min(288px, calc(100vw - 24px))",
-                  }}
-                >
-                  {set.map((item) => (
-                    <BubbleNavItem
-                      key={`${repeatIndex}-${setIndex}-${item.id}`}
-                      id={item.id}
-                      label={item.label}
-                      selected={activeSection === item.id}
-                      reducedMotion={reducedMotion}
-                      onSelect={selectSection}
-                    />
-                  ))}
-                </div>
-              )),
-            )}
+            {visibleWindow.map(({ virtualIndex: itemIndex, item }) => (
+              <div
+                key={itemIndex}
+                className="flex shrink-0 items-center justify-center overflow-visible"
+                style={{ width: ITEM_STRIDE }}
+              >
+                <BubbleNavItem
+                  id={item.id}
+                  label={item.label}
+                  selected={activeSection === item.id}
+                  reducedMotion={reducedMotion}
+                  onSelect={onSelect}
+                />
+              </div>
+            ))}
           </div>
         </div>
 

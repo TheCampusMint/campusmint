@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 
 import { CreateContentFlow } from "@/components/content/CreateContentFlow";
 import { MintFeedList } from "@/components/mintz/MintFeedList";
@@ -33,6 +33,42 @@ const feedLabels: Record<MintFeed, string> = {
   discover: "Discover",
 };
 
+
+function FeedMotionTab({
+  label,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  selected: boolean;
+  reducedMotion: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className="relative z-10 shrink-0 rounded-full border px-4 py-2 text-xs font-black"
+      style={
+        selected
+          ? {
+              backgroundColor: "var(--app-accent)",
+              borderColor: "var(--app-accent)",
+              color: "var(--app-accent-contrast)",
+            }
+          : {
+              backgroundColor: "var(--app-surface)",
+              borderColor: "var(--app-border)",
+              color: "var(--app-text-secondary)",
+            }
+      }
+    >
+      {label}
+    </button>
+  );
+}
+
 export function CampusMintFeed({ viewer, theme, profiles, mintz, organizations, onCreateStory, onOpenProfile, onRequestOrganization, reducedMotion, autoplayVideo, defaultCommentsEnabled, defaultHideLikeCounts }: CampusMintFeedProps) {
   const [feed, setFeed] = useState<MintFeed>("campus");
   const [createOpen, setCreateOpen] = useState(false);
@@ -56,8 +92,16 @@ export function CampusMintFeed({ viewer, theme, profiles, mintz, organizations, 
         <button type="button" onClick={() => setCreateOpen(true)} className="interactive-pop rounded-full px-5 py-3 text-sm font-black shadow-lg transition" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>＋ Create</button>
       </div>
 
-      <div className="relative flex gap-2 overflow-visible py-2" aria-label="Mint feeds">
-        {(Object.keys(feedLabels) as MintFeed[]).map((option) => <button key={option} type="button" onClick={() => setFeed(option)} aria-pressed={feed === option} className="relative z-10 shrink-0 rounded-full border px-4 py-2 text-xs font-black transition hover:z-30 focus-visible:z-30" style={feed === option ? { backgroundColor: "var(--app-accent)", borderColor: "var(--app-accent)", color: "var(--app-accent-contrast)" } : { backgroundColor: "var(--app-surface)", borderColor: "var(--app-border)", color: "var(--app-text-secondary)" }}>{feedLabels[option]}</button>)}
+      <div className="relative flex gap-5 overflow-visible py-2" aria-label="Mint feeds">
+        {(Object.keys(feedLabels) as MintFeed[]).map((option) => (
+          <FeedMotionTab
+            key={option}
+            label={feedLabels[option]}
+            selected={feed === option}
+            reducedMotion={Boolean(reducedMotion)}
+            onSelect={() => setFeed(option)}
+          />
+        ))}
       </div>
 
       {notice && <div role="status" className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message">×</button></div>}

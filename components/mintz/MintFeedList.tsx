@@ -25,7 +25,11 @@ type MintFeedListProps = {
 };
 
 export function MintFeedList({ mints, viewer, theme, profiles, mintz, organizations, feedState, onOpenProfile, onRequestOrganization, onNotice, reducedMotion, autoplayVideo }: MintFeedListProps) {
-  return <div className="space-y-5">{mints.length > 0 ? mints.map((item) => {
+  return <div
+    className="h-[calc(100dvh-12.5rem)] touch-pan-y overflow-y-auto overscroll-y-contain snap-y snap-mandatory scroll-smooth"
+    style={{ scrollbarWidth: "none" }}
+    data-mint-snap-feed
+  >{mints.length > 0 ? mints.map((item) => {
     const author = feedState.users.find((user) => user.account.id === item.authorId);
     if (!author) return null;
     const permissionContext = createMintPermissionContext(item, author, feedState);
@@ -36,8 +40,11 @@ export function MintFeedList({ mints, viewer, theme, profiles, mintz, organizati
       && (organizationStatus === "none" || organizationStatus === "rejected")
       ? () => onRequestOrganization(organization.id)
       : undefined;
-    return <MintCard
+    return <div
       key={item.id}
+      className="min-h-full snap-start snap-always flex items-center"
+      style={{ scrollSnapStop: "always" }}
+    ><div className="w-full"><MintCard
       mint={item}
       author={author}
       viewer={viewer}
@@ -63,6 +70,6 @@ export function MintFeedList({ mints, viewer, theme, profiles, mintz, organizati
       onArchive={() => mintz.toggleArchive(item.id, viewer.account.id)}
       onDelete={() => mintz.deleteOwnMint(item.id, viewer.account.id)}
       onReport={(reason) => { mintz.reportMint(permissionContext, reason, null); onNotice("Report saved locally for development testing."); }}
-    />;
+    /></div></div>;
   }) : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center"><h3 className="font-bold text-slate-900">No visible Mintz</h3><p className="mt-2 text-sm text-slate-500">This feed has no active content you are permitted to view.</p></div>}</div>;
 }

@@ -26,7 +26,7 @@ const eventTimeBadgeStyles = {
 export function EventMintBadge({ eventStartAt, eventEndAt, currentTime, timeZone, contextLabel = "Event" }: EventMintBadgeProps) {
   const timing = getEventTimingStatus(eventStartAt, eventEndAt, currentTime, timeZone);
   const showTimingLabel = timing.label !== "EVENT";
-  const badgeClassName = "interactive-pop inline-flex rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em]";
+  const badgeClassName = "inline-flex rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em]";
 
   return (
     <div className="inline-flex items-center gap-2" data-event-status={timing.status} aria-label={`${contextLabel} ${showTimingLabel ? timing.label : ""}`.trim()} title={timing.secondaryLabel ?? undefined}>

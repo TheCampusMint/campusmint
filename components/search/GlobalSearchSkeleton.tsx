@@ -23,13 +23,14 @@ type SearchResult = {
   section?: PrimarySection;
 };
 
-export function GlobalSearchSkeleton({ viewer, theme, profiles, listings, onOpenProfile, onSelectSection }: {
+export function GlobalSearchSkeleton({ viewer, theme, profiles, listings, onOpenProfile, onSelectSection, autoFocus = false }: {
   viewer: CampusMintUser;
   theme: UniversityTheme;
   profiles: ProfilesState;
   listings: MarketplaceListing[];
   onOpenProfile: (userId: string) => void;
   onSelectSection: (section: PrimarySection) => void;
+  autoFocus?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const results = useMemo(() => {
@@ -53,7 +54,7 @@ export function GlobalSearchSkeleton({ viewer, theme, profiles, listings, onOpen
 
   return (
     <div className="space-y-5"><div className="px-1"><p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">One search</p><h1 className="mt-1 text-3xl font-black text-slate-950">Search</h1><p className="mt-2 text-sm text-slate-600">Discover profiles, clubs, listings, housing, food, and events from the data already available to your university.</p></div>
-      <label className="relative block"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-slate-400" aria-hidden="true">⌕</span><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Campus Mint…" className="w-full rounded-2xl border border-white/80 bg-white/95 py-4 pl-12 pr-4 text-base shadow-sm outline-none focus:ring-2" style={{ caretColor: theme.primary }} /></label>
+      <label className="relative block"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-slate-400" aria-hidden="true">⌕</span><input autoFocus={autoFocus} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Campus Mint…" className="w-full rounded-2xl border border-white/80 bg-white/95 py-4 pl-12 pr-4 text-base shadow-sm outline-none focus:ring-2" style={{ caretColor: theme.primary }} /></label>
       {!query.trim() && <div className="rounded-3xl border border-dashed border-slate-300 bg-white/65 p-10 text-center"><h2 className="font-black text-slate-900">Start with a name or place</h2><p className="mt-2 text-sm text-slate-500">Results stay labeled by type so similarly named entities remain clear.</p></div>}
       {query.trim() && results.length === 0 && <div className="rounded-3xl border border-dashed border-slate-300 bg-white/65 p-10 text-center text-sm text-slate-500">No available development records match.</div>}
       {results.length > 0 && <div className="divide-y divide-slate-100 overflow-hidden rounded-[1.5rem] border border-white/80 bg-white/95 shadow-sm">{results.map((result) => result.href ? <a key={`${result.type}-${result.id}`} href={result.href} className="flex items-center gap-3 p-4 hover:bg-slate-50">{resultContent(result)}</a> : <button key={`${result.type}-${result.id}`} type="button" onClick={() => result.profileId ? onOpenProfile(result.profileId) : result.section ? onSelectSection(result.section) : undefined} className="flex w-full items-center gap-3 p-4 text-left hover:bg-slate-50">{resultContent(result)}</button>)}</div>}
