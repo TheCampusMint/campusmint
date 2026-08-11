@@ -56,8 +56,8 @@ export function CampusMintFeed({ viewer, theme, profiles, mintz, organizations, 
         <button type="button" onClick={() => setCreateOpen(true)} className="interactive-pop rounded-full px-5 py-3 text-sm font-black shadow-lg transition" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>＋ Create</button>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Mint feeds">
-        {(Object.keys(feedLabels) as MintFeed[]).map((option) => <button key={option} type="button" onClick={() => setFeed(option)} aria-pressed={feed === option} className="interactive-pop shrink-0 rounded-full border px-4 py-2 text-xs font-black transition" style={feed === option ? { backgroundColor: "var(--app-accent)", borderColor: "var(--app-accent)", color: "var(--app-accent-contrast)" } : { backgroundColor: "var(--app-surface)", borderColor: "var(--app-border)", color: "var(--app-text-secondary)" }}>{feedLabels[option]}</button>)}
+      <div className="relative flex gap-2 overflow-visible py-2" aria-label="Mint feeds">
+        {(Object.keys(feedLabels) as MintFeed[]).map((option) => <button key={option} type="button" onClick={() => setFeed(option)} aria-pressed={feed === option} className="relative z-10 shrink-0 rounded-full border px-4 py-2 text-xs font-black transition hover:z-30 focus-visible:z-30" style={feed === option ? { backgroundColor: "var(--app-accent)", borderColor: "var(--app-accent)", color: "var(--app-accent-contrast)" } : { backgroundColor: "var(--app-surface)", borderColor: "var(--app-border)", color: "var(--app-text-secondary)" }}>{feedLabels[option]}</button>)}
       </div>
 
       {notice && <div role="status" className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="Dismiss message">×</button></div>}

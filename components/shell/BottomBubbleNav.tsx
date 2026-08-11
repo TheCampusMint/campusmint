@@ -3,7 +3,11 @@
 import { useEffect, useRef, type PointerEvent } from "react";
 
 import { BubbleNavItem } from "@/components/shell/BubbleNavItem";
-import { navigationSets, type PrimarySection } from "@/components/shell/navigation";
+import {
+  dailyNavigation,
+  secondaryNavigation,
+  type PrimarySection,
+} from "@/components/shell/navigation";
 
 type BottomBubbleNavProps = {
   activeSection: PrimarySection;
@@ -14,89 +18,341 @@ type BottomBubbleNavProps = {
 };
 
 type DragState = {
-  startX: number;
+  pointerId: number;
   lastX: number;
   lastTime: number;
   velocity: number;
-  pointerId: number;
+  distance: number;
 };
 
-export function BottomBubbleNav({ activeSection, activeSet, reducedMotion, onSelect, onSetChange }: BottomBubbleNavProps) {
-  const drag = useRef<DragState | null>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const animationFrame = useRef<number | null>(null);
-  const didSwipe = useRef(false);
+const pageSets = [dailyNavigation, secondaryNavigation] as const;
+const REPEAT_COUNT = 7;
+const CENTER_REPEAT = 3;
+const SNAP_DURATION = 430;
 
-  function paintTrack(offset: number, settling = false) {
-    if (animationFrame.current) window.cancelAnimationFrame(animationFrame.current);
-    animationFrame.current = window.requestAnimationFrame(() => {
-      animationFrame.current = null;
+export function BottomBubbleNav({
+  activeSection,
+  activeSet,
+  reducedMotion,
+  onSelect,
+  onSetChange,
+}: BottomBubbleNavProps) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+
+  const pageWidthRef = useRef(288);
+  const offsetRef = useRef(0);
+  const dragRef = useRef<DragState | null>(null);
+
+  const trackFrameRef = useRef<number | null>(null);
+  const shellFrameRef = useRef<number | null>(null);
+  const settleTimerRef = useRef<number | null>(null);
+
+  const didDragRef = useRef(false);
+
+  function canonicalPage(set: 0 | 1) {
+    return CENTER_REPEAT * 2 + set;
+  }
+
+  function normalizeOffset(value: number) {
+    const pageWidth = pageWidthRef.current;
+    const loopWidth = pageWidth * 2;
+
+    const upper = -(CENTER_REPEAT - 1) * loopWidth;
+    const lower = -(CENTER_REPEAT + 1) * loopWidth - pageWidth;
+
+    let next = value;
+
+    while (next > upper) next -= loopWidth;
+    while (next < lower) next += loopWidth;
+
+    return next;
+  }
+
+  function paintTrack(
+    value: number,
+    settling = false,
+    normalize = true,
+  ) {
+    const next = normalize ? normalizeOffset(value) : value;
+    offsetRef.current = next;
+
+    if (trackFrameRef.current) {
+      window.cancelAnimationFrame(trackFrameRef.current);
+    }
+
+    trackFrameRef.current = window.requestAnimationFrame(() => {
+      trackFrameRef.current = null;
       if (!trackRef.current) return;
-      trackRef.current.style.transition = reducedMotion ? "none" : settling ? "transform 480ms cubic-bezier(.18,.92,.25,1.08)" : "none";
-      trackRef.current.style.transform = `translate3d(calc(${activeSet * -50}% + ${offset}px),0,0)`;
+
+      trackRef.current.style.transition =
+        reducedMotion || !settling
+          ? "none"
+          : `transform ${SNAP_DURATION}ms cubic-bezier(.18,1.18,.28,1)`;
+
+      trackRef.current.style.transform =
+        `translate3d(${offsetRef.current}px, 0, 0)`;
     });
   }
 
+  function recenter(set: 0 | 1) {
+    const pageWidth = pageWidthRef.current;
+    paintTrack(-canonicalPage(set) * pageWidth, false, false);
+  }
+
+  function snapToClosestPage(velocity = 0) {
+    const pageWidth = pageWidthRef.current;
+
+    // Small velocity projection gives the release a magnetic/flick feel.
+    const projectedOffset = offsetRef.current + velocity * 85;
+    let page = Math.round(-projectedOffset / pageWidth);
+
+    const nextSet = (((page % 2) + 2) % 2) as 0 | 1;
+
+    // Keep the animation in the nearby repeated copies.
+    while (page < CENTER_REPEAT * 2 - 2) page += 2;
+    while (page > CENTER_REPEAT * 2 + 3) page -= 2;
+
+    paintTrack(-page * pageWidth, true, false);
+
+    onSetChange(nextSet);
+    onSelect(nextSet === 0 ? "mint" : "groups");
+
+    if (settleTimerRef.current) {
+      window.clearTimeout(settleTimerRef.current);
+    }
+
+    settleTimerRef.current = window.setTimeout(() => {
+      recenter(nextSet);
+    }, SNAP_DURATION + 30);
+  }
+
+  function paintShell(x: number, y: number, settling = false) {
+    if (reducedMotion || !shellRef.current) return;
+
+    if (shellFrameRef.current) {
+      window.cancelAnimationFrame(shellFrameRef.current);
+    }
+
+    shellFrameRef.current = window.requestAnimationFrame(() => {
+      shellFrameRef.current = null;
+      if (!shellRef.current) return;
+
+      shellRef.current.style.transition = settling
+        ? "transform 420ms cubic-bezier(.2,1.35,.3,1)"
+        : "transform 85ms linear";
+
+      shellRef.current.style.transform =
+        `translate3d(${x}px, ${y}px, 0) rotateX(${y * -0.22}deg) rotateY(${x * 0.18}deg)`;
+    });
+  }
+
+  function moveShell(event: PointerEvent<HTMLElement>) {
+    if (reducedMotion || !shellRef.current) return;
+
+    const bounds = shellRef.current.getBoundingClientRect();
+    const nx = (event.clientX - bounds.left) / bounds.width - 0.5;
+    const ny = (event.clientY - bounds.top) / bounds.height - 0.5;
+
+    paintShell(nx * 3.2, ny * 2.2);
+  }
+
+  function resetShell() {
+    paintShell(0, 0, true);
+  }
+
   function beginSwipe(event: PointerEvent<HTMLDivElement>) {
-    drag.current = { startX: event.clientX, lastX: event.clientX, lastTime: event.timeStamp, velocity: 0, pointerId: event.pointerId };
-    didSwipe.current = false;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (settleTimerRef.current) {
+      window.clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
+    }
+
+    dragRef.current = {
+      pointerId: event.pointerId,
+      lastX: event.clientX,
+      lastTime: event.timeStamp,
+      velocity: 0,
+      distance: 0,
+    };
+
+    didDragRef.current = false;
+
+    if (trackRef.current) {
+      trackRef.current.style.transition = "none";
+    }
   }
 
   function updateSwipe(event: PointerEvent<HTMLDivElement>) {
-    if (!drag.current || drag.current.pointerId !== event.pointerId) return;
-    const elapsed = Math.max(1, event.timeStamp - drag.current.lastTime);
-    drag.current.velocity = (event.clientX - drag.current.lastX) / elapsed;
-    drag.current.lastX = event.clientX;
-    drag.current.lastTime = event.timeStamp;
-    let offset = event.clientX - drag.current.startX;
-    if ((activeSet === 0 && offset > 0) || (activeSet === 1 && offset < 0)) offset *= 0.32;
-    paintTrack(Math.max(-78, Math.min(78, offset)));
+    const drag = dragRef.current;
+
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    const delta = event.clientX - drag.lastX;
+    const elapsed = Math.max(1, event.timeStamp - drag.lastTime);
+
+    drag.velocity = delta / elapsed;
+    drag.distance += Math.abs(delta);
+    drag.lastX = event.clientX;
+    drag.lastTime = event.timeStamp;
+
+    if (drag.distance > 3) {
+      didDragRef.current = true;
+
+      if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+    }
+
+    // No edge resistance. Keep dragging through repeating copies forever.
+    paintTrack(offsetRef.current + delta);
   }
 
   function finishSwipe(event: PointerEvent<HTMLDivElement>) {
-    if (!drag.current || drag.current.pointerId !== event.pointerId) return;
-    const distance = event.clientX - drag.current.startX;
-    const velocity = drag.current.velocity;
-    drag.current = null;
-    didSwipe.current = Math.abs(distance) > 12;
-    let nextSet = activeSet;
-    if (activeSet === 0 && (distance < -34 || velocity < -0.32)) nextSet = 1;
-    if (activeSet === 1 && (distance > 34 || velocity > 0.32)) nextSet = 0;
+    const drag = dragRef.current;
+
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    const velocity = drag.velocity;
+    dragRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    snapToClosestPage(velocity);
+  }
+
+  function cancelSwipe() {
+    const velocity = dragRef.current?.velocity ?? 0;
+    dragRef.current = null;
+    snapToClosestPage(velocity);
+  }
+
+  function selectSection(section: PrimarySection) {
+    const nextSet: 0 | 1 = secondaryNavigation.some(
+      (item) => item.id === section,
+    )
+      ? 1
+      : 0;
+
+    onSetChange(nextSet);
+    onSelect(section);
+
     if (nextSet !== activeSet) {
-      onSetChange(nextSet);
-      onSelect(nextSet === 0 ? "mint" : "groups");
-    } else {
-      paintTrack(0, true);
+      recenter(nextSet);
     }
   }
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      if (!trackRef.current) return;
-      trackRef.current.style.transition = reducedMotion ? "none" : "transform 480ms cubic-bezier(.18,.92,.25,1.08)";
-      trackRef.current.style.transform = `translate3d(${activeSet * -50}%,0,0)`;
-    });
+    function measure() {
+      if (!viewportRef.current) return;
+
+      pageWidthRef.current = viewportRef.current.clientWidth;
+      recenter(activeSet);
+    }
+
+    const frame = window.requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+
     return () => {
       window.cancelAnimationFrame(frame);
-      if (animationFrame.current) window.cancelAnimationFrame(animationFrame.current);
+      window.removeEventListener("resize", measure);
+
+      if (trackFrameRef.current) {
+        window.cancelAnimationFrame(trackFrameRef.current);
+      }
+
+      if (shellFrameRef.current) {
+        window.cancelAnimationFrame(shellFrameRef.current);
+      }
+
+      if (settleTimerRef.current) {
+        window.clearTimeout(settleTimerRef.current);
+      }
     };
-  }, [activeSet, reducedMotion]);
+  }, []);
 
   return (
-    <nav aria-label="Primary Campus Mint navigation" className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-xl px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-      <div className="bubble-nav-shell overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-2 shadow-[0_20px_60px_rgba(15,23,42,0.24)] backdrop-blur-xl">
-        <div className="touch-pan-y select-none overflow-hidden" onPointerDown={beginSwipe} onPointerMove={updateSwipe} onPointerUp={finishSwipe} onPointerCancel={() => { drag.current = null; paintTrack(0, true); }} onClickCapture={(event) => { if (!didSwipe.current) return; event.preventDefault(); event.stopPropagation(); didSwipe.current = false; }}>
-          <div ref={trackRef} className="flex w-[200%] transform-gpu will-change-transform">
-            {navigationSets.map((set, setIndex) => (
-              <div key={setIndex} className="grid w-1/2 shrink-0 grid-cols-5 items-end gap-1 px-1">
-                {set.map((item, itemIndex) => <BubbleNavItem key={item.id} id={item.id} label={item.label} icon={item.icon} selected={activeSection === item.id} center={itemIndex === 2} reducedMotion={reducedMotion} onSelect={onSelect} />)}
-              </div>
-            ))}
+    <nav
+      aria-label="Primary Campus Mint navigation"
+      className="fixed inset-x-0 bottom-0 z-50 mx-auto w-fit max-w-full pb-[max(0.4rem,env(safe-area-inset-bottom))]"
+    >
+      <div
+        ref={shellRef}
+        onPointerMove={moveShell}
+        onPointerLeave={resetShell}
+        onPointerCancel={resetShell}
+        className="relative isolate overflow-visible rounded-[1.25rem] border border-slate-200 bg-white/95 px-1.5 py-1 shadow-[0_12px_34px_rgba(15,23,42,0.18)] backdrop-blur-xl will-change-transform"
+        style={{
+          transformStyle: "preserve-3d",
+        }}
+      >
+        <div
+          ref={viewportRef}
+          className="relative touch-pan-y select-none py-1.5"
+          style={{
+            width: "min(288px, calc(100vw - 24px))",
+            clipPath: "inset(-22px 0 -22px 0)",
+          }}
+          onPointerDown={beginSwipe}
+          onPointerMove={updateSwipe}
+          onPointerUp={finishSwipe}
+          onPointerCancel={cancelSwipe}
+          onClickCapture={(event) => {
+            if (!didDragRef.current) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            didDragRef.current = false;
+          }}
+        >
+          <div
+            ref={trackRef}
+            className="flex w-max transform-gpu items-center will-change-transform"
+          >
+            {Array.from({ length: REPEAT_COUNT }, (_, repeatIndex) =>
+              pageSets.map((set, setIndex) => (
+                <div
+                  key={`${repeatIndex}-${setIndex}`}
+                  className="grid shrink-0 grid-cols-5 items-center gap-1 px-1.5"
+                  style={{
+                    width: "min(288px, calc(100vw - 24px))",
+                  }}
+                >
+                  {set.map((item) => (
+                    <BubbleNavItem
+                      key={`${repeatIndex}-${setIndex}-${item.id}`}
+                      id={item.id}
+                      label={item.label}
+                      selected={activeSection === item.id}
+                      reducedMotion={reducedMotion}
+                      onSelect={selectSection}
+                    />
+                  ))}
+                </div>
+              )),
+            )}
           </div>
         </div>
-        <div className="mt-1 flex justify-center gap-1.5" aria-label={`Navigation set ${activeSet + 1} of 2`}>
-          {[0, 1].map((index) => <span key={index} className="h-1 rounded-full transition-all" style={{ width: index === activeSet ? 22 : 6, backgroundColor: index === activeSet ? "var(--app-accent)" : "var(--app-border)" }} />)}
+
+        <div
+          className="pointer-events-none -mt-0.5 flex justify-center gap-1"
+          aria-label={`Navigation set ${activeSet + 1} of 2`}
+        >
+          {[0, 1].map((index) => (
+            <span
+              key={index}
+              className="h-[3px] rounded-full transition-all duration-300"
+              style={{
+                width: index === activeSet ? 15 : 4,
+                backgroundColor:
+                  index === activeSet
+                    ? "var(--app-accent)"
+                    : "var(--app-border)",
+              }}
+            />
+          ))}
         </div>
       </div>
     </nav>

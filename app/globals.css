@@ -185,3 +185,34 @@ summary {
   @keyframes sheet-in { from { opacity: 0; transform: translate3d(0, 14px, 0) scale(.97); } to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } }
   @keyframes sheet-out { from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } to { opacity: 0; transform: translate3d(0, 8px, 0) scale(.975); } }
 }
+
+
+/* CAMPUS_MINT_GLOBAL_BUTTON_MOTION */
+.campus-app-shell button:not(:disabled) {
+  transition:
+    transform 170ms cubic-bezier(.2,.9,.25,1.25),
+    box-shadow 180ms ease,
+    filter 180ms ease,
+    background-color 180ms ease;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .campus-app-shell button:not(:disabled):hover {
+    transform: translate3d(0, -1.5px, 0) scale(1.012);
+  }
+}
+
+.campus-app-shell button:not(:disabled):active {
+  transform: translate3d(0, 1px, 0) scale(0.982);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campus-app-shell button:not(:disabled),
+  .campus-app-shell button:not(:disabled):hover,
+  .campus-app-shell button:not(:disabled):active {
+    transition: none !important;
+    transform: none !important;
+  }
+}

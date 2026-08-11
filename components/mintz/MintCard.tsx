@@ -80,8 +80,7 @@ export function MintCard(props: MintCardProps) {
   const fallbackDetail = eventWhere ?? organization?.shortDescription ?? (mint.media.length === 0 ? mint.caption : null);
   const glowColor = mint.postType === "event" ? "#10b981" : mint.postType === "club" ? "#f97316" : theme.primary;
   const canShowLikeCount = canViewMintLikeCount(permissionContext);
-  const semanticBorder = mint.postType === "event" ? "#6ee7b7" : mint.postType === "club" ? "#fdba74" : "var(--app-border)";
-
+ 
   function toggleLike() {
     setLikePulse((current) => current + 1);
     props.onToggleLike();
@@ -90,7 +89,7 @@ export function MintCard(props: MintCardProps) {
   return (
     <>
     <FloatingMintCard glowColor={glowColor} reducedMotion={props.reducedMotion}>
-      <article className="overflow-hidden rounded-[1.75rem] border bg-white shadow-[0_18px_55px_rgba(15,23,42,0.12)]" style={{ borderColor: semanticBorder }} data-mint-card={mint.id} data-mint-type={mint.postType}>
+      <article className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.12)]" data-mint-card={mint.id} data-mint-type={mint.postType}>
         <header className="p-4 sm:p-5">
           <div className="flex items-center gap-3">
             <button type="button" aria-label={`Open ${author.profile.displayName}'s profile`} onClick={() => props.onOpenProfile(author.account.id)}><ProfileAvatar user={author} size="sm" primaryColor={theme.primary} accentColor={theme.accent} /></button>
@@ -123,7 +122,7 @@ export function MintCard(props: MintCardProps) {
         </MintMediaCarousel>
 
         <div className="p-4 sm:p-5">
-          {eventTitle && <div className="mb-4 rounded-2xl border border-emerald-200 border-l-4 bg-slate-50 p-4"><h3 className="font-black text-slate-950">{eventTitle}</h3>{eventWhen && <p className="mt-1 text-xs font-bold text-emerald-700">{eventWhen}</p>}{eventWhere && <p className="mt-1 text-xs text-slate-600">{eventWhere}</p>}</div>}
+          {eventTitle && <div className="mb-4 rounded-2xl bg-slate-50 p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.16)]"><h3 className="font-black text-slate-950">{eventTitle}</h3>{eventWhen && <p className="mt-1 text-xs font-bold text-emerald-700">{eventWhen}</p>}{eventWhere && <p className="mt-1 text-xs text-slate-600">{eventWhere}</p>}</div>}
           {organization && <p className="mb-3 text-sm font-black text-slate-900">{organization.name}</p>}
           {mint.caption && <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{mint.caption}</p>}
           {mint.mentions.length > 0 && <p className="mt-2 text-sm font-bold" style={{ color: theme.primary }}>{mint.mentions.map((mention) => `@${mention.username}`).join(" ")}</p>}
