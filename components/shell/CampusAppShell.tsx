@@ -609,9 +609,7 @@ export function CampusAppShell() {
           defaultCommentsEnabled={
             preferenceState.preferences.content.commentsDefault
           }
-          defaultHideLikeCounts={
-            preferenceState.preferences.content.hideLikeCountsDefault
-          }
+          defaultHideLikeCounts={preferenceState.preferences.content.hideLikeCountsDefault}
         />
       );
     }
