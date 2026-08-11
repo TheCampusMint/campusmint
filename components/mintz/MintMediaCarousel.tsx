@@ -464,7 +464,7 @@ export function MintMediaCarousel({
         {items.map((item, index) => (
           <div
             key={item?.id ?? "fallback"}
-            className="relative aspect-[4/5] w-full shrink-0 snap-center sm:aspect-[4/3]"
+            className="relative h-[var(--mint-media-height)] w-full shrink-0 snap-center"
           >
             {item?.url ? (
               <ZoomableMedia
@@ -501,7 +501,7 @@ export function MintMediaCarousel({
                 onDoubleTap={onDoubleTap}
               >
                 <div
-                className="flex h-full flex-col justify-end p-7 text-white"
+                className="flex h-full flex-col justify-end p-5 text-white sm:p-7"
                 style={{
                   background:
                     `radial-gradient(circle at ${24 + index * 18}% ${22 + index * 12}%, color-mix(in srgb, ${theme.secondary} 26%, transparent), transparent 34%), linear-gradient(145deg, ${theme.primary}, color-mix(in srgb, ${theme.primary} 64%, #111827))`,
@@ -511,7 +511,7 @@ export function MintMediaCarousel({
                   Development media
                 </span>
 
-                <strong className="mt-2 max-w-sm text-2xl font-black tracking-tight">
+                <strong className="mt-2 max-w-sm text-xl font-black tracking-tight sm:text-2xl">
                   {fallbackLabel}
                 </strong>
 

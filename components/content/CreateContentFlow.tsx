@@ -42,7 +42,7 @@ type CreateContentFlowProps = {
   defaultHideLikeCounts?: boolean;
 };
 
-const fieldClass = "mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm";
+const fieldClass = "mt-1 min-w-0 max-w-full w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base sm:text-sm";
 
 function placeholderMedia(contentType: SocialContentType): SocialMedia[] {
   if (contentType === "text") return [];
@@ -186,9 +186,35 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   }));
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/55 p-3 sm:p-6" role="presentation">
-      <section className="mx-auto max-w-3xl rounded-2xl bg-white p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="create-content-title">
-        <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wide" style={{ color: theme.primary }}>Local development flow</p><h2 id="create-content-title" className="mt-1 text-2xl font-black">Create content</h2></div><button type="button" onClick={onClose} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold">Close</button></div>
+    <div
+      className="fixed inset-0 z-[90] flex items-end justify-center overflow-hidden bg-slate-950/55 sm:items-center sm:p-6"
+      role="presentation"
+    >
+      <section
+        className="mx-auto max-h-[calc(100dvh-0.35rem)] w-full min-w-0 max-w-xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-t-[2rem] bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-5 shadow-2xl sm:max-h-[90dvh] sm:max-w-3xl sm:rounded-2xl sm:p-7"
+        style={{ WebkitOverflowScrolling: "touch" }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-content-title"
+      >
+        <div className="sticky -top-5 z-30 -mx-4 -mt-5 flex items-start justify-between gap-4 border-b border-slate-100 bg-white/95 px-4 pb-3 pt-5 backdrop-blur-xl sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: theme.primary }}>
+              Local development flow
+            </p>
+            <h2 id="create-content-title" className="mt-1 text-xl font-black sm:text-2xl">
+              Create Mint
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close Create Mint"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl font-bold text-slate-700"
+          >
+            ×
+          </button>
+        </div>
 
         {step === "media" ? <div className="mt-6 space-y-6"><fieldset><legend className="font-bold text-slate-900">1. Select media/content</legend><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{(["text", "image", "video", "carousel"] as SocialContentType[]).map((type) => <button key={type} type="button" onClick={() => setContentType(type)} className="rounded-xl border p-4 text-sm font-bold capitalize" style={{ borderColor: contentType === type ? theme.primary : "#e2e8f0", color: contentType === type ? theme.primary : "#475569" }}>{type === "carousel" ? "Multiple photos" : type}</button>)}</div><p className="mt-2 text-xs text-slate-500">Media uses development placeholders. No upload or licensed audio is enabled.</p></fieldset><fieldset><legend className="font-bold text-slate-900">2. Mint type</legend><div className="mt-3 grid grid-cols-3 gap-3">{(["personal", "event", "club"] as SocialPostType[]).map((value) => <button key={value} type="button" onClick={() => setPostType(value)} className="rounded-xl border p-4 text-sm font-bold capitalize" style={{ borderColor: postType === value ? (value === "event" ? "#059669" : value === "club" ? "#f97316" : theme.primary) : "#e2e8f0", color: postType === value ? (value === "event" ? "#047857" : value === "club" ? "#c2410c" : theme.primary) : "#475569" }}>{value}</button>)}</div></fieldset><button type="button" onClick={() => setStep("settings")} className="w-full rounded-xl px-4 py-3 text-sm font-bold text-white" style={{ backgroundColor: theme.primary }}>Continue to details</button></div> : <form onSubmit={submit} className="mt-6 space-y-6">
           

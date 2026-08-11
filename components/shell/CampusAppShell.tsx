@@ -71,7 +71,8 @@ const navigation = [...dailyNavigation, ...secondaryNavigation];
 const sectionSequence = navigation.map((item) => item.id) as SwipeSection[];
 const SECTION_COUNT = sectionSequence.length;
 const INITIAL_MINT_INDEX = sectionSequence.indexOf("mint");
-const HORIZONTAL_SNAP_MS = 340;
+const HORIZONTAL_SNAP_MS = 300;
+const MINT_HOME_SWEEP_MS = 520;
 
 const initialUser: TemporaryUser = {
   id: CURRENT_DEVELOPMENT_USER_ID,
@@ -111,6 +112,8 @@ export function CampusAppShell() {
     useState<"profile" | null>(null);
   const [swipeProgress, setSwipeProgress] = useState(0);
   const [swipeSettling, setSwipeSettling] = useState(false);
+  const [mintSweepProgress, setMintSweepProgress] =
+    useState<-1 | 1 | null>(null);
   const [selectedProfileUserId, setSelectedProfileUserId] =
     useState(CURRENT_DEVELOPMENT_USER_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -121,6 +124,7 @@ export function CampusAppShell() {
   const settleTimerRef = useRef<number | null>(null);
   const pageDragRef = useRef<PageDragState | null>(null);
   const searchTouchRef = useRef<SearchTouchState>(null);
+  const mintReturnTimerRef = useRef<number | null>(null);
   const profileReturnSectionRef =
     useRef<SwipeSection>("mint");
   const [specialPageLeaving, setSpecialPageLeaving] =
@@ -182,10 +186,14 @@ export function CampusAppShell() {
   );
 
   const previousSection =
-    sectionSequence[mod(navIndex - 1, SECTION_COUNT)] ?? "marketplace";
+    mintSweepProgress === 1
+      ? "mint"
+      : sectionSequence[mod(navIndex - 1, SECTION_COUNT)] ?? "marketplace";
 
   const nextSection =
-    sectionSequence[mod(navIndex + 1, SECTION_COUNT)] ?? "messages";
+    mintSweepProgress === -1
+      ? "mint"
+      : sectionSequence[mod(navIndex + 1, SECTION_COUNT)] ?? "messages";
 
   const swipeSections: SwipeSection[] = [
     previousSection,
@@ -283,53 +291,117 @@ export function CampusAppShell() {
     );
   }
 
+  function clearMintReturnTimer() {
+    if (mintReturnTimerRef.current === null) return;
+
+    window.clearTimeout(mintReturnTimerRef.current);
+    mintReturnTimerRef.current = null;
+  }
+
+  function scrollMintHomeToTop() {
+    setMintHeaderHidden(false);
+
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>(
+          "[data-mint-snap-feed]",
+        )
+        ?.scrollTo({
+          top: 0,
+          behavior:
+            preferenceState.preferences.content.reducedMotion
+              ? "auto"
+              : "smooth",
+        });
+    });
+  }
+
+  function animateTrackToMint(startingIndex = navIndex) {
+    clearSettleTimer();
+    clearMintReturnTimer();
+
+    const mintIndex = sectionSequence.indexOf("mint");
+    if (mintIndex < 0) return;
+
+    const destination =
+      nearestVirtualIndex(startingIndex, mintIndex);
+
+    if (
+      preferenceState.preferences.content.reducedMotion ||
+      destination === startingIndex
+    ) {
+      setMintSweepProgress(null);
+      setNavIndex(destination);
+      setGestureProgress(0);
+      setSwipeSettling(false);
+      scrollMintHomeToTop();
+      return;
+    }
+
+    const sweepProgress: -1 | 1 =
+      destination > startingIndex ? -1 : 1;
+
+    /*
+     * Mint becomes the immediate visual neighbor,
+     * regardless of how many navigation sections away it is.
+     * This gives us one continuous iOS-style sweep instead
+     * of pausing at every intermediate tab.
+     */
+    setMintSweepProgress(sweepProgress);
+    setSwipeSettling(true);
+    setGestureProgress(0);
+
+    // Give React one frame to paint Mint into the destination
+    // slot before moving the track.
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        setGestureProgress(sweepProgress);
+      });
+    });
+
+    mintReturnTimerRef.current = window.setTimeout(() => {
+      setNavIndex(destination);
+      setGestureProgress(0);
+      setSwipeSettling(false);
+      setMintSweepProgress(null);
+      mintReturnTimerRef.current = null;
+
+      scrollMintHomeToTop();
+    }, MINT_HOME_SWEEP_MS);
+  }
+
   function handleMintTap() {
+    clearMintReturnTimer();
+
     if (specialSection === "profile") {
-      leaveProfileTo("mint");
+      if (
+        preferenceState.preferences.content.reducedMotion
+      ) {
+        setSpecialSection(null);
+        setSpecialPageLeaving(false);
+        animateTrackToMint(navIndex);
+        return;
+      }
+
+      // First slide the profile away, then visibly travel
+      // through the section track until Mint is centered.
+      setSpecialPageLeaving(true);
+
+      mintReturnTimerRef.current = window.setTimeout(() => {
+        setSpecialSection(null);
+        setSpecialPageLeaving(false);
+        animateTrackToMint(navIndex);
+      }, 330);
+
       return;
     }
 
     if (currentNavigationSection !== "mint") {
-      const mintIndex =
-        sectionSequence.indexOf("mint");
-
-      if (mintIndex >= 0) {
-        setSwipeSettling(true);
-
-        window.setTimeout(() => {
-          setNavIndex((current) =>
-            nearestVirtualIndex(
-              current,
-              mintIndex,
-            ),
-          );
-          setGestureProgress(0);
-          setSwipeSettling(false);
-
-          window.requestAnimationFrame(() => {
-            document
-              .querySelector<HTMLElement>(
-                "[data-mint-snap-feed]",
-              )
-              ?.scrollTo({
-                top: 0,
-                behavior: "smooth",
-              });
-          });
-        }, 260);
-      }
-
+      animateTrackToMint(navIndex);
       return;
     }
 
-    document
-      .querySelector<HTMLElement>(
-        "[data-mint-snap-feed]",
-      )
-      ?.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
+    scrollMintHomeToTop();
   }
 
   function handleOrganizationMembership(organization: Organization) {
@@ -387,12 +459,12 @@ export function CampusAppShell() {
     clearSettleTimer();
 
     const projected =
-      swipeProgressRef.current + velocitySectionsPerMs * 220;
+      swipeProgressRef.current + velocitySectionsPerMs * 255;
 
     let target = 0;
 
-    if (projected <= -0.20) target = -1;
-    if (projected >= 0.20) target = 1;
+    if (projected <= -0.14) target = -1;
+    if (projected >= 0.14) target = 1;
 
     if (preferenceState.preferences.content.reducedMotion) {
       if (target < 0) {
@@ -447,6 +519,14 @@ export function CampusAppShell() {
   }
 
   function beginPageSwipe(event: PointerEvent<HTMLDivElement>) {
+    clearMintReturnTimer();
+
+    if (mintSweepProgress !== null) {
+      setMintSweepProgress(null);
+      setGestureProgress(0);
+      setSwipeSettling(false);
+    }
+
     if (
       specialSection ||
       settingsOpen ||
@@ -474,9 +554,9 @@ export function CampusAppShell() {
     const totalY = event.clientY - drag.startY;
 
     if (drag.axis === "pending") {
-      if (Math.max(Math.abs(totalX), Math.abs(totalY)) < 8) return;
+      if (Math.max(Math.abs(totalX), Math.abs(totalY)) < 5) return;
 
-      if (Math.abs(totalX) > Math.abs(totalY) * 1.18) {
+      if (Math.abs(totalX) > Math.abs(totalY) * 1.08) {
         drag.axis = "horizontal";
         drag.lastX = event.clientX;
         drag.lastTime = event.timeStamp;
@@ -488,7 +568,7 @@ export function CampusAppShell() {
         return;
       }
 
-      if (Math.abs(totalY) > Math.abs(totalX) * 1.18) {
+      if (Math.abs(totalY) > Math.abs(totalX) * 1.08) {
         drag.axis = "vertical";
         return;
       }
@@ -504,7 +584,10 @@ export function CampusAppShell() {
     drag.lastX = event.clientX;
     drag.lastTime = event.timeStamp;
 
-    applyHorizontalDelta(deltaX / viewportWidth, drag.velocity);
+    applyHorizontalDelta(
+      deltaX / (viewportWidth * 0.86),
+      drag.velocity / 0.86,
+    );
   }
 
   function finishPageSwipe(event: PointerEvent<HTMLDivElement>) {
@@ -876,8 +959,10 @@ export function CampusAppShell() {
   function sectionFrame(section: SwipeSection, isActive: boolean) {
     return (
       <div
-        className={`mx-auto px-4 pb-3 pt-3 sm:px-6 sm:pb-36 sm:pt-5 ${
-          section === "mint" ? "max-w-[42rem]" : "max-w-5xl"
+        className={`mx-auto pb-3 pt-2 sm:pb-36 sm:pt-5 ${
+          section === "mint"
+            ? "max-w-[44rem] px-2.5 sm:px-5 lg:px-6"
+            : "max-w-5xl px-4 sm:px-6"
         }`}
       >
         {sectionContent(section, isActive)}
@@ -907,6 +992,10 @@ export function CampusAppShell() {
     return () => {
       if (settleTimerRef.current) {
         window.clearTimeout(settleTimerRef.current);
+      }
+
+      if (mintReturnTimerRef.current) {
+        window.clearTimeout(mintReturnTimerRef.current);
       }
     };
   }, []);

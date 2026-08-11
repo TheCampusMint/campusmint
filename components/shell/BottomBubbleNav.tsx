@@ -189,8 +189,8 @@ export function BottomBubbleNav({
       deltaX / ITEM_STRIDE / elapsed;
 
     drag.velocity =
-      drag.velocity * 0.74 +
-      instantaneousVelocity * 0.26;
+      drag.velocity * 0.45 +
+      instantaneousVelocity * 0.55;
 
     drag.lastX = event.clientX;
     drag.lastTime = event.timeStamp;
@@ -200,7 +200,7 @@ export function BottomBubbleNav({
     if (!expandedRef.current) return;
 
     queueSwipe(
-      deltaX / (ITEM_STRIDE * 1.08),
+      deltaX / (ITEM_STRIDE * 0.94),
       drag.velocity,
     );
   }
@@ -345,7 +345,7 @@ export function BottomBubbleNav({
                 transition:
                   reducedMotion || !swipeSettling
                     ? "none"
-                    : "transform 390ms cubic-bezier(.22,1,.36,1)",
+                    : "transform 300ms cubic-bezier(.22,1,.36,1)",
               }}
             >
               {visibleWindow.map(

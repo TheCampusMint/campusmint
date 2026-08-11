@@ -142,8 +142,8 @@ export function MintCard(props: MintCardProps) {
   return (
     <>
     <FloatingMintCard glowColor={glowColor} reducedMotion={props.reducedMotion}>
-      <article className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.12)]" data-mint-card={mint.id} data-mint-type={mint.postType}>
-        <header className="p-4 sm:p-5">
+      <article className="mint-card-responsive overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_14px_44px_rgba(15,23,42,0.11)] sm:rounded-[1.75rem]" data-mint-card={mint.id} data-mint-type={mint.postType}>
+        <header className="p-3 sm:p-4 lg:p-5">
           <div className="flex items-center gap-3">
             <button type="button" aria-label={`Open ${author.profile.displayName}'s profile`} onClick={() => props.onOpenProfile(author.account.id)}><ProfileAvatar user={author} size="sm" primaryColor={theme.primary} accentColor={theme.accent} /></button>
             <div className="min-w-0 flex-1">
@@ -154,7 +154,7 @@ export function MintCard(props: MintCardProps) {
           </div>
 
           {(mint.postType === "event" || organization) && (
-            <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2 sm:mt-4">
               {mint.postType === "event" && <EventMintBadge eventStartAt={eventStartAt} eventEndAt={eventEndAt} currentTime={currentTime} timeZone={eventTimeZone} />}
               {organization && <ClubMintBadge membershipStatus={props.organizationMembershipStatus} onMembershipAction={props.onOrganizationMembershipAction} />}
             </div>
@@ -196,8 +196,8 @@ export function MintCard(props: MintCardProps) {
           )}
         </MintMediaCarousel>
 
-        <div className="p-4 sm:p-5">
-          {eventTitle && <div className="mb-4 rounded-2xl bg-slate-50 p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.16)]"><h3 className="font-black text-slate-950">{eventTitle}</h3>{eventWhen && <p className="mt-1 text-xs font-bold text-emerald-700">{eventWhen}</p>}{eventWhere && <p className="mt-1 text-xs text-slate-600">{eventWhere}</p>}</div>}
+        <div className="p-3 sm:p-4 lg:p-5">
+          {eventTitle && <div className="mb-3 rounded-2xl bg-slate-50 p-3 sm:mb-4 sm:p-4 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.16)]"><h3 className="font-black text-slate-950">{eventTitle}</h3>{eventWhen && <p className="mt-1 text-xs font-bold text-emerald-700">{eventWhen}</p>}{eventWhere && <p className="mt-1 text-xs text-slate-600">{eventWhere}</p>}</div>}
           {organization && <p className="mb-3 text-sm font-black text-slate-900">{organization.name}</p>}
           {mint.caption && <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{mint.caption}</p>}
           {mint.mentions.length > 0 && <p className="mt-2 text-sm font-bold" style={{ color: theme.primary }}>{mint.mentions.map((mention) => `@${mention.username}`).join(" ")}</p>}
@@ -205,7 +205,7 @@ export function MintCard(props: MintCardProps) {
           {taggedOrganizations.length > 0 && <p className="mt-3 text-xs font-semibold text-slate-500">With {taggedOrganizations.map((tagged) => tagged.name).join(", ")}</p>}
           {(mint.location || mint.music) && <div className="mt-3 space-y-1 text-xs text-slate-500">{mint.location && <p>⌖ {mint.location.label}</p>}{mint.music && <p>♫ {mint.music.trackTitle} — {mint.music.artist}</p>}</div>}
 
-          <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
+          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs sm:mt-4 sm:pt-3">
             <p className="font-semibold text-slate-500">{canShowLikeCount ? `${mint.likeCount} ${mint.likeCount === 1 ? "like" : "likes"}` : "Likes private"} · {mint.commentCount} {mint.commentCount === 1 ? "comment" : "comments"}</p>
             <div className="flex gap-1">
               <button type="button" onClick={props.onToggleSave} className="rounded-full px-3 py-2 font-bold text-slate-600 hover:bg-slate-100">{props.saved ? "Saved" : "Save"}</button>
