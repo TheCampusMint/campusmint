@@ -1,6 +1,11 @@
 "use client";
 
-import { useRef, type PointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+} from "react";
 
 import { BubbleNavItem } from "@/components/shell/BubbleNavItem";
 import {
@@ -16,9 +21,13 @@ type BottomBubbleNavProps = {
   swipeSettling: boolean;
   reducedMotion: boolean;
   onSelect: (section: PrimarySection) => void;
-  onSwipeDelta: (deltaSections: number, velocitySectionsPerMs: number) => void;
+  onSwipeDelta: (
+    deltaSections: number,
+    velocitySectionsPerMs: number,
+  ) => void;
   onSwipeEnd: (velocitySectionsPerMs: number) => void;
   onSwipeCancel: () => void;
+  onMintTap: () => void;
 };
 
 type DragState = {
@@ -30,9 +39,11 @@ type DragState = {
 };
 
 const navigation = [...dailyNavigation, ...secondaryNavigation];
-const ITEM_STRIDE = 52;
+
+const ITEM_STRIDE = 42;
 const NAV_WIDTH = ITEM_STRIDE * 5;
 const WINDOW_RADIUS = 7;
+const HOLD_MS = 190;
 
 function mod(value: number, length: number) {
   return ((value % length) + length) % length;
@@ -48,67 +59,98 @@ export function BottomBubbleNav({
   onSwipeDelta,
   onSwipeEnd,
   onSwipeCancel,
+  onMintTap,
 }: BottomBubbleNavProps) {
-  const dragRef = useRef<DragState | null>(null);
-  const shellRef = useRef<HTMLDivElement>(null);
-  const shellFrameRef = useRef<number | null>(null);
-  const didDragRef = useRef(false);
+  const [expanded, setExpandedState] = useState(false);
 
-  const activeSet =
-    mod(virtualIndex, navigation.length) < dailyNavigation.length ? 0 : 1;
+  const expandedRef = useRef(false);
+  const dragRef = useRef<DragState | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
+
+  const swipeFrameRef = useRef<number | null>(null);
+  const pendingDeltaRef = useRef(0);
+  const pendingVelocityRef = useRef(0);
+
+  function setExpanded(next: boolean) {
+    expandedRef.current = next;
+    setExpandedState(next);
+  }
 
   const visibleWindow = Array.from(
     { length: WINDOW_RADIUS * 2 + 1 },
     (_, slot) => {
-      const itemVirtualIndex = virtualIndex + slot - WINDOW_RADIUS;
+      const itemVirtualIndex =
+        virtualIndex + slot - WINDOW_RADIUS;
+
       return {
         virtualIndex: itemVirtualIndex,
-        item: navigation[mod(itemVirtualIndex, navigation.length)],
+        item:
+          navigation[
+            mod(itemVirtualIndex, navigation.length)
+          ],
       };
     },
   );
 
   const baseOffset =
-    NAV_WIDTH / 2 - (WINDOW_RADIUS + 0.5) * ITEM_STRIDE;
+    NAV_WIDTH / 2 -
+    (WINDOW_RADIUS + 0.5) * ITEM_STRIDE;
 
   const trackOffset =
     baseOffset + swipeProgress * ITEM_STRIDE;
 
-  function paintShell(x: number, y: number, settling = false) {
-    if (reducedMotion || !shellRef.current) return;
+  function clearHoldTimer() {
+    if (holdTimerRef.current === null) return;
 
-    if (shellFrameRef.current) {
-      window.cancelAnimationFrame(shellFrameRef.current);
+    window.clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = null;
+  }
+
+  function flushSwipeFrame() {
+    if (swipeFrameRef.current !== null) {
+      window.cancelAnimationFrame(swipeFrameRef.current);
+      swipeFrameRef.current = null;
     }
 
-    shellFrameRef.current = window.requestAnimationFrame(() => {
-      shellFrameRef.current = null;
-      if (!shellRef.current) return;
+    const delta = pendingDeltaRef.current;
+    const velocity = pendingVelocityRef.current;
 
-      shellRef.current.style.transition = settling
-        ? "transform 400ms cubic-bezier(.22,1,.36,1)"
-        : "transform 55ms linear";
+    pendingDeltaRef.current = 0;
 
-      shellRef.current.style.transform =
-        `translate3d(${x}px, ${y}px, 0) rotateX(${y * -0.22}deg) rotateY(${x * 0.18}deg)`;
-    });
+    if (delta !== 0) {
+      onSwipeDelta(delta, velocity);
+    }
   }
 
-  function moveShell(event: PointerEvent<HTMLElement>) {
-    if (reducedMotion || !shellRef.current) return;
+  function queueSwipe(
+    deltaSections: number,
+    velocitySectionsPerMs: number,
+  ) {
+    pendingDeltaRef.current += deltaSections;
+    pendingVelocityRef.current = velocitySectionsPerMs;
 
-    const bounds = shellRef.current.getBoundingClientRect();
-    const nx = (event.clientX - bounds.left) / bounds.width - 0.5;
-    const ny = (event.clientY - bounds.top) / bounds.height - 0.5;
+    if (swipeFrameRef.current !== null) return;
 
-    paintShell(nx * 3.2, ny * 2.2);
+    swipeFrameRef.current =
+      window.requestAnimationFrame(() => {
+        swipeFrameRef.current = null;
+
+        const delta = pendingDeltaRef.current;
+        const velocity = pendingVelocityRef.current;
+
+        pendingDeltaRef.current = 0;
+
+        if (delta !== 0) {
+          onSwipeDelta(delta, velocity);
+        }
+      });
   }
 
-  function resetShell() {
-    paintShell(0, 0, true);
-  }
+  function beginInteraction(
+    event: PointerEvent<HTMLDivElement>,
+  ) {
+    clearHoldTimer();
 
-  function beginSwipe(event: PointerEvent<HTMLDivElement>) {
     dragRef.current = {
       pointerId: event.pointerId,
       lastX: event.clientX,
@@ -117,127 +159,216 @@ export function BottomBubbleNav({
       velocity: 0,
     };
 
-    didDragRef.current = false;
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null;
+      setExpanded(true);
+    }, HOLD_MS);
   }
 
-  function updateSwipe(event: PointerEvent<HTMLDivElement>) {
+  function moveInteraction(
+    event: PointerEvent<HTMLDivElement>,
+  ) {
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
 
     const deltaX = event.clientX - drag.lastX;
-    const elapsed = Math.max(1, event.timeStamp - drag.lastTime);
+    const elapsed = Math.max(
+      1,
+      event.timeStamp - drag.lastTime,
+    );
 
     drag.distance += Math.abs(deltaX);
-    drag.velocity = deltaX / ITEM_STRIDE / elapsed;
+    drag.velocity =
+      deltaX / ITEM_STRIDE / elapsed;
+
     drag.lastX = event.clientX;
     drag.lastTime = event.timeStamp;
 
-    if (drag.distance > 5) {
-      didDragRef.current = true;
+    // Keep tracking before expansion so there is no jump
+    // at the moment the notch opens.
+    if (!expandedRef.current) return;
 
-      if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      }
-    }
-
-    onSwipeDelta(deltaX / ITEM_STRIDE, drag.velocity);
+    queueSwipe(
+      deltaX / ITEM_STRIDE,
+      drag.velocity,
+    );
   }
 
-  function finishSwipe(event: PointerEvent<HTMLDivElement>) {
+  function finishInteraction(
+    event: PointerEvent<HTMLDivElement>,
+  ) {
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
 
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    clearHoldTimer();
     dragRef.current = null;
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+      event.currentTarget.releasePointerCapture(
+        event.pointerId,
+      );
     }
 
-    onSwipeEnd(drag.velocity);
+    if (expandedRef.current) {
+      flushSwipeFrame();
+      onSwipeEnd(drag.velocity);
+      setExpanded(false);
+      return;
+    }
+
+    if (drag.distance < 8) {
+      onMintTap();
+    }
   }
 
-  function cancelSwipe() {
+  function cancelInteraction(
+    event: PointerEvent<HTMLDivElement>,
+  ) {
+    clearHoldTimer();
+
+    if (
+      event.currentTarget.hasPointerCapture(event.pointerId)
+    ) {
+      event.currentTarget.releasePointerCapture(
+        event.pointerId,
+      );
+    }
+
     dragRef.current = null;
-    onSwipeCancel();
+
+    if (swipeFrameRef.current !== null) {
+      window.cancelAnimationFrame(
+        swipeFrameRef.current,
+      );
+      swipeFrameRef.current = null;
+    }
+
+    pendingDeltaRef.current = 0;
+
+    if (expandedRef.current) {
+      onSwipeCancel();
+    }
+
+    setExpanded(false);
   }
+
+  useEffect(() => {
+    return () => {
+      clearHoldTimer();
+
+      if (swipeFrameRef.current !== null) {
+        window.cancelAnimationFrame(
+          swipeFrameRef.current,
+        );
+      }
+    };
+  }, []);
 
   return (
     <nav
       data-bottom-bubble-nav
-      aria-label="Primary Campus Mint navigation"
-      className="fixed inset-x-0 bottom-0 z-50 mx-auto w-fit max-w-full pb-[max(0.4rem,env(safe-area-inset-bottom))]"
+      aria-label="Campus Mint navigation"
+      className="fixed inset-x-0 bottom-0 z-50 mx-auto w-fit pb-[max(0.25rem,env(safe-area-inset-bottom))]"
     >
       <div
-        ref={shellRef}
-        onPointerMove={moveShell}
-        onPointerLeave={resetShell}
-        onPointerCancel={resetShell}
-        className="relative isolate overflow-visible rounded-full border border-slate-200 bg-white/95 px-3 py-0.5 shadow-[0_12px_34px_rgba(15,23,42,0.18)] backdrop-blur-xl will-change-transform"
-        style={{ transformStyle: "preserve-3d" }}
+        onPointerDown={beginInteraction}
+        onPointerMove={moveInteraction}
+        onPointerUp={finishInteraction}
+        onPointerCancel={cancelInteraction}
+        className={
+          expanded
+            ? "relative flex h-[52px] items-center justify-center overflow-visible rounded-full border border-slate-200 bg-white/95 px-1.5 shadow-[0_10px_28px_rgba(15,23,42,0.16)] backdrop-blur-xl"
+            : "relative flex h-10 w-20 items-center justify-center"
+        }
+        style={{
+          touchAction: expanded ? "none" : "manipulation",
+          transition: reducedMotion
+            ? "none"
+            : "width 230ms cubic-bezier(.22,1,.36,1), height 230ms cubic-bezier(.22,1,.36,1), background-color 180ms ease, box-shadow 220ms ease",
+        }}
       >
-        <div
-          className="relative touch-pan-y select-none py-1"
-          style={{
-            width: NAV_WIDTH,
-            clipPath: "inset(-26px 0 -26px 0)",
-          }}
-          onPointerDown={beginSwipe}
-          onPointerMove={updateSwipe}
-          onPointerUp={finishSwipe}
-          onPointerCancel={cancelSwipe}
-          onClickCapture={(event) => {
-            if (!didDragRef.current) return;
-            event.preventDefault();
-            event.stopPropagation();
-            didDragRef.current = false;
-          }}
-        >
+        {!expanded ? (
           <div
-            className="flex w-max transform-gpu items-center will-change-transform"
+            className="pointer-events-none flex h-8 w-8 items-center justify-center text-emerald-700"
+            aria-hidden="true"
+          >
+            <svg
+              viewBox="0 0 32 32"
+              className="h-4 w-4 overflow-visible"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path
+                d="M25.8 5.5C17 5.8 8.6 9.9 7 18.1c-.8 4.3 2.6 7.7 6.8 6.4 7.8-2.4 10.7-10.6 12-19Z"
+                strokeWidth="2.4"
+              />
+              <path
+                d="M8.6 24.8c2.8-6.2 7.2-10.1 13.8-13.2"
+                strokeWidth="2"
+              />
+              <path
+                d="M13.4 18.7c1.9.1 3.7.5 5.2 1.2M16.7 14.5c.1-1.5-.1-2.8-.5-4"
+                strokeWidth="1.45"
+                opacity=".82"
+              />
+            </svg>
+          </div>
+        ) : (
+          <div
+            className="relative select-none overflow-visible"
             style={{
-              transform: `translate3d(${trackOffset}px, 0, 0)`,
-              transition:
-                reducedMotion || !swipeSettling
-                  ? "none"
-                  : "transform 340ms cubic-bezier(.22,1,.36,1)",
+              width: NAV_WIDTH,
+              clipPath: "inset(-24px 0 -24px 0)",
             }}
           >
-            {visibleWindow.map(({ virtualIndex: itemIndex, item }) => (
-              <div
-                key={itemIndex}
-                className="flex shrink-0 items-center justify-center overflow-visible"
-                style={{ width: ITEM_STRIDE }}
-              >
-                <BubbleNavItem
-                  id={item.id}
-                  label={item.label}
-                  selected={activeSection === item.id}
-                  reducedMotion={reducedMotion}
-                  onSelect={onSelect}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div
-          className="pointer-events-none -mt-0.5 flex justify-center gap-1"
-          aria-label={`Navigation set ${activeSet + 1} of 2`}
-        >
-          {[0, 1].map((index) => (
-            <span
-              key={index}
-              className="h-[3px] rounded-full transition-all duration-300"
+            <div
+              className="flex w-max transform-gpu items-center will-change-transform"
               style={{
-                width: index === activeSet ? 15 : 4,
-                backgroundColor:
-                  index === activeSet
-                    ? "var(--app-accent)"
-                    : "var(--app-border)",
+                transform:
+                  `translate3d(${trackOffset}px,0,0)`,
+                transition:
+                  reducedMotion || !swipeSettling
+                    ? "none"
+                    : "transform 300ms cubic-bezier(.22,1,.36,1)",
               }}
-            />
-          ))}
-        </div>
+            >
+              {visibleWindow.map(
+                ({
+                  virtualIndex: itemIndex,
+                  item,
+                }) => (
+                  <div
+                    key={itemIndex}
+                    className="flex shrink-0 items-center justify-center overflow-visible"
+                    style={{ width: ITEM_STRIDE }}
+                  >
+                    <BubbleNavItem
+                      id={item.id}
+                      label={item.label}
+                      selected={
+                        activeSection === item.id
+                      }
+                      reducedMotion={reducedMotion}
+                      onSelect={onSelect}
+                    />
+                  </div>
+                ),
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </nav>
   );

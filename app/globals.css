@@ -228,3 +228,57 @@ summary {
 .campus-app-shell button[data-static-badge]:active {
   transform: none !important;
 }
+
+
+/* CM_SHARED_CONTENT_TRANSITIONS_V1 */
+:root {
+  --cm-motion-duration: 230ms;
+  --cm-motion-curve: cubic-bezier(.22,1,.36,1);
+}
+
+.cm-content-swap {
+  animation:
+    cm-content-swap
+    var(--cm-motion-duration)
+    var(--cm-motion-curve)
+    both;
+}
+
+@keyframes cm-content-swap {
+  from {
+    opacity: 0;
+    transform: translate3d(12px, 0, 0) scale(.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* Settings category pills keep identical geometry when active. */
+.campus-app-shell button[data-static-control],
+.campus-app-shell button[data-static-control]:hover,
+.campus-app-shell button[data-static-control]:active {
+  transform: none !important;
+}
+
+/* Keep mobile pull / pinch gestures crisp. */
+[data-mint-snap-feed] {
+  -webkit-overflow-scrolling: touch;
+}
+
+[data-mint-zoomable] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-content-swap {
+    animation: none !important;
+  }
+}
+
+.campus-app-shell[data-reduced-motion="true"] .cm-content-swap {
+  animation: none !important;
+}

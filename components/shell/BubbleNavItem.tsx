@@ -184,19 +184,25 @@ export function BubbleNavItem({
     };
   }, [selected]);
 
-  const color =
-    id === "mint" && selected
-      ? "#ffffff"
-      : selected
-        ? "var(--app-accent)"
-        : "var(--app-text-secondary)";
+  const iconColors: Record<PrimarySection, string> = {
+    messages: "#1e3a5f",
+    search: "#155e63",
+    mint: "#166534",
+    people: "#3730a3",
+    clubs: "#6b214f",
+    career: "#8a6116",
+    housing: "#8c3b32",
+    groups: "#5b358c",
+    food: "#9a4d16",
+    marketplace: "#176b52",
+    profile: "#334155",
+  };
 
-  const filter =
-    id === "mint" && selected
-      ? "drop-shadow(0 0 1.5px rgba(15,23,42,.95)) drop-shadow(0 7px 7px color-mix(in srgb, var(--app-accent) 70%, transparent))"
-      : selected
-        ? "drop-shadow(0 8px 7px color-mix(in srgb, var(--app-accent) 34%, transparent)) drop-shadow(0 2px 1px rgba(15,23,42,.2))"
-        : "drop-shadow(0 6px 5px rgba(15,23,42,.22)) drop-shadow(0 1px 1px rgba(255,255,255,.7))";
+  const color = iconColors[id];
+
+  const filter = selected
+    ? `drop-shadow(0 7px 7px ${color}55) drop-shadow(0 2px 2px ${color}30)`
+    : `drop-shadow(0 5px 4px ${color}35)`;
 
   return (
     <button

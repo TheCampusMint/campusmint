@@ -114,6 +114,7 @@ export function CampusAppShell() {
   const [selectedProfileUserId, setSelectedProfileUserId] =
     useState(CURRENT_DEVELOPMENT_USER_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mintHeaderHidden, setMintHeaderHidden] = useState(false);
   const [user, setUser] = useState<TemporaryUser>(initialUser);
 
   const swipeProgressRef = useRef(0);
@@ -586,6 +587,38 @@ export function CampusAppShell() {
     resetGlobalMotionTarget(control);
   }
 
+  function scrollMintFeedToTop() {
+    setMintHeaderHidden(false);
+
+    const scrollFeed = () => {
+      const feed =
+        document.querySelector<HTMLElement>(
+          "[data-mint-snap-feed]",
+        );
+
+      feed?.scrollTo({
+        top: 0,
+        behavior:
+          preferenceState.preferences.content
+            .reducedMotion
+            ? "auto"
+            : "smooth",
+      });
+    };
+
+    if (activeSection !== "mint") {
+      selectSection("mint");
+      window.setTimeout(scrollFeed, 0);
+      return;
+    }
+
+    scrollFeed();
+  }
+
+  function refreshMintFeed() {
+    window.location.reload();
+  }
+
   function sectionContent(
     section: PrimarySection,
     isActive = false,
@@ -609,7 +642,7 @@ export function CampusAppShell() {
           defaultCommentsEnabled={
             preferenceState.preferences.content.commentsDefault
           }
-          defaultHideLikeCounts={preferenceState.preferences.content.hideLikeCountsDefault}
+          defaultHideLikeCounts={preferenceState.preferences.content.hideLikeCountsDefault} onFeedChromeChange={setMintHeaderHidden} onRefresh={refreshMintFeed}
         />
       );
     }
@@ -789,7 +822,7 @@ export function CampusAppShell() {
       }}
     >
       <TopUtilityBar
-        viewer={viewer}
+        hidden={activeSection === "mint" && mintHeaderHidden} viewer={viewer}
         theme={theme}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenProfile={() => openProfile(CURRENT_DEVELOPMENT_USER_ID)}
@@ -855,6 +888,7 @@ export function CampusAppShell() {
         onSwipeDelta={applyHorizontalDelta}
         onSwipeEnd={finishHorizontalGesture}
         onSwipeCancel={cancelHorizontalGesture}
+        onMintTap={scrollMintFeedToTop}
       />
 
       {settingsOpen && (
