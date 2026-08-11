@@ -54,9 +54,61 @@ function expirationLabel(expiresAt: string | null, currentTime: number) {
   return `Temporary · ${Math.ceil(minutes / 60)}h left`;
 }
 
+function HeartGlyph({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      className="h-[29px] w-[29px]"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="2.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M16 27.2S4.8 20.5 4.8 11.8c0-4.3 3.1-7 6.8-7 2.2 0 3.7 1 4.4 2.4.8-1.4 2.3-2.4 4.5-2.4 3.7 0 6.8 2.7 6.8 7C27.3 20.5 16 27.2 16 27.2Z" />
+    </svg>
+  );
+}
+
+function CommentGlyph() {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      className="h-[28px] w-[28px]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 6.5h22v15H15l-6.8 5v-5H5V6.5Z" />
+      <path d="M10 12h12M10 16.5h8" strokeWidth="2" opacity=".82" />
+    </svg>
+  );
+}
+
+function AttendeesGlyph() {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      className="h-[29px] w-[29px]"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="10.5" r="4.2" />
+      <circle cx="22" cy="12" r="3.4" opacity=".82" />
+      <path d="M4.5 27c.3-5.7 3.1-9 7.6-9 4.6 0 7.4 3.3 7.7 9H4.5Z" />
+      <path d="M18.2 27c-.1-3.2-.9-5.7-2.5-7.3 1.7-1.1 3.8-1.4 5.8-.9 3.8.8 5.9 3.5 6 8.2h-9.3Z" opacity=".82" />
+    </svg>
+  );
+}
+
 export function MintCard(props: MintCardProps) {
   const { mint, author, viewer, users, theme, currentTime, permissionContext } = props;
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [attendeesOpen, setAttendeesOpen] = useState(false);
   const [likePulse, setLikePulse] = useState(0);
   const [captionDraft, setCaptionDraft] = useState(mint.caption);
   const ownMint = viewer.account.id === mint.authorId;
@@ -74,6 +126,7 @@ export function MintCard(props: MintCardProps) {
   const eventTimeZone = canonicalEvent?.timeZone ?? mint.eventData?.timeZone ?? null;
   const eventWhen = formatEventDateTimeRange(eventStartAt, eventEndAt, eventTimeZone);
   const eventWhere = canonicalEvent?.location ?? mint.eventData?.location?.label;
+  const attendeeCount = canonicalEvent?.rsvpCount ?? 0;
   const activeComments = props.comments.filter((item) => item.status === "active");
   const temporaryLabel = expirationLabel(mint.expiresAt, currentTime);
   const fallbackLabel = eventTitle ?? organization?.name ?? "A new Mint";
@@ -111,14 +164,36 @@ export function MintCard(props: MintCardProps) {
         <MintMediaCarousel media={mint.media} theme={theme} fallbackLabel={fallbackLabel} fallbackDetail={fallbackDetail} autoplayVideo={props.autoplayVideo}>
           <div className="absolute bottom-4 right-3 flex flex-col items-center gap-2 sm:bottom-5 sm:right-4" aria-label="Mint actions">
             <button type="button" onClick={toggleLike} aria-pressed={props.liked} aria-label={props.liked ? "Unlike Mint" : "Like Mint"} className={`interactive-pop flex min-h-12 min-w-12 flex-col items-center justify-center p-2 text-xs font-black focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white ${props.liked ? "text-rose-500" : "text-white"}`}>
-              <span key={likePulse} aria-hidden="true" className={`text-[25px] leading-none ${likePulse > 0 ? "like-pop" : ""}`} style={{ filter: "drop-shadow(0 2px 3px rgba(0,0,0,.88))" }}>{props.liked ? "♥" : "♡"}</span>
+              <span key={likePulse} className={likePulse > 0 ? "like-pop" : ""} style={{ filter: "drop-shadow(0 2px 3px rgba(0,0,0,.88))" }}><HeartGlyph filled={props.liked} /></span>
               {canShowLikeCount && <span className="mt-0.5 text-[10px] leading-none text-white" style={{ textShadow: "0 1px 3px rgba(0,0,0,.95)" }}>{mint.likeCount}</span>}
             </button>
             <button type="button" disabled={!mint.commentsEnabled} onClick={() => setCommentsOpen(true)} aria-expanded={commentsOpen} aria-label="Open Mint comments" className="interactive-pop flex min-h-12 min-w-12 flex-col items-center justify-center p-2 text-xs font-black text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white disabled:opacity-50">
-              <span aria-hidden="true" className="relative block h-[18px] w-[22px] rounded-[45%] border-2 border-current after:absolute after:-bottom-[4px] after:right-[2px] after:h-[7px] after:w-[7px] after:rotate-45 after:border-b-2 after:border-r-2 after:border-current" style={{ filter: "drop-shadow(0 2px 3px rgba(0,0,0,.88))" }} />
+              <span style={{ filter: "drop-shadow(0 2px 3px rgba(0,0,0,.88))" }}><CommentGlyph /></span>
               <span className="mt-1 text-[10px] leading-none" style={{ textShadow: "0 1px 3px rgba(0,0,0,.95)" }}>{mint.commentCount}</span>
             </button>
+            {mint.postType === "event" && (
+              <button
+                type="button"
+                onClick={() => setAttendeesOpen((current) => !current)}
+                aria-expanded={attendeesOpen}
+                aria-label={`${attendeeCount} people attending`}
+                title="People attending"
+                className="interactive-pop flex min-h-12 min-w-12 flex-col items-center justify-center p-2 text-xs font-black text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white"
+              >
+                <span style={{ filter: "drop-shadow(0 2px 3px rgba(0,0,0,.88))" }}>
+                  <AttendeesGlyph />
+                </span>
+                <span className="mt-0.5 text-[10px] leading-none" style={{ textShadow: "0 1px 3px rgba(0,0,0,.95)" }}>
+                  {attendeeCount}
+                </span>
+              </button>
+            )}
           </div>
+          {attendeesOpen && mint.postType === "event" && (
+            <div className="absolute bottom-4 left-3 rounded-full bg-slate-950/65 px-3 py-2 text-xs font-bold text-white shadow-lg backdrop-blur-md sm:bottom-5 sm:left-4">
+              {attendeeCount} attending
+            </div>
+          )}
         </MintMediaCarousel>
 
         <div className="p-4 sm:p-5">

@@ -283,14 +283,14 @@ export function BottomBubbleNav({
         onPointerMove={moveShell}
         onPointerLeave={resetShell}
         onPointerCancel={resetShell}
-        className="relative isolate overflow-visible rounded-[1.25rem] border border-slate-200 bg-white/95 px-1.5 py-1 shadow-[0_12px_34px_rgba(15,23,42,0.18)] backdrop-blur-xl will-change-transform"
+        className="relative isolate overflow-visible rounded-full border border-slate-200 bg-white/95 px-2.5 py-0.5 shadow-[0_12px_34px_rgba(15,23,42,0.18)] backdrop-blur-xl will-change-transform"
         style={{
           transformStyle: "preserve-3d",
         }}
       >
         <div
           ref={viewportRef}
-          className="relative touch-pan-y select-none py-1.5"
+          className="relative touch-pan-y select-none py-1"
           style={{
             width: "min(288px, calc(100vw - 24px))",
             clipPath: "inset(-22px 0 -22px 0)",
