@@ -58,7 +58,7 @@ export function MintzHub({ viewer, theme, profiles, mintz, organizations, onCrea
       {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{notice}</p>}
       <div className="mx-auto max-w-2xl"><MintFeedList mints={visibleMintz} viewer={viewer} theme={theme} profiles={profiles} mintz={mintz} organizations={organizations} feedState={feedState} onOpenProfile={onOpenProfile} onRequestOrganization={onRequestOrganization} onNotice={setNotice} /></div>
 
-      {createOpen && <CreateContentFlow viewer={viewer} users={feedState.users} theme={theme} onCreateMint={mintz.createMint} onCreateStory={onCreateStory} onClose={() => setCreateOpen(false)} organizationMemberships={organizations.memberships} organizationRoles={organizations.roles} />}
+      {createOpen && <CreateContentFlow viewer={viewer} users={feedState.users} theme={theme} onCreateMint={mintz.createMint} onClose={() => setCreateOpen(false)} organizationMemberships={organizations.memberships} organizationRoles={organizations.roles} />}
     </div>
   );
 }

@@ -64,7 +64,7 @@ export function CampusMintFeed({ viewer, theme, profiles, mintz, organizations, 
 
       <MintFeedList mints={visibleMintz} viewer={viewer} theme={theme} profiles={profiles} mintz={mintz} organizations={organizations} feedState={feedState} onOpenProfile={onOpenProfile} onRequestOrganization={onRequestOrganization} onNotice={setNotice} reducedMotion={reducedMotion} autoplayVideo={autoplayVideo} />
 
-      {createOpen && <CreateContentFlow viewer={viewer} users={feedState.users} theme={theme} onCreateMint={mintz.createMint} onCreateStory={onCreateStory} onClose={() => setCreateOpen(false)} organizationMemberships={organizations.memberships} organizationRoles={organizations.roles} defaultCommentsEnabled={defaultCommentsEnabled} defaultHideLikeCounts={defaultHideLikeCounts} />}
+      {createOpen && <CreateContentFlow viewer={viewer} users={feedState.users} theme={theme} onCreateMint={mintz.createMint} onClose={() => setCreateOpen(false)} organizationMemberships={organizations.memberships} organizationRoles={organizations.roles} defaultCommentsEnabled={defaultCommentsEnabled} defaultHideLikeCounts={defaultHideLikeCounts} />}
     </div>
   );
 }
