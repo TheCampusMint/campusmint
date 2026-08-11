@@ -28,7 +28,6 @@ import {
 } from "@/components/shell/navigation";
 import { SettingsPanel } from "@/components/shell/SettingsPanel";
 import { TopUtilityBar } from "@/components/shell/TopUtilityBar";
-import { CareerSkeleton } from "@/components/secondary/CareerSkeleton";
 import { FoodSkeleton } from "@/components/secondary/FoodSkeleton";
 import { HousingSkeleton } from "@/components/secondary/HousingSkeleton";
 import { DeveloperUniversitySwitcher } from "@/components/university/DeveloperUniversitySwitcher";
@@ -49,7 +48,7 @@ import { getVisibleStories } from "@/lib/storyPermissions";
 import type { Organization } from "@/types/organization";
 import type { TemporaryUser } from "@/types/user";
 
-type SwipeSection = Exclude<PrimarySection, "profile">;
+type SwipeSection = Exclude<PrimarySection, "profile" | "search">;
 
 type PageDragState = {
   pointerId: number;
@@ -109,7 +108,7 @@ export function CampusAppShell() {
     INITIAL_MINT_INDEX >= 0 ? INITIAL_MINT_INDEX : 0,
   );
   const [specialSection, setSpecialSection] =
-    useState<"profile" | null>(null);
+    useState<"profile" | "search" | null>(null);
   const [swipeProgress, setSwipeProgress] = useState(0);
   const [swipeSettling, setSwipeSettling] = useState(false);
   const [mintSweepProgress, setMintSweepProgress] =
@@ -117,6 +116,7 @@ export function CampusAppShell() {
   const [selectedProfileUserId, setSelectedProfileUserId] =
     useState(CURRENT_DEVELOPMENT_USER_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mintHeaderHidden, setMintHeaderHidden] = useState(false);
   const [user, setUser] = useState<TemporaryUser>(initialUser);
 
@@ -226,8 +226,8 @@ export function CampusAppShell() {
     setSwipeSettling(false);
     setGestureProgress(0);
 
-    if (section === "profile") {
-      setSpecialSection("profile");
+    if (section === "profile" || section === "search") {
+      setSpecialSection(section);
       return;
     }
 
@@ -372,6 +372,12 @@ export function CampusAppShell() {
 
   function handleMintTap() {
     clearMintReturnTimer();
+
+    if (specialSection === "search") {
+      setSpecialSection(null);
+      animateTrackToMint(navIndex);
+      return;
+    }
 
     if (specialSection === "profile") {
       if (
@@ -905,16 +911,6 @@ export function CampusAppShell() {
       );
     }
 
-    if (section === "career") {
-      return (
-        <CareerSkeleton
-          universityId={user.universityId}
-          theme={theme}
-          profile={academics.profiles[user.universityId]}
-        />
-      );
-    }
-
     if (section === "marketplace") {
       return (
         <SimpleMarketplace
@@ -1022,8 +1018,18 @@ export function CampusAppShell() {
       <TopUtilityBar
         hidden={activeSection === "mint" && mintHeaderHidden} viewer={viewer}
         theme={theme}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onOpenProfile={() => openProfile(CURRENT_DEVELOPMENT_USER_ID)}
+        onOpenSettings={() => {
+          setNotificationsOpen(false);
+          setSettingsOpen(true);
+        }}
+        onOpenNotifications={() => {
+          setSettingsOpen(false);
+          setNotificationsOpen((open) => !open);
+        }}
+        onOpenProfile={() => {
+          setNotificationsOpen(false);
+          openProfile(CURRENT_DEVELOPMENT_USER_ID);
+        }}
         developerControls={
           showDeveloperControls ? (
             <>
@@ -1042,9 +1048,9 @@ export function CampusAppShell() {
         }
       />
 
-      {activeSection === "profile" ? (
+      {specialSection ? (
         <div className="mx-auto max-w-5xl px-4 pb-36 pt-5 sm:px-6">
-          {sectionContent("profile", true)}
+          {sectionContent(specialSection, true)}
         </div>
       ) : (
         <div
@@ -1088,6 +1094,28 @@ export function CampusAppShell() {
         onSwipeCancel={cancelHorizontalGesture}
         onMintTap={handleMintTap}
       />
+
+      {notificationsOpen && (
+        <div className="fixed right-3 top-[4.35rem] z-[70] w-[min(22rem,calc(100vw-1.5rem))] rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-[0_18px_55px_rgba(15,23,42,0.16)] backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-black text-slate-950">
+              Notifications
+            </h2>
+            <button
+              type="button"
+              onClick={() => setNotificationsOpen(false)}
+              aria-label="Close notifications"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-600"
+            >
+              ×
+            </button>
+          </div>
+
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            Notifications will appear here as Campus Mint activity is connected.
+          </p>
+        </div>
+      )}
 
       {settingsOpen && (
         <SettingsPanel

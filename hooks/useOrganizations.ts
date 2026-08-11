@@ -19,6 +19,7 @@ import {
 } from "@/lib/organizationIdentity";
 import {
   handleOrganizationMembershipAccepted,
+  inviteOrganizationMember,
   membershipStatusFor,
   openOrganizationContactConversation,
   rejectOrganizationMembership,
@@ -68,6 +69,58 @@ export function useOrganizations(currentUserId: string) {
   function leaveOrganization(organization: Organization, userId = currentUserId) {
     setMembershipState((current) => removeOrganizationMembership(current, organization, userId));
   }
+
+
+
+  function inviteToOrganization(
+    organization: Organization,
+    userId: string,
+    invitedByUserId = currentUserId,
+  ) {
+    setMembershipState((current) =>
+      inviteOrganizationMember(
+        current,
+        organization.id,
+        userId,
+        invitedByUserId,
+        crypto.randomUUID(),
+        new Date().toISOString(),
+      ),
+    );
+  }
+
+
+  function acceptInvitation(
+    organization: Organization,
+    userId = currentUserId,
+  ) {
+    setMembershipState((current) =>
+      handleOrganizationMembershipAccepted(
+        current,
+        organization,
+        userId,
+        userId,
+        new Date().toISOString(),
+      ),
+    );
+  }
+
+
+  function declineInvitation(
+    organizationId: string,
+    userId = currentUserId,
+  ) {
+    setMembershipState((current) =>
+      rejectOrganizationMembership(
+        current,
+        organizationId,
+        userId,
+        userId,
+        new Date().toISOString(),
+      ),
+    );
+  }
+
 
   function acceptMembership(organization: Organization, userId: string, decidedByUserId = currentUserId) {
     setMembershipState((current) =>
@@ -171,6 +224,9 @@ export function useOrganizations(currentUserId: string) {
     getMembershipStatus,
     joinOrRequest,
     leaveOrganization,
+    inviteToOrganization,
+    acceptInvitation,
+    declineInvitation,
     acceptMembership,
     rejectMembership,
     getPendingRequests,

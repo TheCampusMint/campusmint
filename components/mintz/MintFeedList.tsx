@@ -59,15 +59,25 @@ export function MintFeedList({
 }: MintFeedListProps) {
   const feedRef = useRef<HTMLDivElement>(null);
   const pullStartRef = useRef<number | null>(null);
+  const refreshHoldTimerRef = useRef<number | null>(null);
+  const refreshArmedRef = useRef(false);
   const chromeHiddenRef = useRef(false);
 
   const [pullDistance, setPullDistance] =
     useState(0);
 
+  function clearRefreshHoldTimer() {
+    if (refreshHoldTimerRef.current === null) return;
+
+    window.clearTimeout(refreshHoldTimerRef.current);
+    refreshHoldTimerRef.current = null;
+  }
+
   useEffect(() => {
     onFeedChromeChange?.(false);
 
     return () => {
+      clearRefreshHoldTimer();
       onFeedChromeChange?.(false);
     };
   }, [onFeedChromeChange]);
@@ -91,10 +101,9 @@ export function MintFeedList({
   function handleTouchStart(
     event: TouchEvent<HTMLDivElement>,
   ) {
-    // Mint owns its pull-down gesture. This also prevents
-    // the shell's pull-down Search gesture fighting with
-    // pull-to-refresh while the user is in Mint.
-    event.stopPropagation();
+    clearRefreshHoldTimer();
+    refreshArmedRef.current = false;
+    setPullDistance(0);
 
     if (event.touches.length !== 1) {
       pullStartRef.current = null;
@@ -103,20 +112,31 @@ export function MintFeedList({
 
     const target = event.target as HTMLElement;
 
-    if (
-      target.closest("[data-mint-carousel]")
-    ) {
+    if (target.closest("[data-mint-carousel]")) {
       pullStartRef.current = null;
       return;
     }
 
-    if ((feedRef.current?.scrollTop ?? 0) > 0) {
+    // Refresh is only available when the actual page is
+    // already back at the very top.
+    if (window.scrollY > 2) {
       pullStartRef.current = null;
       return;
     }
 
     pullStartRef.current =
       event.touches[0].clientY;
+
+    // A normal immediate downward swipe is Search.
+    // Holding first arms pull-to-refresh instead.
+    refreshHoldTimerRef.current =
+      window.setTimeout(() => {
+        refreshHoldTimerRef.current = null;
+        refreshArmedRef.current = true;
+
+        // Tiny visual acknowledgement that refresh is armed.
+        setPullDistance(8);
+      }, 360);
   }
 
   function handleTouchMove(
@@ -124,8 +144,7 @@ export function MintFeedList({
   ) {
     if (
       pullStartRef.current === null ||
-      event.touches.length !== 1 ||
-      (feedRef.current?.scrollTop ?? 0) > 0
+      event.touches.length !== 1
     ) {
       return;
     }
@@ -134,25 +153,54 @@ export function MintFeedList({
       event.touches[0].clientY -
       pullStartRef.current;
 
-    if (delta <= 0) {
-      setPullDistance(0);
+    // Movement before the hold finishes means this is the
+    // quick pull-down Search gesture, not refresh.
+    if (!refreshArmedRef.current) {
+      if (Math.abs(delta) > 12) {
+        clearRefreshHoldTimer();
+      }
+
       return;
     }
 
-    // Rubber-band resistance.
-    const eased = Math.min(88, delta * 0.46);
+    // Once armed, Mint owns the gesture so Search does not
+    // also fire when the finger is released.
+    event.stopPropagation();
+
+    if (window.scrollY > 2 || delta <= 0) {
+      setPullDistance(8);
+      return;
+    }
+
+    const eased = Math.min(
+      92,
+      8 + delta * 0.46,
+    );
 
     setPullDistance(eased);
 
-    if (eased > 2) {
+    if (eased > 8) {
       event.preventDefault();
     }
   }
 
-  function finishPull() {
+  function finishPull(
+    event?: TouchEvent<HTMLDivElement>,
+  ) {
+    clearRefreshHoldTimer();
+
+    const wasArmed =
+      refreshArmedRef.current;
+
     const shouldRefresh =
+      wasArmed &&
       pullDistance >= 62;
 
+    if (wasArmed) {
+      event?.stopPropagation();
+    }
+
+    refreshArmedRef.current = false;
     pullStartRef.current = null;
     setPullDistance(0);
 

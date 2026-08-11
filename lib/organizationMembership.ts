@@ -32,8 +32,14 @@ export function requestOrganizationMembership(
   const existing = state.memberships.find((membership) =>
     membership.organizationId === organizationId && membership.userId === userId,
   );
-  if (existing?.status === "blocked" || existing?.status === "requested" || existing?.status === "member"
-    || existing?.status === "officer" || existing?.status === "leader") return state;
+  if (
+    existing?.status === "blocked" ||
+    existing?.status === "requested" ||
+    existing?.status === "invited" ||
+    existing?.status === "member" ||
+    existing?.status === "officer" ||
+    existing?.status === "leader"
+  ) return state;
 
   const requested: OrganizationMembership = existing
     ? { ...existing, status: "requested", requestedAt: now, decidedAt: null, decidedByUserId: null, updatedAt: now }
@@ -56,6 +62,68 @@ export function requestOrganizationMembership(
   };
 }
 
+export function inviteOrganizationMember(
+  state: OrganizationMembershipState,
+  organizationId: string,
+  userId: string,
+  invitedByUserId: string,
+  membershipId: string,
+  now: string,
+): OrganizationMembershipState {
+  const existing = state.memberships.find((candidate) =>
+    candidate.organizationId === organizationId &&
+    candidate.userId === userId,
+  );
+
+  if (
+    existing?.status === "blocked" ||
+    existing?.status === "requested" ||
+    existing?.status === "invited" ||
+    existing?.status === "member" ||
+    existing?.status === "officer" ||
+    existing?.status === "leader"
+  ) {
+    return state;
+  }
+
+  const invited: OrganizationMembership = existing
+    ? {
+        ...existing,
+        status: "invited",
+        requestedAt: null,
+        invitedAt: now,
+        invitedByUserId,
+        decidedAt: null,
+        decidedByUserId: null,
+        updatedAt: now,
+      }
+    : {
+        id: membershipId,
+        organizationId,
+        userId,
+        status: "invited",
+        requestedAt: null,
+        invitedAt: now,
+        invitedByUserId,
+        decidedAt: null,
+        decidedByUserId: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+  return {
+    ...state,
+    memberships: existing
+      ? state.memberships.map((candidate) =>
+          candidate.id === existing.id
+            ? invited
+            : candidate,
+        )
+      : [...state.memberships, invited],
+  };
+}
+
+
 export function handleOrganizationMembershipAccepted(
   state: OrganizationMembershipState,
   organization: Organization,
@@ -64,7 +132,9 @@ export function handleOrganizationMembershipAccepted(
   now: string,
 ): OrganizationMembershipState {
   const membership = state.memberships.find((candidate) =>
-    candidate.organizationId === organization.id && candidate.userId === userId && candidate.status === "requested",
+    candidate.organizationId === organization.id &&
+    candidate.userId === userId &&
+    (candidate.status === "requested" || candidate.status === "invited"),
   );
   if (!membership || !organization.organizationConversationId) return state;
 
@@ -74,7 +144,15 @@ export function handleOrganizationMembershipAccepted(
   return {
     ...state,
     memberships: state.memberships.map((candidate) => candidate.id === membership.id
-      ? { ...candidate, status: "member", decidedAt: now, decidedByUserId, updatedAt: now }
+      ? {
+          ...candidate,
+          status: "member",
+          invitedAt: null,
+          invitedByUserId: null,
+          decidedAt: now,
+          decidedByUserId,
+          updatedAt: now,
+        }
       : candidate),
     conversationParticipants: participantExists
       ? state.conversationParticipants
@@ -92,8 +170,18 @@ export function rejectOrganizationMembership(
   return {
     ...state,
     memberships: state.memberships.map((membership) =>
-      membership.organizationId === organizationId && membership.userId === userId && membership.status === "requested"
-        ? { ...membership, status: "rejected", decidedAt: now, decidedByUserId, updatedAt: now }
+      membership.organizationId === organizationId &&
+      membership.userId === userId &&
+      (membership.status === "requested" || membership.status === "invited")
+        ? {
+            ...membership,
+            status: "rejected",
+            invitedAt: null,
+            invitedByUserId: null,
+            decidedAt: now,
+            decidedByUserId,
+            updatedAt: now,
+          }
         : membership),
   };
 }

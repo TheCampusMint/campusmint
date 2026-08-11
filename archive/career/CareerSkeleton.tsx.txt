@@ -1,3 +1,11 @@
+/*
+ARCHIVED CAMPUS MINT CAREER TAB
+Original path: components/secondary/CareerSkeleton.tsx
+
+This is intentionally stored as .txt so Next.js/TypeScript will not compile it.
+Restore it later when Career is ready to return.
+*/
+
 import { getAcademicCatalog } from "@/data/development/campusData";
 import type { UniversityId, UniversityTheme } from "@/data/universities";
 import type { AcademicProfile } from "@/types/campus-data";

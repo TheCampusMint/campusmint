@@ -24,6 +24,7 @@ import {
 } from "@/lib/social/permissions";
 import type { MarketplaceListing } from "@/types/marketplace";
 import type { CampusMintUser } from "@/types/profile";
+import type { OrganizationMembershipStatus } from "@/types/organization";
 import type { FriendshipStatus, UserReportReason } from "@/types/social";
 import type { Story } from "@/types/story";
 
@@ -42,8 +43,53 @@ type ProfileViewProps = {
   onToggleFollow: () => void;
   onBlock: () => void;
   onReport: (reason: UserReportReason, details: string | null) => void;
+  clubInviteOptions: {
+    id: string;
+    name: string;
+    status: OrganizationMembershipStatus;
+  }[];
+  incomingClubInvitations: {
+    id: string;
+    name: string;
+  }[];
+  onInviteToClub: (organizationId: string) => void;
+  onAcceptClubInvitation: (organizationId: string) => void;
+  onDeclineClubInvitation: (organizationId: string) => void;
   socialContent: React.ReactNode;
 };
+
+export function MintBackLeaf() {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      className="h-6 w-6 overflow-visible"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{
+        transform: "rotate(-135deg)",
+        transformOrigin: "center",
+      }}
+    >
+      <path
+        d="M25.8 5.5C17 5.8 8.6 9.9 7 18.1c-.8 4.3 2.6 7.7 6.8 6.4 7.8-2.4 10.7-10.6 12-19Z"
+        strokeWidth="2.4"
+      />
+      <path
+        d="M8.6 24.8c2.8-6.2 7.2-10.1 13.8-13.2"
+        strokeWidth="2"
+      />
+      <path
+        d="M13.4 18.7c1.9.1 3.7.5 5.2 1.2M16.7 14.5c.1-1.5-.1-2.8-.5-4"
+        strokeWidth="1.45"
+        opacity=".82"
+      />
+    </svg>
+  );
+}
+
 
 const friendLabels: Record<FriendshipStatus, string> = {
   none: "Add Friend",
@@ -60,8 +106,30 @@ function ExternalProfileLink({ href, label }: { href: string; label: string }) {
   return <a href={href} target="_blank" rel="noreferrer" className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">{label}</a>;
 }
 
-export function ProfileView({ viewer, owner, theme, friendshipStatus, following, recentStories, marketplaceListings, onBack, onEdit, onEditPrivacy, onCycleFriendship, onToggleFollow, onBlock, onReport, socialContent }: ProfileViewProps) {
+export function ProfileView({
+  viewer,
+  owner,
+  theme,
+  friendshipStatus,
+  following,
+  recentStories,
+  marketplaceListings,
+  onBack,
+  onEdit,
+  onEditPrivacy,
+  onCycleFriendship,
+  onToggleFollow,
+  onBlock,
+  onReport,
+  clubInviteOptions,
+  incomingClubInvitations,
+  onInviteToClub,
+  onAcceptClubInvitation,
+  onDeclineClubInvitation,
+  socialContent,
+}: ProfileViewProps) {
   const [messageNotice, setMessageNotice] = useState(false);
+  const [clubInviteOpen, setClubInviteOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState<UserReportReason>("spam");
   const [reportDetails, setReportDetails] = useState("");
@@ -86,9 +154,9 @@ export function ProfileView({ viewer, owner, theme, friendshipStatus, following,
         onClick={onBack}
         aria-label="Go back"
         title="Back"
-        className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[24px] font-semibold leading-none text-slate-800 shadow-sm"
+        className="interactive-pop flex h-10 w-10 items-center justify-center border-0 bg-transparent p-0 text-[24px] font-semibold leading-none text-slate-800 shadow-none"
       >
-        ←
+        <MintBackLeaf />
       </button>
       <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
         <div className="h-28 sm:h-36" style={{ background: `linear-gradient(120deg, ${theme.primary}, ${theme.accent})` }} />
@@ -99,13 +167,91 @@ export function ProfileView({ viewer, owner, theme, friendshipStatus, following,
               <div className="pb-1"><div className="flex flex-wrap items-center gap-2"><h2 className="text-2xl font-black text-slate-950 sm:text-3xl">{owner.profile.displayName}</h2>{owner.account.isDevelopment && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">Demo</span>}{(owner.account.verifiedStudent || owner.account.verifiedAlumni) && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">Verified</span>}<span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{owner.socialSettings.accountType}</span></div><p className="mt-1 text-sm font-semibold text-slate-600">@{owner.profile.username} · {ownerUniversity.name} · {getUserRoleLabel(owner.account.role)}</p></div>
             </div>
             <div className="flex flex-wrap gap-2 pb-1">
-              {isOwnProfile ? <><button type="button" onClick={onEdit} className="rounded-xl px-4 py-2.5 text-sm font-bold text-white" style={{ backgroundColor: theme.primary }}>Edit profile</button><button type="button" onClick={onEditPrivacy} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">Privacy</button></> : <><button type="button" disabled={friendshipStatus === "blocked"} onClick={onCycleFriendship} className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50" style={{ backgroundColor: theme.primary }}>{friendLabels[friendshipStatus]}</button><button type="button" onClick={onToggleFollow} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">{following ? "Following" : "Follow"}</button><button type="button" onClick={() => setMessageNotice(true)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">Message</button></>}
+              {isOwnProfile ? <><button type="button" onClick={onEdit} className="rounded-xl px-4 py-2.5 text-sm font-bold text-white" style={{ backgroundColor: theme.primary }}>Edit profile</button><button type="button" onClick={onEditPrivacy} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">Privacy</button></> : <><button type="button" disabled={friendshipStatus === "blocked"} onClick={onCycleFriendship} className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50" style={{ backgroundColor: theme.primary }}>{friendLabels[friendshipStatus]}</button><button type="button" onClick={onToggleFollow} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">{following ? "Following" : "Follow"}</button><button type="button" onClick={() => setMessageNotice(true)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">Message</button>{clubInviteOptions.length > 0 && <button type="button" onClick={() => setClubInviteOpen((open) => !open)} aria-expanded={clubInviteOpen} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">Invite to Club</button>}</>}
             </div>
           </div>
+          {clubInviteOpen && !isOwnProfile && clubInviteOptions.length > 0 && (
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                Invite to one of your clubs
+              </p>
+              <div className="mt-2 space-y-2">
+                {clubInviteOptions.map((club) => {
+                  const canInvite =
+                    club.status === "none" ||
+                    club.status === "rejected";
+
+                  const statusLabel =
+                    club.status === "invited"
+                      ? "Invited"
+                      : club.status === "requested"
+                        ? "Requested"
+                        : ["member", "officer", "leader"].includes(club.status)
+                          ? "Already joined"
+                          : "Invite";
+
+                  return (
+                    <button
+                      key={club.id}
+                      type="button"
+                      disabled={!canInvite}
+                      onClick={() => {
+                        onInviteToClub(club.id);
+                        setClubInviteOpen(false);
+                      }}
+                      className="flex w-full items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5 text-left text-sm font-bold text-slate-800 shadow-sm disabled:opacity-50"
+                    >
+                      <span>{club.name}</span>
+                      <span className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                        {statusLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {messageNotice && <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm text-slate-600">Messaging is a placeholder for now. Relationship and block state are ready for future permission checks.</p>}
           <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-600">{canViewMajor(context) && owner.profile.major && <span>{owner.profile.major}</span>}{canViewGraduationYear(context) && owner.profile.graduationYear && <span>Class of {owner.profile.graduationYear}</span>}{canViewHometown(context) && owner.profile.hometown && <span>From {owner.profile.hometown}</span>}</div>
         </div>
       </section>
+
+      {isOwnProfile && incomingClubInvitations.length > 0 && (
+        <Section title="Club Invitations">
+          <div className="space-y-3">
+            {incomingClubInvitations.map((club) => (
+              <div
+                key={club.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4"
+              >
+                <div>
+                  <p className="font-black text-slate-900">{club.name}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    You were invited to join this club.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onAcceptClubInvitation(club.id)}
+                    className="rounded-xl px-3 py-2 text-xs font-bold text-white"
+                    style={{ backgroundColor: theme.primary }}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeclineClubInvitation(club.id)}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600"
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
         <div className="space-y-5">

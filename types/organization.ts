@@ -26,6 +26,7 @@ export type OrganizationMembershipType = "open" | "application" | "invitation" |
 export const organizationMembershipStatuses = [
   "none",
   "requested",
+  "invited",
   "member",
   "officer",
   "leader",
@@ -94,6 +95,8 @@ export type OrganizationMembership = {
   userId: string;
   status: Exclude<OrganizationMembershipStatus, "none">;
   requestedAt: string | null;
+  invitedAt?: string | null;
+  invitedByUserId?: string | null;
   decidedAt: string | null;
   decidedByUserId: string | null;
   createdAt: string;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 
 import { sampleEvents } from "@/data/events";
 import { developmentOrganizations } from "@/data/organizations";
@@ -185,7 +186,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     label: option.label,
   }));
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[90] flex items-end justify-center overflow-hidden bg-slate-950/55 sm:items-center sm:p-6"
       role="presentation"
@@ -230,6 +231,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
           <div className="flex gap-3"><button type="button" onClick={() => setStep("media")} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold">Back</button><button className="flex-1 rounded-xl px-4 py-3 text-sm font-bold text-white" style={{ backgroundColor: postType === "event" ? "#059669" : theme.primary }}>Publish Mint</button></div>
         </form>}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

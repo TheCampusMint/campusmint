@@ -11,6 +11,7 @@ type TopUtilityBarProps = {
   developerControls?: ReactNode;
   hidden?: boolean;
   onOpenSettings: () => void;
+  onOpenNotifications: () => void;
   onOpenProfile: () => void;
 };
 
@@ -20,6 +21,7 @@ export function TopUtilityBar({
   developerControls,
   hidden = false,
   onOpenSettings,
+  onOpenNotifications,
   onOpenProfile,
 }: TopUtilityBarProps) {
   return (
@@ -41,7 +43,7 @@ export function TopUtilityBar({
           onClick={onOpenSettings}
           aria-label="Open settings"
           title="Settings"
-          className="relative flex h-11 w-11 items-center justify-center overflow-visible rounded-full p-0 text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="interactive-pop flex h-11 w-11 items-center justify-center border-0 bg-transparent p-0 text-slate-700 shadow-none focus-visible:outline-2 focus-visible:outline-offset-2"
           style={{
             outlineColor: "var(--app-accent)",
             background: "transparent",
@@ -55,7 +57,7 @@ export function TopUtilityBar({
 
         <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
-            Campus Mint
+            The Campus Mint
           </p>
 
           <p
@@ -68,22 +70,49 @@ export function TopUtilityBar({
           </p>
         </div>
 
-        <button
-          type="button"
-          aria-label="Open my profile"
-          onClick={onOpenProfile}
-          className="relative overflow-visible rounded-full focus-visible:outline-2 focus-visible:outline-offset-2"
-          style={{
-            outlineColor: theme.primary,
-          }}
-        >
-          <ProfileAvatar
-            user={viewer}
-            size="sm"
-            primaryColor={theme.primary}
-            accentColor={theme.accent}
-          />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Open notifications"
+            title="Notifications"
+            onClick={onOpenNotifications}
+            className="interactive-pop flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{
+              outlineColor: "var(--app-accent)",
+            }}
+          >
+            <svg
+              viewBox="0 0 32 32"
+              className="h-[19px] w-[19px]"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 13.5c0-4.2 2.7-7 7-7s7 2.8 7 7v5.2l2.2 3.3H6.8L9 18.7v-5.2Z" />
+              <path d="M13.2 25c.7 1.2 1.6 1.8 2.8 1.8s2.1-.6 2.8-1.8" />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            aria-label="Open my profile"
+            onClick={onOpenProfile}
+            className="relative overflow-visible rounded-full focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{
+              outlineColor: theme.primary,
+            }}
+          >
+            <ProfileAvatar
+              user={viewer}
+              size="sm"
+              primaryColor={theme.primary}
+              accentColor={theme.accent}
+            />
+          </button>
+        </div>
       </div>
 
       {developerControls && (

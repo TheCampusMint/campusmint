@@ -15,9 +15,22 @@ type BubbleNavItemProps = {
 function NavGlyph({ id }: { id: PrimarySection }) {
   if (id === "messages") {
     return (
-      <svg viewBox="0 0 32 32" className="h-full w-full overflow-visible" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="4.5" y="7" width="23" height="18" rx="3" />
-        <path d="m6.5 9 9.5 8 9.5-8" />
+      <svg
+        viewBox="0 0 32 32"
+        className="h-full w-full overflow-visible"
+        aria-hidden="true"
+      >
+        <text
+          x="16"
+          y="21"
+          textAnchor="middle"
+          fontSize="14"
+          fontWeight="700"
+          letterSpacing="-0.45"
+          fill="currentColor"
+        >
+          DM
+        </text>
       </svg>
     );
   }
@@ -54,17 +67,6 @@ function NavGlyph({ id }: { id: PrimarySection }) {
     return (
       <svg viewBox="0 0 32 32" className="h-full w-full overflow-visible">
         <text x="16" y="25" textAnchor="middle" fontSize="28" fontWeight="800" fill="currentColor">♣</text>
-      </svg>
-    );
-  }
-
-  if (id === "career") {
-    return (
-      <svg viewBox="0 0 32 32" className="h-full w-full overflow-visible" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="m3.5 12.5 12.5-6 12.5 6L16 18.5 3.5 12.5Z" />
-        <path d="M8.5 15.2V21c4.7 3.7 10.3 3.7 15 0v-5.8" />
-        <path d="M28.5 12.5v8" />
-        <circle cx="28.5" cy="22.5" r="1.5" fill="currentColor" stroke="none" />
       </svg>
     );
   }

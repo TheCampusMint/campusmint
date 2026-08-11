@@ -271,21 +271,28 @@ function ZoomableMedia({
   function handleTouchEnd(
     event: TouchEvent<HTMLDivElement>,
   ) {
+    const wasPinching =
+      pinchRef.current !== null;
+
+    if (
+      wasPinching &&
+      event.touches.length < 2
+    ) {
+      pinchRef.current = null;
+      panRef.current = null;
+      tapRef.current = null;
+
+      // Instagram-style behavior: once the pinch ends,
+      // smoothly return the media to its normal position.
+      reset();
+      return;
+    }
+
     if (event.touches.length < 2) {
       pinchRef.current = null;
     }
 
-    if (
-      event.touches.length === 1 &&
-      viewRef.current.scale > 1
-    ) {
-      panRef.current = {
-        x: viewRef.current.x,
-        y: viewRef.current.y,
-        startX: event.touches[0].clientX,
-        startY: event.touches[0].clientY,
-      };
-    } else if (event.touches.length === 0) {
+    if (event.touches.length === 0) {
       panRef.current = null;
     }
 
