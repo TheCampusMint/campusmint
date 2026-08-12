@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import {
   CURRENT_DEVELOPMENT_USER_ID,
@@ -12,6 +12,7 @@ import {
 } from "@/lib/social/relationships";
 import { isUsernameAvailable } from "@/lib/social/usernames";
 import type {
+  CampusMintAccount,
   CampusMintProfile,
   CampusMintUser,
   ProfilePrivacySettings,
@@ -27,12 +28,17 @@ import type {
 
 type EditableProfilePatch = Partial<Omit<CampusMintProfile, "id" | "accountId" | "createdAt" | "usernameNormalized">>;
 
+const DEVELOPMENT_PROFILE_STORAGE_KEY =
+  "campusmint:development-current-user:v1";
+
 function localId(prefix: string) {
   return `${prefix}-${globalThis.crypto.randomUUID()}`;
 }
 
 export function useProfiles() {
   const [users, setUsers] = useState<CampusMintUser[]>(developmentUsers);
+  const [developmentProfileHydrated, setDevelopmentProfileHydrated] =
+    useState(false);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
   const [follows, setFollows] = useState<Follow[]>([]);
   const [blocks, setBlocks] = useState<UserBlock[]>([]);
@@ -43,9 +49,85 @@ export function useProfiles() {
     [users],
   );
 
+  useLayoutEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(
+        DEVELOPMENT_PROFILE_STORAGE_KEY,
+      );
+
+      if (stored) {
+        const parsed = JSON.parse(stored) as CampusMintUser;
+
+        if (
+          parsed?.account?.id ===
+          CURRENT_DEVELOPMENT_USER_ID
+        ) {
+          setUsers((currentUsers) =>
+            currentUsers.map((user) =>
+              user.account.id ===
+              CURRENT_DEVELOPMENT_USER_ID
+                ? parsed
+                : user,
+            ),
+          );
+        }
+      }
+    } catch {
+      window.localStorage.removeItem(
+        DEVELOPMENT_PROFILE_STORAGE_KEY,
+      );
+    } finally {
+      setDevelopmentProfileHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!developmentProfileHydrated) return;
+
+    const current = users.find(
+      (user) =>
+        user.account.id ===
+        CURRENT_DEVELOPMENT_USER_ID,
+    );
+
+    if (!current) return;
+
+    window.localStorage.setItem(
+      DEVELOPMENT_PROFILE_STORAGE_KEY,
+      JSON.stringify(current),
+    );
+  }, [developmentProfileHydrated, users]);
+
   function getUserById(userId: string) {
     return users.find((user) => user.account.id === userId) ?? null;
   }
+
+  function updateCurrentAccount(
+    patch: Partial<
+      Omit<
+        CampusMintAccount,
+        "id" | "createdAt"
+      >
+    >,
+  ) {
+    setUsers((currentUsers) =>
+      currentUsers.map((user) =>
+        user.account.id ===
+        CURRENT_DEVELOPMENT_USER_ID
+          ? {
+              ...user,
+              account: {
+                ...user.account,
+                ...patch,
+                updatedAt:
+                  new Date().toISOString(),
+              },
+            }
+          : user,
+      ),
+    );
+  }
+
 
   function updateCurrentProfile(patch: EditableProfilePatch) {
     const currentProfile = users.find((candidate) => candidate.account.id === CURRENT_DEVELOPMENT_USER_ID);
@@ -182,11 +264,13 @@ export function useProfiles() {
   return {
     users,
     currentUser,
+    developmentProfileHydrated,
     friendships,
     follows,
     blocks,
     reports,
     getUserById,
+    updateCurrentAccount,
     updateCurrentProfile,
     updateCurrentPrivacy,
     updateCurrentSocialSettings,

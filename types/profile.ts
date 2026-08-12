@@ -37,10 +37,32 @@ export type ProfilePhoto = {
 /** Account identity is intentionally separate from user-editable public profile data. */
 export type CampusMintAccount = {
   id: string;
+
+  /** Legacy configured-campus ID used while existing campus features migrate. */
   universityId: UniversityId;
+
+  /** Universal verified university identity. Works for any accepted .edu domain. */
+  universityIdentityId?: string | null;
+  universityDomain?: string | null;
+  universityName?: string | null;
+  universityShortName?: string | null;
+  knownUniversityId?: UniversityId | null;
+
   role: UserRole;
+
   verifiedStudent: boolean;
   verifiedAlumni: boolean;
+
+  studentEmail?: string | null;
+  personalEmail?: string | null;
+  primaryEmail?: string | null;
+  phoneNumber?: string | null;
+
+  studentEmailDomain?: string | null;
+  studentEmailVerifiedAt?: string | null;
+  studentEmailVerificationMethod?: "edu_email" | null;
+  onboardingCompletedAt?: string | null;
+
   isDevelopment: boolean;
   createdAt: string;
   updatedAt: string;
@@ -57,10 +79,14 @@ export type CampusMintProfile = {
   photo: ProfilePhoto;
   bio: string | null;
   major: string | null;
+  academicArea?: string | null;
   graduationYear: number | null;
   classIds: string[];
   clubIds: string[];
   interests: string[];
+  hobbies?: string[];
+  offersTutoring?: boolean;
+  tutoringSubjects?: string[];
   hometown: string | null;
   instagram: string | null;
   linkedin: string | null;

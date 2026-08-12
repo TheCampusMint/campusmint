@@ -348,6 +348,12 @@ export function MintFeedList({
                         save.userId ===
                           viewer.account.id,
                     )}
+                    reposted={mintz.reposts.some(
+                      (repost) =>
+                        repost.mintId === item.id &&
+                        repost.userId ===
+                          viewer.account.id,
+                    )}
                     comments={mintz.comments.filter(
                       (comment) =>
                         comment.targetId ===
@@ -375,6 +381,11 @@ export function MintFeedList({
                     }
                     onToggleSave={() =>
                       mintz.toggleSave(
+                        permissionContext,
+                      )
+                    }
+                    onToggleRepost={() =>
+                      mintz.toggleRepost(
                         permissionContext,
                       )
                     }

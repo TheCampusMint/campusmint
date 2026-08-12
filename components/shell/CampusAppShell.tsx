@@ -17,6 +17,7 @@ import { GroupsSkeleton } from "@/components/groups/GroupsSkeleton";
 import { SimpleMarketplace } from "@/components/marketplace/SimpleMarketplace";
 import { MessagesSkeleton } from "@/components/messages/MessagesSkeleton";
 import { CampusMintFeed } from "@/components/mintz/CampusMintFeed";
+import { StudentEmailOnboarding } from "@/components/onboarding/StudentEmailOnboarding";
 import { PeopleSkeleton } from "@/components/people/PeopleSkeleton";
 import { ProfilesHub } from "@/components/profile/ProfilesHub";
 import { GlobalSearchSkeleton } from "@/components/search/GlobalSearchSkeleton";
@@ -38,6 +39,7 @@ import { type UserRole } from "@/data/userRoles";
 import { universities, type UniversityId } from "@/data/universities";
 import { useAcademics } from "@/hooks/useAcademics";
 import { useAppPreferences } from "@/hooks/useAppPreferences";
+import { useDirectMint } from "@/hooks/useDirectMint";
 import { useMarketplace } from "@/hooks/useMarketplace";
 import { useMintz } from "@/hooks/useMintz";
 import { useOrganizations } from "@/hooks/useOrganizations";
@@ -70,8 +72,10 @@ const navigation = [...dailyNavigation, ...secondaryNavigation];
 const sectionSequence = navigation.map((item) => item.id) as SwipeSection[];
 const SECTION_COUNT = sectionSequence.length;
 const INITIAL_MINT_INDEX = sectionSequence.indexOf("mint");
-const HORIZONTAL_SNAP_MS = 300;
-const MINT_HOME_SWEEP_MS = 520;
+const HORIZONTAL_SNAP_MS = 460;
+const MINT_HOME_SWEEP_MS = 460;
+const ACTIVE_SECTION_STORAGE_KEY =
+  "campusmint:active-section:v1";
 
 const initialUser: TemporaryUser = {
   id: CURRENT_DEVELOPMENT_USER_ID,
@@ -104,9 +108,28 @@ function nearestVirtualIndex(current: number, target: number) {
 }
 
 export function CampusAppShell() {
-  const [navIndex, setNavIndex] = useState(
-    INITIAL_MINT_INDEX >= 0 ? INITIAL_MINT_INDEX : 0,
-  );
+  const [navIndex, setNavIndex] = useState(() => {
+    if (typeof window === "undefined") {
+      return INITIAL_MINT_INDEX >= 0
+        ? INITIAL_MINT_INDEX
+        : 0;
+    }
+
+    const savedSection =
+      window.localStorage.getItem(
+        ACTIVE_SECTION_STORAGE_KEY,
+      ) as SwipeSection | null;
+
+    const savedIndex = savedSection
+      ? sectionSequence.indexOf(savedSection)
+      : -1;
+
+    return savedIndex >= 0
+      ? savedIndex
+      : INITIAL_MINT_INDEX >= 0
+        ? INITIAL_MINT_INDEX
+        : 0;
+  });
   const [specialSection, setSpecialSection] =
     useState<"profile" | "search" | null>(null);
   const [swipeProgress, setSwipeProgress] = useState(0);
@@ -115,10 +138,13 @@ export function CampusAppShell() {
     useState<-1 | 1 | null>(null);
   const [selectedProfileUserId, setSelectedProfileUserId] =
     useState(CURRENT_DEVELOPMENT_USER_ID);
+  const [directMintReturnUserId, setDirectMintReturnUserId] =
+    useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mintHeaderHidden, setMintHeaderHidden] = useState(false);
   const [user, setUser] = useState<TemporaryUser>(initialUser);
+  const [onboardingOpen, setOnboardingOpen] = useState(true);
 
   const swipeProgressRef = useRef(0);
   const settleTimerRef = useRef<number | null>(null);
@@ -133,15 +159,51 @@ export function CampusAppShell() {
   const academics = useAcademics();
   const marketplace = useMarketplace();
   const mintz = useMintz();
+  const directMint = useDirectMint(
+    CURRENT_DEVELOPMENT_USER_ID,
+  );
   const organizations = useOrganizations(CURRENT_DEVELOPMENT_USER_ID);
   const profiles = useProfiles();
   const stories = useStories();
   const preferenceState = useAppPreferences();
 
+  useEffect(() => {
+    if (!profiles.developmentProfileHydrated) return;
+
+    const account = profiles.currentUser.account;
+
+    setOnboardingOpen(
+      !account.onboardingCompletedAt,
+    );
+
+    setUser((current) => ({
+      ...current,
+      firstName:
+        profiles.currentUser.profile.firstName ||
+        current.firstName,
+      universityId:
+        account.knownUniversityId ??
+        account.universityId,
+      role: account.role,
+      verifiedStudent:
+        account.verifiedStudent,
+    }));
+  }, [
+    profiles.currentUser,
+    profiles.developmentProfileHydrated,
+  ]);
+
   const theme = universities[user.universityId];
 
   const currentNavigationSection =
     sectionSequence[mod(navIndex, SECTION_COUNT)] ?? "mint";
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      ACTIVE_SECTION_STORAGE_KEY,
+      currentNavigationSection,
+    );
+  }, [currentNavigationSection]);
 
   const activeSection: PrimarySection =
     specialSection ?? currentNavigationSection;
@@ -226,6 +288,10 @@ export function CampusAppShell() {
     setSwipeSettling(false);
     setGestureProgress(0);
 
+    if (section === "messages") {
+      setDirectMintReturnUserId(null);
+    }
+
     if (section === "profile" || section === "search") {
       setSpecialSection(section);
       return;
@@ -282,13 +348,68 @@ export function CampusAppShell() {
 
     setSpecialPageLeaving(true);
 
-    window.setTimeout(finish, 420);
+    window.setTimeout(finish, 460);
   }
 
   function goBackFromProfile() {
     leaveProfileTo(
       profileReturnSectionRef.current,
     );
+  }
+
+
+  function openDirectMintFromProfile(
+    userId: string,
+  ) {
+    directMint.startConversation(userId);
+    setDirectMintReturnUserId(userId);
+
+    const targetIndex =
+      sectionSequence.indexOf("messages");
+
+    const finish = () => {
+      if (targetIndex >= 0) {
+        setNavIndex((current) =>
+          nearestVirtualIndex(
+            current,
+            targetIndex,
+          ),
+        );
+      }
+
+      setSpecialSection(null);
+      setSpecialPageLeaving(false);
+      setGestureProgress(0);
+    };
+
+    if (
+      preferenceState.preferences.content
+        .reducedMotion
+    ) {
+      finish();
+      return;
+    }
+
+    setSpecialPageLeaving(true);
+    window.setTimeout(finish, 460);
+  }
+
+  function returnToProfileFromDirectMint() {
+    if (!directMintReturnUserId) return;
+
+    setSelectedProfileUserId(
+      directMintReturnUserId,
+    );
+
+    /*
+     * Do NOT call openProfile() here.
+     * That would overwrite the original People return
+     * destination with Messages.
+     */
+    setDirectMintReturnUserId(null);
+    setSpecialPageLeaving(false);
+    setSpecialSection("profile");
+    setGestureProgress(0);
   }
 
   function clearMintReturnTimer() {
@@ -865,6 +986,15 @@ export function CampusAppShell() {
           viewer={viewer}
           theme={theme}
           profiles={profiles}
+          directMint={directMint}
+          requestedUserId={
+            directMintReturnUserId
+          }
+          onBackToProfile={
+            directMintReturnUserId
+              ? returnToProfileFromDirectMint
+              : undefined
+          }
         />
       );
     }
@@ -942,6 +1072,7 @@ export function CampusAppShell() {
             profiles={profiles}
             mintz={mintz}
             organizations={organizations}
+            onOpenDirectMint={openDirectMintFromProfile}
             onOpenProfile={openProfile}
             onBack={goBackFromProfile}
           />
@@ -995,6 +1126,90 @@ export function CampusAppShell() {
       }
     };
   }, []);
+
+  if (!profiles.developmentProfileHydrated) {
+    return (
+      <main className="min-h-dvh bg-white" />
+    );
+  }
+
+  if (onboardingOpen) {
+    return (
+      <StudentEmailOnboarding
+        onVerified={(
+          resolved,
+          personalEmail,
+          primaryEmail,
+          profileSetup,
+        ) => {
+          const verifiedAt = new Date().toISOString();
+
+          profiles.updateCurrentAccount({
+            studentEmail: resolved.email,
+            personalEmail,
+            primaryEmail,
+            phoneNumber: profileSetup.phoneNumber,
+            studentEmailDomain: resolved.domain,
+            studentEmailVerifiedAt: verifiedAt,
+            studentEmailVerificationMethod: "edu_email",
+            onboardingCompletedAt: verifiedAt,
+            universityIdentityId: resolved.identity.id,
+            universityDomain: resolved.identity.domain,
+            universityName: resolved.identity.name,
+            universityShortName: resolved.identity.shortName,
+            knownUniversityId:
+              resolved.identity.knownUniversityId as UniversityId | null,
+            verifiedStudent: true,
+          });
+
+          const profileResult =
+            profiles.updateCurrentProfile({
+              firstName: profileSetup.firstName,
+              lastName: profileSetup.lastName,
+              displayName: `${profileSetup.firstName} ${profileSetup.lastName}`,
+              username: profileSetup.username,
+              bio: profileSetup.bio,
+              interests: profileSetup.interests,
+              hobbies: profileSetup.hobbies,
+              academicArea:
+                profileSetup.academicArea,
+              offersTutoring:
+                profileSetup.offersTutoring,
+              tutoringSubjects:
+                profileSetup.tutoringSubjects,
+              clubIds: profileSetup.clubIds,
+            });
+
+          if (!profileResult.ok) {
+            return;
+          }
+
+          for (const clubId of profileSetup.clubIds) {
+            const organization =
+              getOrganizationById(clubId);
+
+            if (organization) {
+              organizations.joinOrRequest(
+                organization,
+              );
+            }
+          }
+
+          setUser((current) => ({
+            ...current,
+            firstName: profileSetup.firstName,
+            universityId:
+              (resolved.identity.knownUniversityId as UniversityId | null) ??
+              current.universityId,
+            verifiedStudent: true,
+          }));
+
+          setOnboardingOpen(false);
+        }}
+      />
+    );
+  }
+
 
   return (
     <main

@@ -64,6 +64,5 @@ export function canCommentOnMint(context: MintPermissionContext) {
 }
 
 export function canViewMintLikeCount(context: MintPermissionContext) {
-  return context.viewer?.account.id === context.author.account.id ||
-    (context.mint.likesVisible && canViewMint(context));
+  return context.mint.likesVisible && canViewMint(context);
 }

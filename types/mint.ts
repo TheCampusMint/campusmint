@@ -12,6 +12,7 @@ export type Mint = SharedSocialContent & {
   commentCount: number;
   saveCount: number;
   shareCount: number;
+  repostCount?: number;
   archivedAt: string | null;
   isDevelopment: boolean;
 };
@@ -26,6 +27,13 @@ export type MintLike = {
 };
 
 export type MintSave = {
+  id: string;
+  mintId: string;
+  userId: string;
+  createdAt: string;
+};
+
+export type MintRepost = {
   id: string;
   mintId: string;
   userId: string;

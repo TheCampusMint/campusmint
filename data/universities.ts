@@ -6,6 +6,7 @@ export type { UniversityId } from "@/types/campus";
 export type UniversityTheme = {
   name: string;
   shortName: string;
+  emailDomains?: readonly string[];
   primary: string;
   secondary: string;
   accent: string;
@@ -24,6 +25,7 @@ export const universities = {
   tamu: {
     name: "Texas A&M University",
     shortName: "Texas A&M",
+    emailDomains: ["tamu.edu"],
     primary: "#500000",
     secondary: "#ffffff",
     accent: "#D6D3C4",
@@ -40,6 +42,7 @@ export const universities = {
   blinn: {
     name: "Blinn College",
     shortName: "Blinn",
+    emailDomains: ["blinn.edu"],
     primary: "#003366",
     secondary: "#ffffff",
     accent: "#EAF2F8",
@@ -56,6 +59,7 @@ export const universities = {
   texas: {
     name: "The University of Texas at Austin",
     shortName: "Texas",
+    emailDomains: ["utexas.edu"],
     primary: "#BF5700",
     secondary: "#ffffff",
     accent: "#F2EDE7",
@@ -70,6 +74,7 @@ export const universities = {
   lsu: {
     name: "Louisiana State University",
     shortName: "LSU",
+    emailDomains: ["lsu.edu"],
     primary: "#35145F",
     secondary: "#F4D35E",
     accent: "#EEE9F4",
@@ -84,6 +89,7 @@ export const universities = {
   alabama: {
     name: "The University of Alabama",
     shortName: "Alabama",
+    emailDomains: ["ua.edu"],
     primary: "#7A1426",
     secondary: "#F8F8F8",
     accent: "#EFE7E9",

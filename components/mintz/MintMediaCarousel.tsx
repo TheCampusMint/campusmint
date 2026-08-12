@@ -337,6 +337,11 @@ function ZoomableMedia({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
+      onDoubleClick={() => {
+        if (viewRef.current.scale <= 1.02) {
+          onDoubleTap?.();
+        }
+      }}
     >
       <div
         className="relative h-full w-full will-change-transform"

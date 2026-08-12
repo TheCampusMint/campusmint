@@ -298,7 +298,7 @@ export function BottomBubbleNav({
           touchAction: expanded ? "none" : "manipulation",
           transition: reducedMotion
             ? "none"
-            : "width 360ms cubic-bezier(.22,1,.36,1), height 360ms cubic-bezier(.22,1,.36,1), background-color 260ms ease, box-shadow 300ms ease",
+            : "width 460ms cubic-bezier(.22,1,.36,1), height 460ms cubic-bezier(.22,1,.36,1), background-color 460ms cubic-bezier(.22,1,.36,1), box-shadow 460ms cubic-bezier(.22,1,.36,1)",
         }}
       >
         {!expanded ? (
@@ -345,7 +345,7 @@ export function BottomBubbleNav({
                 transition:
                   reducedMotion || !swipeSettling
                     ? "none"
-                    : "transform 300ms cubic-bezier(.22,1,.36,1)",
+                    : "transform 460ms cubic-bezier(.22,1,.36,1)",
               }}
             >
               {visibleWindow.map(

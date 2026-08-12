@@ -19,6 +19,7 @@ import type {
   Mint,
   MintComment,
   MintLike,
+  MintRepost,
   MintSave,
   MintShare,
 } from "@/types/mint";
@@ -33,6 +34,7 @@ export function useMintz() {
   const [likes, setLikes] = useState<MintLike[]>([]);
   const [comments, setComments] = useState<MintComment[]>([]);
   const [saves, setSaves] = useState<MintSave[]>([]);
+  const [reposts, setReposts] = useState<MintRepost[]>([]);
   const [shares, setShares] = useState<MintShare[]>([]);
   const [reports, setReports] = useState<ContentReport[]>([]);
   const [pendingNotifications, setPendingNotifications] = useState<PendingContentNotification[]>([]);
@@ -58,6 +60,7 @@ export function useMintz() {
       commentCount: 0,
       saveCount: 0,
       shareCount: 0,
+      repostCount: 0,
       archivedAt: null,
       status: "active",
     };
@@ -139,6 +142,57 @@ export function useMintz() {
     return true;
   }
 
+  function toggleRepost(context: MintPermissionContext) {
+    const viewerId = context.viewer?.account.id;
+    if (!viewerId || !canViewMint(context)) return false;
+
+    const exists = reposts.some(
+      (repost) =>
+        repost.mintId === context.mint.id &&
+        repost.userId === viewerId,
+    );
+
+    const now = new Date().toISOString();
+
+    setReposts((current) =>
+      exists
+        ? current.filter(
+            (repost) =>
+              !(
+                repost.mintId === context.mint.id &&
+                repost.userId === viewerId
+              ),
+          )
+        : [
+            ...current,
+            {
+              id: localId("mint-repost"),
+              mintId: context.mint.id,
+              userId: viewerId,
+              createdAt: now,
+            },
+          ],
+    );
+
+    setStoredMintz((current) =>
+      current.map((mint) =>
+        mint.id === context.mint.id
+          ? {
+              ...mint,
+              repostCount: Math.max(
+                0,
+                (mint.repostCount ?? 0) +
+                  (exists ? -1 : 1),
+              ),
+              updatedAt: now,
+            }
+          : mint,
+      ),
+    );
+
+    return true;
+  }
+
   function recordShare(context: MintPermissionContext, channel: MintShare["channel"]) {
     const viewerId = context.viewer?.account.id;
     if (!viewerId || !canViewMint(context)) return false;
@@ -150,9 +204,23 @@ export function useMintz() {
   function updateOwnMint(mintId: string, userId: string, patch: Partial<Pick<Mint, "caption" | "likesVisible" | "commentsEnabled">>) {
     const mint = storedMintz.find((candidate) => candidate.id === mintId);
     if (!mint || mint.authorId !== userId || mint.status !== "active") return false;
-    setStoredMintz((current) => current.map((candidate) => candidate.id === mintId
-      ? { ...candidate, ...patch, updatedAt: new Date().toISOString() }
-      : candidate));
+
+    if (typeof patch.caption !== "string") {
+      return false;
+    }
+
+    setStoredMintz((current) =>
+      current.map((candidate) =>
+        candidate.id === mintId
+          ? {
+              ...candidate,
+              caption: patch.caption!,
+              updatedAt: new Date().toISOString(),
+            }
+          : candidate,
+      ),
+    );
+
     return true;
   }
 
@@ -195,6 +263,7 @@ export function useMintz() {
     likes,
     comments,
     saves,
+    reposts,
     shares,
     reports,
     pendingNotifications,
@@ -203,6 +272,7 @@ export function useMintz() {
     addComment,
     deleteOwnComment,
     toggleSave,
+    toggleRepost,
     recordShare,
     updateOwnMint,
     toggleArchive,

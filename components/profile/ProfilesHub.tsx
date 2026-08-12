@@ -30,11 +30,12 @@ type ProfilesHubProps = {
   profiles: ProfilesState;
   mintz: MintzState;
   organizations: OrganizationsState;
+  onOpenDirectMint: (userId: string) => void;
   onOpenProfile: (userId: string) => void;
   onBack: () => void;
 };
 
-export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStories, marketplaceListings, profiles, mintz, organizations, onOpenProfile, onBack }: ProfilesHubProps) {
+export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStories, marketplaceListings, profiles, mintz, organizations, onOpenDirectMint, onOpenProfile, onBack }: ProfilesHubProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -49,6 +50,26 @@ export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStorie
   }
 
   const friendshipStatus = profiles.getFriendshipStatus(owner.account.id);
+
+  const followerCount =
+    profiles.follows.filter(
+      (follow) =>
+        follow.followingId ===
+        owner.account.id,
+    ).length;
+
+  const followingCount =
+    profiles.follows.filter(
+      (follow) =>
+        follow.followerId ===
+        owner.account.id,
+    ).length;
+
+  const mintCount =
+    mintz.mintz.filter(
+      (item) =>
+        item.authorId === owner.account.id,
+    ).length;
 
   const ledOrganizations =
     viewer.account.id === owner.account.id
@@ -123,6 +144,10 @@ export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStorie
       theme={theme}
       friendshipStatus={friendshipStatus}
       following={profiles.isFollowing(owner.account.id)}
+      followerCount={followerCount}
+      followingCount={followingCount}
+      mintCount={mintCount}
+      onOpenDirectMint={onOpenDirectMint}
       recentStories={visibleStories.filter((story) => story.authorUserId === owner.account.id)}
       marketplaceListings={marketplaceListings}
       onBack={onBack}
