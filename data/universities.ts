@@ -106,3 +106,123 @@ export const universities = {
 export function getCampusName(campusId: string) {
   return universities[campusId as UniversityId]?.shortName ?? campusId;
 }
+
+type UniversityIdentityAccount = {
+  universityId: string;
+  universityIdentityId?: string | null;
+  universityDomain?: string | null;
+  knownUniversityId?: string | null;
+  universityName?: string | null;
+  universityShortName?: string | null;
+};
+
+export function getAccountUniversityName(
+  account: UniversityIdentityAccount,
+) {
+  return (
+    account.universityName ??
+    universities[account.universityId as UniversityId]?.name ??
+    account.universityId
+  );
+}
+
+export function getAccountUniversityShortName(
+  account: UniversityIdentityAccount,
+) {
+  return (
+    account.universityShortName ??
+    universities[account.universityId as UniversityId]?.shortName ??
+    account.universityName ??
+    account.universityId
+  );
+}
+
+export function getAccountConfiguredUniversityId(
+  account: UniversityIdentityAccount,
+): UniversityId | null {
+  const candidate =
+    account.knownUniversityId ??
+    (!account.universityIdentityId
+      ? account.universityId
+      : null);
+
+  if (
+    !candidate ||
+    !universities[candidate as UniversityId]
+  ) {
+    return null;
+  }
+
+  return candidate as UniversityId;
+}
+
+export function getAccountUniversityIdentityKey(
+  account: UniversityIdentityAccount,
+) {
+  const configuredUniversityId =
+    getAccountConfiguredUniversityId(account);
+
+  if (configuredUniversityId) {
+    return `configured:${configuredUniversityId}`;
+  }
+
+  if (account.universityIdentityId) {
+    return account.universityIdentityId;
+  }
+
+  if (account.universityDomain) {
+    return `edu:${account.universityDomain.toLowerCase()}`;
+  }
+
+  return `legacy:${account.universityId}`;
+}
+
+export function getAccountUniversityTheme(
+  account: UniversityIdentityAccount,
+): UniversityTheme | null {
+  const configuredUniversityId =
+    getAccountConfiguredUniversityId(account);
+
+  return configuredUniversityId
+    ? universities[configuredUniversityId]
+    : null;
+}
+
+export function getAccountUniversityDisplayTheme(
+  account: UniversityIdentityAccount,
+): UniversityTheme {
+  const configuredTheme =
+    getAccountUniversityTheme(account);
+
+  if (configuredTheme) {
+    return configuredTheme;
+  }
+
+  const name =
+    account.universityName ??
+    account.universityShortName ??
+    "Campus Mint";
+
+  const shortName =
+    account.universityShortName ??
+    account.universityName ??
+    "Campus Mint";
+
+  return {
+    name,
+    shortName,
+    primary: "#0f172a",
+    secondary: "#ffffff",
+    accent: "#e2e8f0",
+    timeZone: "UTC",
+    accessibleCampuses: [],
+    campusNetworkId: "universal",
+    marketplace: {
+      ticketMarketplaceEnabled: false,
+      ticketResaleAllowed: null,
+      ticketTransferMethod:
+        "Marketplace ticket activity is unavailable until this university is fully configured.",
+      ticketPolicyUrl: null,
+    },
+  };
+}

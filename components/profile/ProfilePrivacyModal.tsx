@@ -25,6 +25,8 @@ const fieldLabels: Record<keyof ProfilePrivacySettings, string> = {
   classes: "Classes",
   clubs: "Clubs",
   interests: "Interests",
+  roommate: "Roommate discovery",
+  tutoring: "Tutoring",
   hometown: "Hometown",
   instagram: "Instagram",
   linkedin: "LinkedIn",

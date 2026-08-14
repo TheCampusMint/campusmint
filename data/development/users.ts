@@ -18,6 +18,8 @@ const publicPrivacy: ProfilePrivacySettings = {
   classes: "friends_only",
   clubs: "students_only",
   interests: "everyone",
+  roommate: "students_only",
+  tutoring: "students_only",
   hometown: "private",
   instagram: "friends_only",
   linkedin: "everyone",
@@ -40,6 +42,12 @@ type DevelopmentUserInput = {
   classIds?: string[];
   clubIds?: string[];
   interests?: string[];
+  hobbies?: string[];
+  academicArea?: string | null;
+  lookingForRoommate?: boolean;
+  roommatePreferences?: string[];
+  offersTutoring?: boolean;
+  tutoringSubjects?: string[];
   hometown?: string | null;
   linkedin?: string | null;
   privacy?: Partial<ProfilePrivacySettings>;
@@ -74,6 +82,16 @@ function developmentUser(input: DevelopmentUserInput): CampusMintUser {
       classIds: input.classIds ?? [],
       clubIds: input.clubIds ?? [],
       interests: input.interests ?? [],
+      hobbies: input.hobbies ?? [],
+      academicArea: input.academicArea ?? null,
+      lookingForRoommate:
+        input.lookingForRoommate ?? false,
+      roommatePreferences:
+        input.roommatePreferences ?? [],
+      offersTutoring:
+        input.offersTutoring ?? false,
+      tutoringSubjects:
+        input.tutoringSubjects ?? [],
       hometown: input.hometown ?? null,
       instagram: null,
       linkedin: input.linkedin ?? null,
@@ -139,6 +157,12 @@ export const developmentUsers: CampusMintUser[] = [
     classIds: ["40000000-0000-4000-8000-000000000001"],
     clubIds: ["dev-tamu-robotics"],
     interests: ["Robotics", "Tacos", "Product design"],
+    offersTutoring: true,
+    tutoringSubjects: [
+      "Math",
+      "Engineering",
+      "Computer Science",
+    ],
     privacy: { major: "friends_only", interests: "students_only" },
     accountType: "private",
   }),
@@ -156,7 +180,19 @@ export const developmentUsers: CampusMintUser[] = [
     classIds: ["51000000-0000-4000-8000-000000000002"],
     clubIds: ["dev-blinn-service-crew"],
     interests: ["Study groups", "Volunteering"],
-    privacy: { major: "students_only", hometown: "private" },
+    hobbies: ["Cooking", "Running"],
+    academicArea: "Engineering",
+    lookingForRoommate: true,
+    roommatePreferences: [
+      "Quiet",
+      "Early riser",
+      "Clean common spaces",
+    ],
+    privacy: {
+      major: "students_only",
+      roommate: "students_only",
+      hometown: "private",
+    },
   }),
   developmentUser({
     id: "demo-tamu-noah",
@@ -228,6 +264,58 @@ export const developmentUsers: CampusMintUser[] = [
     graduationYear: 2028,
     clubIds: ["dev-blinn-coding-circle"],
     interests: ["Clubs", "Coding"],
+  }),
+  developmentUser({
+    id: "demo-texas-emma",
+    universityId: "texas",
+    firstName: "Emma",
+    lastName: "Chen",
+    displayName: "Emma Chen (Demo)",
+    username: "emma.chen.texas.demo",
+    initials: "EC",
+    bio: "Fictional Texas student for global People discovery testing.",
+    major: "Finance",
+    graduationYear: 2028,
+    interests: ["Entrepreneurship", "Running", "Live music"],
+    hobbies: ["Concerts", "Coffee"],
+    academicArea: "Business",
+    lookingForRoommate: true,
+    roommatePreferences: [
+      "Pets okay",
+      "Social",
+      "Night owl",
+    ],
+  }),
+  developmentUser({
+    id: "demo-lsu-cameron",
+    universityId: "lsu",
+    firstName: "Cameron",
+    lastName: "Davis",
+    displayName: "Cameron Davis (Demo)",
+    username: "cameron.davis.lsu.demo",
+    initials: "CD",
+    bio: "Fictional LSU student for global People discovery testing.",
+    major: "Biology",
+    graduationYear: 2027,
+    interests: ["Research", "Football", "Photography"],
+    offersTutoring: true,
+    tutoringSubjects: [
+      "Science",
+      "Math",
+    ],
+  }),
+  developmentUser({
+    id: "demo-alabama-sophia",
+    universityId: "alabama",
+    firstName: "Sophia",
+    lastName: "Martinez",
+    displayName: "Sophia Martinez (Demo)",
+    username: "sophia.martinez.ua.demo",
+    initials: "SM",
+    bio: "Fictional Alabama student for global People discovery testing.",
+    major: "Communications",
+    graduationYear: 2029,
+    interests: ["Media", "Volleyball", "Design"],
   }),
 ];
 

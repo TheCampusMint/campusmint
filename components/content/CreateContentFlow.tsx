@@ -7,7 +7,12 @@ import { sampleEvents } from "@/data/events";
 import { developmentOrganizations } from "@/data/organizations";
 import { developmentBuildings } from "@/data/development/campusData";
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
-import { universities, type UniversityTheme } from "@/data/universities";
+import {
+  getAccountConfiguredUniversityId,
+  getAccountUniversityTheme,
+  universities,
+  type UniversityTheme,
+} from "@/data/universities";
 import {
   createExpiresAt,
   EVENT_CONTENT_DURATION_HOURS,
@@ -87,17 +92,68 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
   const [taggedOrganizationId, setTaggedOrganizationId] = useState("");
   const [organizationAudience, setOrganizationAudience] = useState<OrganizationContentAudience>("public");
-  const network = getCampusNetworkForUniversity(viewer.account.universityId);
-  const availableEvents = sampleEvents.filter((event) => theme.accessibleCampuses.includes(event.campus));
-  const availableBuildings = developmentBuildings.filter((building) => building.universityId === viewer.account.universityId);
-  const otherUsers = users.filter((user) => user.account.id !== viewer.account.id);
-  const organizationActor = { id: viewer.account.id, universityId: viewer.account.universityId };
-  const availableOrganizations = developmentOrganizations.filter((organization) =>
-    organization.universityId === viewer.account.universityId,
+  const configuredUniversityId =
+    getAccountConfiguredUniversityId(
+      viewer.account,
+    );
+
+  const network = configuredUniversityId
+    ? getCampusNetworkForUniversity(
+        configuredUniversityId,
+      )
+    : null;
+
+  const availableEvents = sampleEvents.filter(
+    (event) =>
+      theme.accessibleCampuses.includes(
+        event.campus,
+      ),
   );
-  const postableOrganizations = availableOrganizations.filter((organization) =>
-    canPostAsOrganization(organizationActor, organization, organizationMemberships, organizationRoles),
+
+  const availableBuildings =
+    configuredUniversityId
+      ? developmentBuildings.filter(
+          (building) =>
+            building.universityId ===
+            configuredUniversityId,
+        )
+      : [];
+
+  const otherUsers = users.filter(
+    (user) =>
+      user.account.id !== viewer.account.id,
   );
+
+  const organizationActor =
+    configuredUniversityId
+      ? {
+          id: viewer.account.id,
+          universityId:
+            configuredUniversityId,
+        }
+      : null;
+
+  const availableOrganizations =
+    configuredUniversityId
+      ? developmentOrganizations.filter(
+          (organization) =>
+            organization.universityId ===
+            configuredUniversityId,
+        )
+      : [];
+
+  const postableOrganizations =
+    organizationActor
+      ? availableOrganizations.filter(
+          (organization) =>
+            canPostAsOrganization(
+              organizationActor,
+              organization,
+              organizationMemberships,
+              organizationRoles,
+            ),
+        )
+      : [];
   const selectedOrganization = postableOrganizations.find((organization) => organization.id === selectedOrganizationId) ?? null;
 
   const mentionMatches = useMemo(() => mentionInput.split(/[\s,]+/)
@@ -115,7 +171,14 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
 
   function resolvedEventData(): EventContentData | null {
     if (postType !== "event") return null;
-    const eventTimeZone = universities[viewer.account.universityId].timeZone;
+    const eventTimeZone =
+      getAccountUniversityTheme(
+        viewer.account,
+      )?.timeZone ??
+      Intl.DateTimeFormat()
+        .resolvedOptions()
+        .timeZone ??
+      "UTC";
     if (existingEventId) return { eventId: existingEventId, title: null, eventStartAt: null, eventEndAt: null, timeZone: eventTimeZone, location: null, locationDetails: null, description: null };
     const customEventLocation = eventLocation.trim() ? { source: "custom" as const, entityId: null, label: eventLocation.trim(), details: eventLocationDetails.trim() || null } : null;
     const eventStartAt = eventDate && eventStartTime ? zonedDateTimeToIso(eventDate, eventStartTime, eventTimeZone) : null;
@@ -157,8 +220,24 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     onCreateMint({
       publishFormat: "mint",
       authorId: viewer.account.id,
-      universityId: viewer.account.universityId,
-      campusNetworkId: network.id,
+
+      // Legacy value remains required while older campus
+      // models are migrated. Do not use it to infer that a
+      // provisional .edu account belongs to that campus.
+      universityId:
+        configuredUniversityId ??
+        viewer.account.universityId,
+
+      universityIdentityId:
+        viewer.account.universityIdentityId ??
+        null,
+
+      knownUniversityId:
+        configuredUniversityId,
+
+      campusNetworkId:
+        network?.id ?? "universal",
+
       contentType,
       postType,
       media,

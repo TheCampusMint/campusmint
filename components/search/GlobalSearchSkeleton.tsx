@@ -1,5 +1,7 @@
 "use client";
 
+import { getAccountConfiguredUniversityId } from "@/data/universities";
+
 import { useMemo, useState } from "react";
 
 import type { PrimarySection } from "@/components/shell/navigation";
@@ -36,13 +38,32 @@ export function GlobalSearchSkeleton({ viewer, theme, profiles, listings, onOpen
   const results = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return [];
-    const networkId = getCampusNetworkForUniversity(viewer.account.universityId)?.id;
+    const configuredUniversityId =
+    getAccountConfiguredUniversityId(
+      viewer.account,
+    );
+
+  const networkId = configuredUniversityId
+    ? getCampusNetworkForUniversity(
+        configuredUniversityId,
+      )?.id
+    : null;
     const candidates: SearchResult[] = [
       ...profiles.users.filter((user) => user.account.id !== viewer.account.id && !profiles.isBlocked(user.account.id) && theme.accessibleCampuses.includes(user.account.universityId)).map((user) => ({ id: user.account.id, title: user.profile.displayName, subtitle: `@${user.profile.username}`, type: "Profile" as const, profileId: user.account.id })),
       ...developmentOrganizations.filter((organization) => theme.accessibleCampuses.includes(organization.universityId)).map((organization) => ({ id: organization.id, title: organization.name, subtitle: organization.shortDescription, type: "Club" as const, href: `/clubs/${organization.handle}` })),
       ...listings.filter((listing) => listing.campusNetworkId === networkId && listing.status === "active").map((listing) => ({ id: listing.id, title: listing.title, subtitle: `$${listing.askingPrice.toFixed(2)} · ${listing.description}`, type: "Marketplace" as const, section: "marketplace" as const })),
-      ...housingEntities.filter((item) => item.accessibleUniversityIds.includes(viewer.account.universityId)).map((item) => ({ id: item.id, title: item.name, subtitle: item.campusName, type: "Housing" as const, section: "housing" as const })),
-      ...diningLocations.filter((item) => item.accessibleUniversityIds.includes(viewer.account.universityId)).map((item) => ({ id: item.id, title: item.name, subtitle: item.area, type: "Food" as const, section: "food" as const })),
+      ...housingEntities.filter((item) => Boolean(
+      configuredUniversityId &&
+      item.accessibleUniversityIds.includes(
+        configuredUniversityId,
+      )
+    )).map((item) => ({ id: item.id, title: item.name, subtitle: item.campusName, type: "Housing" as const, section: "housing" as const })),
+      ...diningLocations.filter((item) => Boolean(
+      configuredUniversityId &&
+      item.accessibleUniversityIds.includes(
+        configuredUniversityId,
+      )
+    )).map((item) => ({ id: item.id, title: item.name, subtitle: item.area, type: "Food" as const, section: "food" as const })),
       ...sampleEvents.filter((event) => theme.accessibleCampuses.includes(event.campus)).map((event) => ({ id: event.id, title: event.title, subtitle: `${event.date} · ${event.location}`, type: "Event" as const })),
     ];
     return candidates.filter((candidate) => `${candidate.title} ${candidate.subtitle} ${candidate.type}`.toLowerCase().includes(normalized)).slice(0, 18);

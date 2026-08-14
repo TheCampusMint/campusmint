@@ -1,4 +1,8 @@
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
+import {
+  getAccountConfiguredUniversityId,
+  getAccountUniversityIdentityKey,
+} from "@/data/universities";
 import { isActiveContent } from "@/lib/content/expiration";
 import type { Mint } from "@/types/mint";
 import type { CampusMintUser, SocialDiscoveryScope } from "@/types/profile";
@@ -36,12 +40,71 @@ export function isEligibleForDiscoveryScope(
   author: CampusMintUser,
   scope: SocialDiscoveryScope,
 ) {
-  if (viewer.account.id === author.account.id) return true;
-  if (viewer.account.role !== "student") return false;
-  if (scope === "community") return true;
-  if (scope === "university") return viewer.account.universityId === author.account.universityId;
-  return getCampusNetworkForUniversity(viewer.account.universityId)?.id ===
-    getCampusNetworkForUniversity(author.account.universityId)?.id;
+  if (
+    viewer.account.id === author.account.id
+  ) {
+    return true;
+  }
+
+  if (viewer.account.role !== "student") {
+    return false;
+  }
+
+  if (scope === "community") {
+    return true;
+  }
+
+  const sameUniversity =
+    getAccountUniversityIdentityKey(
+      viewer.account,
+    ) ===
+    getAccountUniversityIdentityKey(
+      author.account,
+    );
+
+  if (scope === "university") {
+    return sameUniversity;
+  }
+
+  // A provisional university has no geographic Campus
+  // Network yet. Students at that same provisional school
+  // still count as being in the same local community.
+  if (sameUniversity) {
+    return true;
+  }
+
+  const viewerUniversityId =
+    getAccountConfiguredUniversityId(
+      viewer.account,
+    );
+
+  const authorUniversityId =
+    getAccountConfiguredUniversityId(
+      author.account,
+    );
+
+  if (
+    !viewerUniversityId ||
+    !authorUniversityId
+  ) {
+    return false;
+  }
+
+  const viewerNetworkId =
+    getCampusNetworkForUniversity(
+      viewerUniversityId,
+    )?.id;
+
+  const authorNetworkId =
+    getCampusNetworkForUniversity(
+      authorUniversityId,
+    )?.id;
+
+  return Boolean(
+    viewerNetworkId &&
+      authorNetworkId &&
+      viewerNetworkId === authorNetworkId,
+  );
 }
 
 export function canViewMint(context: MintPermissionContext) {

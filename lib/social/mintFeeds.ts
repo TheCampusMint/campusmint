@@ -1,6 +1,10 @@
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
 import { getFriendshipStatus } from "@/lib/social/relationships";
 import {
+  getAccountConfiguredUniversityId,
+  getAccountUniversityIdentityKey,
+} from "@/data/universities";
+import {
   canViewMint,
   hasEligibleSocialConnection,
   type MintPermissionContext,
@@ -48,25 +52,71 @@ export function createMintPermissionContext(
 }
 
 export function getMintFeed(mints: Mint[], feed: MintFeed, state: MintFeedState) {
-  const viewerNetworkId = getCampusNetworkForUniversity(state.viewer.account.universityId)?.id;
+  const viewerConfiguredUniversityId =
+    getAccountConfiguredUniversityId(
+      state.viewer.account,
+    );
+
+  const viewerNetworkId =
+    viewerConfiguredUniversityId
+      ? getCampusNetworkForUniversity(
+          viewerConfiguredUniversityId,
+        )?.id
+      : null;
+
+  const viewerUniversityIdentityKey =
+    getAccountUniversityIdentityKey(
+      state.viewer.account,
+    );
   const chronologicalFeed = mints.filter((mint) => {
     const author = state.users.find((user) => user.account.id === mint.authorId);
     if (!author) return false;
     const context = createMintPermissionContext(mint, author, state);
     if (!canViewMint(context)) return false;
-    if (mint.organizationId && !canViewOrganizationContent(
-      { id: state.viewer.account.id, universityId: state.viewer.account.universityId },
-      mint.organizationId,
-      mint.organizationAudience,
-      state.organizationMemberships ?? [],
-    )) return false;
+    if (mint.organizationId) {
+      if (!viewerConfiguredUniversityId) {
+        return false;
+      }
+
+      if (
+        !canViewOrganizationContent(
+          {
+            id: state.viewer.account.id,
+            universityId:
+              viewerConfiguredUniversityId,
+          },
+          mint.organizationId,
+          mint.organizationAudience,
+          state.organizationMemberships ?? [],
+        )
+      ) {
+        return false;
+      }
+    }
     if (feed === "following") {
       return mint.authorId === state.viewer.account.id
         || hasEligibleSocialConnection(context)
         || Boolean(mint.organizationId && state.followedOrganizationIds?.includes(mint.organizationId));
     }
     if (feed === "campus") {
-      return mint.universityId === state.viewer.account.universityId || mint.campusNetworkId === viewerNetworkId;
+      const authorUniversityIdentityKey =
+        getAccountUniversityIdentityKey(
+          author.account,
+        );
+
+      if (
+        authorUniversityIdentityKey ===
+        viewerUniversityIdentityKey
+      ) {
+        return true;
+      }
+
+      return Boolean(
+        viewerNetworkId &&
+          mint.campusNetworkId !== "universal" &&
+          mint.campusNetworkId ===
+            viewerNetworkId,
+      );
     }
     return true;
   }).sort((first, second) =>

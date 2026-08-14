@@ -16,6 +16,8 @@ type OnboardingProfileSetup = {
   interests: string[];
   hobbies: string[];
   academicArea: string | null;
+  lookingForRoommate: boolean;
+  roommatePreferences: string[];
   offersTutoring: boolean;
   tutoringSubjects: string[];
   phoneNumber: string | null;
@@ -66,6 +68,10 @@ export function StudentEmailOnboarding({
   const [interests, setInterests] = useState("");
   const [hobbies, setHobbies] = useState("");
   const [academicArea, setAcademicArea] = useState("");
+  const [lookingForRoommate, setLookingForRoommate] =
+    useState(false);
+  const [roommatePreferences, setRoommatePreferences] =
+    useState("");
   const [offersTutoring, setOffersTutoring] =
     useState(false);
   const [tutoringSubjects, setTutoringSubjects] =
@@ -160,6 +166,11 @@ export function StudentEmailOnboarding({
           hobbies: splitTags(hobbies),
           academicArea:
             academicArea.trim() || null,
+          lookingForRoommate,
+          roommatePreferences:
+            lookingForRoommate
+              ? splitTags(roommatePreferences)
+              : [],
           offersTutoring,
           tutoringSubjects:
             offersTutoring
@@ -451,6 +462,57 @@ export function StudentEmailOnboarding({
                 className="mt-2 block w-full rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4 outline-none focus:border-slate-400 focus:bg-white"
               />
             </label>
+
+            <div className="rounded-[1.4rem] border border-slate-200 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-black text-slate-900">
+                    Looking for a roommate
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Let verified students find you for roommate matching.
+                  </p>
+                </div>
+
+                <TactileButton
+                  type="button"
+                  selected={lookingForRoommate}
+                  onClick={() =>
+                    setLookingForRoommate(
+                      (current) => !current,
+                    )
+                  }
+                  className={`rounded-full px-4 py-2 text-sm font-black ${
+                    lookingForRoommate
+                      ? "bg-slate-950 text-white"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {lookingForRoommate ? "On" : "Off"}
+                </TactileButton>
+              </div>
+
+              {lookingForRoommate && (
+                <label className="mt-4 block">
+                  <span className="text-xs font-bold text-slate-600">
+                    Preferences
+                  </span>
+                  <input
+                    value={roommatePreferences}
+                    onChange={(event) =>
+                      setRoommatePreferences(
+                        event.target.value,
+                      )
+                    }
+                    placeholder="Quiet, early riser, pets okay..."
+                    className="mt-2 block w-full rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-400 focus:bg-white"
+                  />
+                  <span className="mt-2 block text-[11px] text-slate-400">
+                    Separate preferences with commas.
+                  </span>
+                </label>
+              )}
+            </div>
 
             <div className="rounded-[1.4rem] border border-slate-200 p-4">
               <div className="flex items-center justify-between gap-4">

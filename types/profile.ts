@@ -18,6 +18,8 @@ export const profilePrivacyFields = [
   "classes",
   "clubs",
   "interests",
+  "roommate",
+  "tutoring",
   "hometown",
   "instagram",
   "linkedin",
@@ -85,6 +87,8 @@ export type CampusMintProfile = {
   clubIds: string[];
   interests: string[];
   hobbies?: string[];
+  lookingForRoommate?: boolean;
+  roommatePreferences?: string[];
   offersTutoring?: boolean;
   tutoringSubjects?: string[];
   hometown: string | null;

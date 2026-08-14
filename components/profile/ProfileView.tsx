@@ -24,6 +24,8 @@ import {
   canViewMajor,
   canViewPersonalWebsite,
   canViewPortfolio,
+  canViewRoommate,
+  canViewTutoring,
   createProfileViewerContext,
 } from "@/lib/social/permissions";
 import type { MarketplaceListing } from "@/types/marketplace";
@@ -155,7 +157,6 @@ export function ProfileView({
   const [reportDetails, setReportDetails] = useState("");
   const isOwnProfile = viewer.account.id === owner.account.id;
   const context = createProfileViewerContext(viewer, owner, friendshipStatus);
-  const ownerUniversity = universities[owner.account.universityId];
   const catalog = getAcademicCatalog(owner.account.universityId);
   const classes = canViewClasses(context) ? owner.profile.classIds.map((id) => catalog.courses.find((course) => course.id === id)).filter((course) => course !== undefined) : [];
   const clubs = canViewClubs(context) ? owner.profile.clubIds.map((id) => getOrganizationById(id)).filter((club) => club !== null) : [];
@@ -450,6 +451,10 @@ export function ProfileView({
       <div className="space-y-5">
         {(canViewBio(context) && owner.profile.bio) ||
         (canViewInterests(context) && owner.profile.interests.length > 0) ||
+        (canViewRoommate(context) &&
+          owner.profile.lookingForRoommate) ||
+        (canViewTutoring(context) &&
+          owner.profile.offersTutoring) ||
         socialLinks.length > 0 ? (
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             {canViewBio(context) && owner.profile.bio && (
@@ -478,6 +483,50 @@ export function ProfileView({
                       {interest}
                     </span>
                   ))}
+                </div>
+              )}
+
+            {canViewRoommate(context) &&
+              owner.profile.lookingForRoommate && (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-sm font-black text-slate-900">
+                    Looking for roommate
+                  </p>
+
+                  {(owner.profile.roommatePreferences?.length ?? 0) > 0 && (
+                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                      {owner.profile.roommatePreferences!.join(" · ")}
+                    </p>
+                  )}
+                </div>
+              )}
+
+            {canViewTutoring(context) &&
+              owner.profile.offersTutoring && (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-sm font-black text-slate-900">
+                    Offers tutoring
+                  </p>
+
+                  {(owner.profile.tutoringSubjects?.length ?? 0) > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {owner.profile.tutoringSubjects!.map(
+                        (subject) => (
+                          <span
+                            key={subject}
+                            className="rounded-full px-2.5 py-1 text-xs font-bold"
+                            style={{
+                              backgroundColor:
+                                theme.accent,
+                              color: theme.primary,
+                            }}
+                          >
+                            {subject}
+                          </span>
+                        ),
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

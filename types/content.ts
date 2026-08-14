@@ -66,7 +66,21 @@ export type EventContentData = {
 
 export type SharedSocialContent = {
   authorId: string;
+
+  /**
+   * Legacy configured-campus ID retained while campus-specific
+   * features migrate to universal university identity.
+   */
   universityId: UniversityId;
+
+  /**
+   * Universal identity of the author's verified university.
+   * Provisional .edu universities can exist without a
+   * knownUniversityId.
+   */
+  universityIdentityId?: string | null;
+  knownUniversityId?: UniversityId | null;
+
   campusNetworkId: CampusNetworkId;
   contentType: SocialContentType;
   postType: SocialPostType;

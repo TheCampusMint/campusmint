@@ -10,7 +10,7 @@ import { MintMediaCarousel } from "@/components/mintz/MintMediaCarousel";
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { sampleEvents } from "@/data/events";
 import { getOrganizationById } from "@/data/organizations";
-import { universities, type UniversityTheme } from "@/data/universities";
+import { universities, type UniversityTheme, getAccountUniversityShortName } from "@/data/universities";
 import { formatEventDateTimeRange } from "@/lib/content/eventTiming";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import { canViewMintLikeCount, type MintPermissionContext } from "@/lib/social/mintPermissions";
@@ -205,7 +205,7 @@ export function MintCard(props: MintCardProps) {
             <button type="button" aria-label={`Open ${author.profile.displayName}'s profile`} onClick={() => props.onOpenProfile(author.account.id)}><ProfileAvatar user={author} size="sm" primaryColor={theme.primary} accentColor={theme.accent} /></button>
             <div className="min-w-0 flex-1">
               <button type="button" onClick={() => props.onOpenProfile(author.account.id)} className="block max-w-full truncate text-sm font-black text-slate-950 hover:underline">@{author.profile.username}</button>
-              <p className="mt-0.5 truncate text-xs text-slate-500">{universities[author.account.universityId].shortName} · {formatRelativeTime(mint.createdAt, currentTime)}{temporaryLabel ? ` · ${temporaryLabel}` : ""}</p>
+              <p className="mt-0.5 truncate text-xs text-slate-500">{getAccountUniversityShortName(author.account)} · {formatRelativeTime(mint.createdAt, currentTime)}{temporaryLabel ? ` · ${temporaryLabel}` : ""}</p>
             </div>
             {mint.isDevelopment && <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-slate-500">Demo</span>}
           </div>

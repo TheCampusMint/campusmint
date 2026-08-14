@@ -34,6 +34,8 @@ export const canViewGraduationYear = (context: ProfileViewerContext) => canViewP
 export const canViewClasses = (context: ProfileViewerContext) => canViewProfileField(context, "classes");
 export const canViewClubs = (context: ProfileViewerContext) => canViewProfileField(context, "clubs");
 export const canViewInterests = (context: ProfileViewerContext) => canViewProfileField(context, "interests");
+export const canViewRoommate = (context: ProfileViewerContext) => canViewProfileField(context, "roommate");
+export const canViewTutoring = (context: ProfileViewerContext) => canViewProfileField(context, "tutoring");
 export const canViewHometown = (context: ProfileViewerContext) => canViewProfileField(context, "hometown");
 export const canViewInstagram = (context: ProfileViewerContext) => canViewProfileField(context, "instagram");
 export const canViewLinkedIn = (context: ProfileViewerContext) => canViewProfileField(context, "linkedin");

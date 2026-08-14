@@ -4,6 +4,10 @@ import { useMemo, useState } from "react";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
+import {
+  getAccountUniversityName,
+  getAccountUniversityShortName,
+} from "@/data/universities";
 import type { UniversityTheme } from "@/data/universities";
 import { universities, type UniversityId } from "@/data/universities";
 import {
@@ -57,7 +61,7 @@ export function PeopleSearch({ viewer, users, theme, getFriendshipStatus, isBloc
     return [
       user.profile.displayName,
       user.profile.username,
-      universities[user.account.universityId].name,
+      getAccountUniversityName(user.account),
       visibleMajor,
       visibleYear?.toString(),
     ].filter(Boolean).some((value) => value!.toLowerCase().includes(normalizedQuery));
@@ -81,10 +85,35 @@ export function PeopleSearch({ viewer, users, theme, getFriendshipStatus, isBloc
         </div>
       </section>
 
-      <div className="flex items-center justify-between px-1 text-sm text-slate-500"><p>{results.length} development profile{results.length === 1 ? "" : "s"}</p><p>{scope === "my_university" ? universities[viewer.account.universityId].shortName : network?.name ?? "Campus network"}</p></div>
+      <div className="flex items-center justify-between px-1 text-sm text-slate-500">
+        <p>
+          {results.length} development profile
+          {results.length === 1 ? "" : "s"}
+        </p>
+        <p>
+          {scope === "my_university"
+            ? getAccountUniversityShortName(viewer.account)
+            : network?.name ?? "Campus network"}
+        </p>
+      </div>
       {results.length > 0 ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{results.map(({ user, visibleMajor, visibleYear }) => (
         <button key={user.account.id} type="button" onClick={() => onOpenProfile(user.account.id)} className="rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2" style={{ outlineColor: theme.primary }}>
-          <div className="flex items-center gap-4"><ProfileAvatar user={user} primaryColor={theme.primary} accentColor={theme.accent} /><div className="min-w-0"><h3 className="truncate font-black text-slate-950">{user.profile.displayName}</h3><p className="mt-0.5 truncate text-sm text-slate-500">@{user.profile.username} · {universities[user.account.universityId].shortName}</p></div></div>
+          <div className="flex items-center gap-4">
+            <ProfileAvatar
+              user={user}
+              primaryColor={theme.primary}
+              accentColor={theme.accent}
+            />
+            <div className="min-w-0">
+              <h3 className="truncate font-black text-slate-950">
+                {user.profile.displayName}
+              </h3>
+              <p className="mt-0.5 truncate text-sm text-slate-500">
+                @{user.profile.username} ·{" "}
+                {getAccountUniversityShortName(user.account)}
+              </p>
+            </div>
+          </div>
           {(visibleMajor || visibleYear) && <p className="mt-4 text-sm text-slate-700">{visibleMajor}{visibleMajor && visibleYear ? " · " : ""}{visibleYear ? `Class of ${visibleYear}` : ""}</p>}
           <span className="mt-4 inline-flex rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: theme.accent, color: theme.primary }}>Development profile</span>
         </button>

@@ -7,7 +7,10 @@ import { MarketplaceDetailModal } from "@/components/marketplace/MarketplaceDeta
 import { MarketplacePhotoPlaceholder } from "@/components/marketplace/MarketplacePhotoPlaceholder";
 import { MarketplaceRestricted } from "@/components/marketplace/MarketplaceRestricted";
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
-import type { UniversityTheme } from "@/data/universities";
+import type {
+  UniversityId,
+  UniversityTheme,
+} from "@/data/universities";
 import type { useMarketplace } from "@/hooks/useMarketplace";
 import { canCreateListing, canMakeOffer, canMessageSeller, canSaveListing, canViewMarketplace, type MarketplacePermissionMode } from "@/lib/marketplacePermissions";
 import { checkMarketplaceListingSafety } from "@/lib/marketplaceSafety";
@@ -15,18 +18,30 @@ import type { TemporaryUser } from "@/types/user";
 
 type SimpleMarketplaceProps = {
   user: TemporaryUser;
+  configuredUniversityId: UniversityId | null;
   theme: UniversityTheme;
   marketplace: ReturnType<typeof useMarketplace>;
   permissionMode: MarketplacePermissionMode;
   onOpenProfile: (userId: string) => void;
 };
 
-export function SimpleMarketplace({ user, theme, marketplace, permissionMode, onOpenProfile }: SimpleMarketplaceProps) {
+export function SimpleMarketplace({
+  user,
+  configuredUniversityId,
+  theme,
+  marketplace,
+  permissionMode,
+  onOpenProfile,
+}: SimpleMarketplaceProps) {
   const [query, setQuery] = useState("");
   const [sellOpen, setSellOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messagePanel, setMessagePanel] = useState(false);
-  const network = getCampusNetworkForUniversity(user.universityId);
+  const network = configuredUniversityId
+    ? getCampusNetworkForUniversity(
+        configuredUniversityId,
+      )
+    : null;
   const viewAllowed = canViewMarketplace(user, permissionMode);
   const createAllowed = canCreateListing(user, permissionMode);
   const interactionAllowed = canMakeOffer(user, permissionMode) && canMessageSeller(user, permissionMode) && canSaveListing(user, permissionMode);
@@ -38,7 +53,19 @@ export function SimpleMarketplace({ user, theme, marketplace, permissionMode, on
   const activeOffer = selected ? marketplace.offers.find((offer) => offer.listingId === selected.id && offer.buyerId === marketplace.currentUserId && offer.status === "offer_sent") : undefined;
 
   if (!viewAllowed) return <MarketplaceRestricted user={user} theme={theme} />;
-  if (!network) return <div className="rounded-3xl bg-white p-8 text-center text-sm text-slate-500">Marketplace access is not configured for this university.</div>;
+  if (!configuredUniversityId || !network) {
+    return (
+      <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-8 text-center">
+        <h2 className="font-black text-slate-900">
+          Marketplace is not configured yet
+        </h2>
+        <p className="mt-2 text-sm text-slate-500">
+          A local Marketplace for {theme.shortName} will
+          appear once its campus network is configured.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -46,7 +73,7 @@ export function SimpleMarketplace({ user, theme, marketplace, permissionMode, on
       <label className="block"><span className="sr-only">Search Marketplace</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Marketplace…" className="w-full rounded-2xl border border-white/80 bg-white/95 px-4 py-3.5 text-sm shadow-sm outline-none focus:ring-2" /></label>
       {listings.length > 0 ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{listings.map((listing) => <article key={listing.id} className="overflow-hidden rounded-[1.4rem] border border-white/80 bg-white shadow-sm"><button type="button" onClick={() => { setSelectedId(listing.id); setMessagePanel(false); }} className="block w-full text-left"><div className="relative aspect-square overflow-hidden">{listing.photos[0]?.url ? <Image src={listing.photos[0].url} alt={listing.photos[0].alt} fill sizes="(max-width: 640px) 50vw, 280px" className="object-cover" unoptimized /> : <MarketplacePhotoPlaceholder category={listing.category} compact />}</div><div className="p-3"><p className="text-lg font-black text-slate-950">${listing.askingPrice.toFixed(2)}</p><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">{listing.description}</p><p className="mt-2 truncate text-[10px] font-bold text-slate-400">{listing.seller.firstName}</p></div></button><button type="button" onClick={() => { setSelectedId(listing.id); setMessagePanel(true); }} className="mx-3 mb-3 block rounded-full border border-slate-200 px-3 py-2 text-xs font-black text-slate-700" style={{ width: "calc(100% - 1.5rem)" }}>Message seller</button></article>)}</div> : <div className="rounded-3xl border border-dashed border-slate-300 bg-white/65 p-10 text-center text-sm text-slate-500">No available listings match.</div>}
 
-      {sellOpen && <SimpleSellModal theme={theme} onClose={() => setSellOpen(false)} onCreate={(description, price, photo) => { const title = description.trim().split(/\s+/).slice(0, 8).join(" "); const listing = marketplace.addListing({ title, description, askingPrice: price, category: "Other", condition: "Good", negotiable: false, pickupArea: "Campus", deliveryAvailable: false, sportsTicket: null, photo }, user.universityId); setSellOpen(false); setSelectedId(listing.id); }} />}
+      {sellOpen && <SimpleSellModal theme={theme} onClose={() => setSellOpen(false)} onCreate={(description, price, photo) => { const title = description.trim().split(/\s+/).slice(0, 8).join(" "); const listing = marketplace.addListing({ title, description, askingPrice: price, category: "Other", condition: "Good", negotiable: false, pickupArea: "Campus", deliveryAvailable: false, sportsTicket: null, photo }, configuredUniversityId); setSellOpen(false); setSelectedId(listing.id); }} />}
       {selected && interactionAllowed && <MarketplaceDetailModal listing={selected} theme={theme} currentUserId={marketplace.currentUserId} saved={marketplace.savedListingIds.includes(selected.id)} activeOffer={activeOffer} messages={marketplace.messages.filter((message) => message.listingId === selected.id)} alreadyReported={marketplace.reports.some((report) => report.listingId === selected.id)} initialPanel={messagePanel ? "message" : "none"} onClose={() => setSelectedId(null)} onToggleSaved={() => marketplace.toggleSaved(selected.id)} onSendOffer={(amount, note) => marketplace.sendOffer(selected.id, amount, note)} onWithdrawOffer={marketplace.withdrawOffer} onSendMessage={(body) => marketplace.sendMessage(selected.id, body)} onReport={(reason, details) => marketplace.reportListing(selected.id, reason, details)} onBlockSeller={() => { marketplace.blockSeller(selected.sellerId); setSelectedId(null); }} onUpdateStatus={(status) => marketplace.updateListingStatus(selected.id, status)} onOpenSellerProfile={onOpenProfile} />}
     </div>
   );

@@ -9,7 +9,7 @@ import {
   type PointerEvent,
   type ReactNode,
   type TouchEvent,
-} from "react";
+  } from "react";
 
 import { ClubsDiscovery } from "@/components/clubs/ClubsDiscovery";
 import { DeveloperRoleSwitcher } from "@/components/developer/DeveloperRoleSwitcher";
@@ -26,7 +26,7 @@ import {
   type PrimarySection,
   dailyNavigation,
   secondaryNavigation,
-} from "@/components/shell/navigation";
+  } from "@/components/shell/navigation";
 import { SettingsPanel } from "@/components/shell/SettingsPanel";
 import { TopUtilityBar } from "@/components/shell/TopUtilityBar";
 import { FoodSkeleton } from "@/components/secondary/FoodSkeleton";
@@ -36,7 +36,11 @@ import { CURRENT_DEVELOPMENT_USER_ID } from "@/data/development/users";
 import { getAppearanceTokens } from "@/data/appearance";
 import { getOrganizationById } from "@/data/organizations";
 import { type UserRole } from "@/data/userRoles";
-import { universities, type UniversityId } from "@/data/universities";
+import { universities,
+  type UniversityId,
+  getAccountConfiguredUniversityId,
+  getAccountUniversityDisplayTheme,
+} from "@/data/universities";
 import { useAcademics } from "@/hooks/useAcademics";
 import { useAppPreferences } from "@/hooks/useAppPreferences";
 import { useDirectMint } from "@/hooks/useDirectMint";
@@ -193,7 +197,15 @@ export function CampusAppShell() {
     profiles.developmentProfileHydrated,
   ]);
 
-  const theme = universities[user.universityId];
+  const theme =
+    getAccountUniversityDisplayTheme(
+      profiles.currentUser.account,
+    );
+
+  const configuredUniversityId =
+    getAccountConfiguredUniversityId(
+      profiles.currentUser.account,
+    );
 
   const currentNavigationSection =
     sectionSequence[mod(navIndex, SECTION_COUNT)] ?? "mint";
@@ -973,6 +985,9 @@ export function CampusAppShell() {
       return (
         <ClubsDiscovery
           user={user}
+          configuredUniversityId={
+            configuredUniversityId
+          }
           theme={theme}
           organizations={organizations}
           onMembershipAction={handleOrganizationMembership}
@@ -1026,7 +1041,9 @@ export function CampusAppShell() {
     if (section === "food") {
       return (
         <FoodSkeleton
-          universityId={user.universityId}
+          universityId={
+            configuredUniversityId
+          }
           theme={theme}
         />
       );
@@ -1035,7 +1052,9 @@ export function CampusAppShell() {
     if (section === "housing") {
       return (
         <HousingSkeleton
-          universityId={user.universityId}
+          universityId={
+            configuredUniversityId
+          }
           theme={theme}
         />
       );
@@ -1045,6 +1064,9 @@ export function CampusAppShell() {
       return (
         <SimpleMarketplace
           user={user}
+          configuredUniversityId={
+            configuredUniversityId
+          }
           theme={theme}
           marketplace={marketplace}
           permissionMode={marketplacePermissionMode}
@@ -1173,6 +1195,10 @@ export function CampusAppShell() {
               hobbies: profileSetup.hobbies,
               academicArea:
                 profileSetup.academicArea,
+              lookingForRoommate:
+                profileSetup.lookingForRoommate,
+              roommatePreferences:
+                profileSetup.roommatePreferences,
               offersTutoring:
                 profileSetup.offersTutoring,
               tutoringSubjects:
