@@ -261,6 +261,26 @@ export function useProfiles() {
     }]);
   }
 
+  function logoutDevelopmentUser() {
+    window.localStorage.removeItem(
+      DEVELOPMENT_PROFILE_STORAGE_KEY,
+    );
+
+    setUsers((currentUsers) =>
+      currentUsers.map((user) =>
+        user.account.id === CURRENT_DEVELOPMENT_USER_ID
+          ? {
+              ...user,
+              account: {
+                ...user.account,
+                onboardingCompletedAt: null,
+              },
+            }
+          : user,
+      ),
+    );
+  }
+
   return {
     users,
     currentUser,
@@ -274,6 +294,7 @@ export function useProfiles() {
     updateCurrentProfile,
     updateCurrentPrivacy,
     updateCurrentSocialSettings,
+    logoutDevelopmentUser,
     getFriendshipStatus,
     cycleFriendship,
     isFollowing,

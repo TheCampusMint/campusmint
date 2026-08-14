@@ -49,6 +49,7 @@ type ProfileViewProps = {
   onBack: () => void;
   onEdit: () => void;
   onEditPrivacy: () => void;
+  onLogout: () => void;
   onCycleFriendship: () => void;
   onToggleFollow: () => void;
   onBlock: () => void;
@@ -140,6 +141,7 @@ export function ProfileView({
   onBack,
   onEdit,
   onEditPrivacy,
+  onLogout,
   onCycleFriendship,
   onToggleFollow,
   onBlock,
@@ -286,6 +288,14 @@ export function ProfileView({
                   className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700"
                 >
                   Privacy
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="rounded-full border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-bold text-red-600 transition hover:bg-red-100"
+                >
+                  Log out
                 </button>
               </>
             ) : (

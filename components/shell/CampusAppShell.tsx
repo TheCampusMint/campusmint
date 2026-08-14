@@ -1097,6 +1097,14 @@ export function CampusAppShell() {
             onOpenDirectMint={openDirectMintFromProfile}
             onOpenProfile={openProfile}
             onBack={goBackFromProfile}
+            onLogout={() => {
+              profiles.logoutDevelopmentUser();
+              setSpecialSection(null);
+              setSelectedProfileUserId(
+                CURRENT_DEVELOPMENT_USER_ID,
+              );
+              setOnboardingOpen(true);
+            }}
           />
         </div>
       );

@@ -33,9 +33,10 @@ type ProfilesHubProps = {
   onOpenDirectMint: (userId: string) => void;
   onOpenProfile: (userId: string) => void;
   onBack: () => void;
+  onLogout: () => void;
 };
 
-export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStories, marketplaceListings, profiles, mintz, organizations, onOpenDirectMint, onOpenProfile, onBack }: ProfilesHubProps) {
+export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStories, marketplaceListings, profiles, mintz, organizations, onOpenDirectMint, onOpenProfile, onBack, onLogout }: ProfilesHubProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -153,6 +154,7 @@ export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStorie
       onBack={onBack}
       onEdit={() => setEditOpen(true)}
       onEditPrivacy={() => setPrivacyOpen(true)}
+      onLogout={onLogout}
       onCycleFriendship={() => profiles.cycleFriendship(owner.account.id)}
       onToggleFollow={() => profiles.toggleFollow(owner.account.id)}
       onBlock={() => { profiles.blockUser(owner.account.id); onBack(); }}
