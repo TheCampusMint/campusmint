@@ -82,6 +82,7 @@ export function StudentEmailOnboarding({
   const [selectedClubIds, setSelectedClubIds] =
     useState<string[]>([]);
 
+
   const resolved = useMemo(
     () => resolveStudentEmail(email),
     [email],
@@ -796,7 +797,7 @@ export function StudentEmailOnboarding({
             .
           </p>
 
-          {process.env.NODE_ENV === "development" && (
+          {verificationCode && (
             <div className="mt-6 rounded-[1.4rem] bg-amber-50 px-4 py-4">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-700">
                 Development verification code
