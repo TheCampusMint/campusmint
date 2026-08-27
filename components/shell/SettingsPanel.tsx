@@ -212,7 +212,7 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
 
     if (activeCategory === "notifications") return (
       <div><h3 className="text-lg font-black text-slate-950">Notifications</h3><p className="mt-1 text-sm leading-6 text-slate-500">Device-local preferences for this development build.</p><div className="mt-5 divide-y divide-slate-100 rounded-2xl border border-slate-200 px-4">
-        {(Object.entries({ messages: "Messages", clubUpdates: "Club updates", eventReminders: "Event reminders", mentions: "Mentions", marketplaceMessages: "Marketplace messages" }) as Array<[keyof NotificationPreferences, string]>).map(([key, label]) => <ToggleRow key={key} label={label} checked={preferences.notifications[key]} onChange={(checked) => updateNotifications({ [key]: checked })} />)}
+        {(Object.entries({ sounds: "Notification sounds", messages: "Messages", clubUpdates: "Club updates", eventReminders: "Event reminders", mentions: "Mentions", marketplaceMessages: "Marketplace messages" }) as Array<[keyof NotificationPreferences, string]>).map(([key, label]) => <ToggleRow key={key} label={label} checked={preferences.notifications[key]} onChange={(checked) => updateNotifications({ [key]: checked })} />)}
       </div></div>
     );
 

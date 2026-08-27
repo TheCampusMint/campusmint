@@ -62,6 +62,32 @@ export function requestOrganizationMembership(
   };
 }
 
+export function joinOrRequestOrganization(
+  state: OrganizationMembershipState,
+  organization: Organization,
+  userId: string,
+  membershipId: string,
+  now: string,
+): OrganizationMembershipState {
+  const requested = requestOrganizationMembership(
+    state,
+    organization.id,
+    userId,
+    membershipId,
+    now,
+  );
+
+  return organization.membershipType === "open"
+    ? handleOrganizationMembershipAccepted(
+        requested,
+        organization,
+        userId,
+        userId,
+        now,
+      )
+    : requested;
+}
+
 export function inviteOrganizationMember(
   state: OrganizationMembershipState,
   organizationId: string,

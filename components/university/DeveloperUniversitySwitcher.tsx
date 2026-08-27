@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  configuredUniversityIds,
   universities,
   type UniversityId,
 } from "@/data/universities";
@@ -9,8 +10,6 @@ type DeveloperUniversitySwitcherProps = {
   selectedUniversityId: UniversityId;
   onUniversityChange: (universityId: UniversityId) => void;
 };
-
-const universityIds = Object.keys(universities) as UniversityId[];
 
 export function DeveloperUniversitySwitcher({
   selectedUniversityId,
@@ -37,7 +36,7 @@ export function DeveloperUniversitySwitcher({
           outlineColor: selectedTheme.secondary,
         }}
       >
-        {universityIds.map((universityId) => (
+        {configuredUniversityIds.map((universityId) => (
           <option key={universityId} value={universityId}>
             {universities[universityId].name}
           </option>

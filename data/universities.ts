@@ -103,6 +103,10 @@ export const universities = {
   },
 } satisfies Record<UniversityId, UniversityTheme>;
 
+export const configuredUniversityIds = Object.keys(
+  universities,
+) as UniversityId[];
+
 export function getCampusName(campusId: string) {
   return universities[campusId as UniversityId]?.shortName ?? campusId;
 }

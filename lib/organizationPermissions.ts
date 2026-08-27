@@ -1,4 +1,4 @@
-import { isUniversityInCampusNetwork } from "@/data/campusNetworks";
+import { isUniversityInCampusNetwork } from "../data/campusNetworks.ts";
 import type { UniversityId } from "@/data/universities";
 import type { OrganizationContentAudience } from "@/types/content";
 import type { Organization } from "@/types/organization";

@@ -4,20 +4,18 @@ import { useState } from "react";
 import Link from "next/link";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
+import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 import { getAcademicCatalog } from "@/data/development/campusData";
 import {
   getClubHref,
   getOrganizationById,
 } from "@/data/organizations";
-import { getUserRoleLabel } from "@/data/userRoles";
 import type { UniversityTheme } from "@/data/universities";
-import { universities } from "@/data/universities";
 import {
   canViewBio,
   canViewClasses,
   canViewClubs,
   canViewGraduationYear,
-  canViewHometown,
   canViewInstagram,
   canViewInterests,
   canViewLinkedIn,
@@ -47,6 +45,7 @@ type ProfileViewProps = {
   recentStories: Story[];
   marketplaceListings: MarketplaceListing[];
   onBack: () => void;
+  showBackControl?: boolean;
   onEdit: () => void;
   onEditPrivacy: () => void;
   onLogout: () => void;
@@ -67,46 +66,6 @@ type ProfileViewProps = {
   onAcceptClubInvitation: (organizationId: string) => void;
   onDeclineClubInvitation: (organizationId: string) => void;
   socialContent: React.ReactNode;
-};
-
-export function MintBackLeaf() {
-  return (
-    <svg
-      viewBox="0 0 32 32"
-      className="h-6 w-6 overflow-visible"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{
-        transform: "rotate(-135deg)",
-        transformOrigin: "center",
-      }}
-    >
-      <path
-        d="M25.8 5.5C17 5.8 8.6 9.9 7 18.1c-.8 4.3 2.6 7.7 6.8 6.4 7.8-2.4 10.7-10.6 12-19Z"
-        strokeWidth="2.4"
-      />
-      <path
-        d="M8.6 24.8c2.8-6.2 7.2-10.1 13.8-13.2"
-        strokeWidth="2"
-      />
-      <path
-        d="M13.4 18.7c1.9.1 3.7.5 5.2 1.2M16.7 14.5c.1-1.5-.1-2.8-.5-4"
-        strokeWidth="1.45"
-        opacity=".82"
-      />
-    </svg>
-  );
-}
-
-
-const friendLabels: Record<FriendshipStatus, string> = {
-  none: "Add Friend",
-  requested: "Requested",
-  friends: "Friends",
-  blocked: "Blocked",
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -139,6 +98,7 @@ export function ProfileView({
   recentStories,
   marketplaceListings,
   onBack,
+  showBackControl = true,
   onEdit,
   onEditPrivacy,
   onLogout,
@@ -176,15 +136,15 @@ export function ProfileView({
 
   return (
     <div className="space-y-5">
-      <button
-        type="button"
-        onClick={onBack}
-        aria-label="Go back"
-        title="Back"
-        className="interactive-pop flex h-10 w-10 items-center justify-center border-0 bg-transparent p-0 text-[24px] font-semibold leading-none text-slate-800 shadow-none"
-      >
-        <MintBackLeaf />
-      </button>
+      {showBackControl ? (
+        <MintLeafBackButton
+          onClick={onBack}
+          label="Back"
+          aria-label="Go back"
+          tone="minimal"
+          className="text-slate-800"
+        />
+      ) : null}
         <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 items-center gap-4">
@@ -505,7 +465,7 @@ export function ProfileView({
 
                   {(owner.profile.roommatePreferences?.length ?? 0) > 0 && (
                     <p className="mt-1 text-sm leading-6 text-slate-600">
-                      {owner.profile.roommatePreferences!.join(" · ")}
+                      {owner.profile.roommatePreferences?.join(" · ")}
                     </p>
                   )}
                 </div>
@@ -520,7 +480,7 @@ export function ProfileView({
 
                   {(owner.profile.tutoringSubjects?.length ?? 0) > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {owner.profile.tutoringSubjects!.map(
+                      {(owner.profile.tutoringSubjects ?? []).map(
                         (subject) => (
                           <span
                             key={subject}

@@ -1,10 +1,14 @@
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
 import { createExpiresAt, EVENT_CONTENT_DURATION_HOURS } from "@/lib/content/expiration";
+import type { UniversityId } from "@/data/universities";
 import type { Mint } from "@/types/mint";
 
 export const DEVELOPMENT_MINT_REFERENCE_TIME = 1_786_381_200_000;
 
-function networkId(universityId: "tamu" | "blinn") {
+const DEVELOPMENT_VIDEO_URL =
+  "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
+
+function networkId(universityId: UniversityId) {
   const network = getCampusNetworkForUniversity(universityId);
   if (!network) throw new Error(`Missing development Campus Network for ${universityId}.`);
   return network.id;
@@ -21,6 +25,69 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
   const urgentEventStartAt = new Date(referenceTime + 45 * 60 * 1000).toISOString();
   const urgentEventEndAt = new Date(referenceTime + 3 * 60 * 60 * 1000).toISOString();
 
+  const videoMint = ({
+    id,
+    mediaId,
+    authorId,
+    universityId,
+    hoursAgo,
+    caption,
+    hashtags,
+  }: {
+    id: string;
+    mediaId: string;
+    authorId: string;
+    universityId: UniversityId;
+    hoursAgo: number;
+    caption: string;
+    hashtags: string[];
+  }): Mint => {
+    const timestamp = createdAt(hoursAgo);
+
+    return {
+      id,
+      publishFormat: "mint",
+      authorId,
+      universityId,
+      campusNetworkId: networkId(universityId),
+      contentType: "video",
+      postType: "personal",
+      media: [
+        {
+          id: mediaId,
+          type: "video",
+          url: DEVELOPMENT_VIDEO_URL,
+          thumbnailUrl: null,
+          width: 960,
+          height: 540,
+          durationSeconds: 30,
+          order: 0,
+          isDevelopmentPlaceholder: false,
+        },
+      ],
+      caption,
+      hashtags,
+      mentions: [],
+      taggedUserIds: [],
+      location: null,
+      music: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      expiresAt: null,
+      commentsEnabled: true,
+      likesVisible: true,
+      eventData: null,
+      status: "active",
+      privacy: "public",
+      likeCount: Math.max(0, Math.round(14 - hoursAgo)),
+      commentCount: Math.max(0, Math.round(5 - hoursAgo / 2)),
+      saveCount: Math.max(0, Math.round(4 - hoursAgo / 3)),
+      shareCount: Math.max(0, Math.round(3 - hoursAgo / 4)),
+      archivedAt: null,
+      isDevelopment: true,
+    };
+  };
+
   return [
     {
       id: "dev-mint-maya-campus",
@@ -33,7 +100,7 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
       media: [
         { id: "dev-media-maya-1", type: "image", url: null, thumbnailUrl: null, width: null, height: null, durationSeconds: null, order: 0, isDevelopmentPlaceholder: true },
         { id: "dev-media-maya-2", type: "image", url: null, thumbnailUrl: null, width: null, height: null, durationSeconds: null, order: 1, isDevelopmentPlaceholder: true },
-        { id: "dev-media-maya-3", type: "image", url: null, thumbnailUrl: null, width: null, height: null, durationSeconds: null, order: 2, isDevelopmentPlaceholder: true },
+        { id: "dev-media-maya-3", type: "video", url: DEVELOPMENT_VIDEO_URL, thumbnailUrl: null, width: 960, height: 540, durationSeconds: 30, order: 2, isDevelopmentPlaceholder: false },
       ],
       caption: "Development Mint: a fictional campus photo placeholder used to test the permanent social post architecture.",
       hashtags: ["campuslife", "tamu"],
@@ -221,6 +288,42 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
       archivedAt: null,
       isDevelopment: true,
     },
+    videoMint({
+      id: "dev-mint-tamu-video-campus",
+      mediaId: "dev-media-tamu-video-campus",
+      authorId: "demo-tamu-townhall",
+      universityId: "tamu",
+      hoursAgo: 1.25,
+      caption: "Development video Mint using a CC0 flower clip to verify Texas A&M viewer behavior.",
+      hashtags: ["development", "campusvideo"],
+    }),
+    videoMint({
+      id: "dev-mint-texas-video-campus",
+      mediaId: "dev-media-texas-video-campus",
+      authorId: "demo-texas-emma",
+      universityId: "texas",
+      hoursAgo: 5,
+      caption: "Fictional Texas development video used only to test global viewer expansion.",
+      hashtags: ["development", "running"],
+    }),
+    videoMint({
+      id: "dev-mint-lsu-video-campus",
+      mediaId: "dev-media-lsu-video-campus",
+      authorId: "demo-lsu-cameron",
+      universityId: "lsu",
+      hoursAgo: 6,
+      caption: "Fictional LSU development video used only to test university-safe color cues.",
+      hashtags: ["development", "photography"],
+    }),
+    videoMint({
+      id: "dev-mint-alabama-video-campus",
+      mediaId: "dev-media-alabama-video-campus",
+      authorId: "demo-alabama-sophia",
+      universityId: "alabama",
+      hoursAgo: 7,
+      caption: "Fictional Alabama development video used only to verify deterministic ranking.",
+      hashtags: ["development", "media"],
+    }),
   ];
 }
 

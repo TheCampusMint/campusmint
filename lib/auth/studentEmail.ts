@@ -1,22 +1,84 @@
-import { universities } from "@/data/universities";
+import {
+  configuredUniversityIds,
+  universities,
+} from "../../data/universities.ts";
+import { resolveInstitutionEligibility } from "./institutionEligibility.ts";
 import type {
+  InstitutionEligibilityResult,
   ResolvedStudentEmail,
+  StudentEmailAssessment,
+  StudentEmailRejectionReason,
   UniversityIdentity,
-} from "@/types/universityIdentity";
+} from "../../types/universityIdentity.ts";
+
+const EDU_DOMAIN_PATTERN = /\.edu$/;
+const EMAIL_LOCAL_PART_PATTERN =
+  /^[a-z0-9!#$%&'*+/=?^_`{|}~.-]+$/i;
+const DOMAIN_LABEL_PATTERN =
+  /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+export type ParsedStudentEmail = {
+  email: string;
+  localPart: string;
+  domain: string;
+};
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
 
-function domainFromEmail(email: string) {
-  const at = email.lastIndexOf("@");
-  if (at <= 0 || at === email.length - 1) return null;
+function validDomain(domain: string) {
+  if (
+    domain.length === 0 ||
+    domain.length > 253
+  ) {
+    return false;
+  }
 
-  return email.slice(at + 1);
+  const labels = domain.split(".");
+
+  return labels.every(
+    (label) =>
+      label.length <= 63 &&
+      DOMAIN_LABEL_PATTERN.test(label),
+  );
+}
+
+export function parseStudentEmail(
+  value: string,
+): ParsedStudentEmail | null {
+  const email = normalizeEmail(value);
+  const at = email.indexOf("@");
+
+  if (
+    email.length === 0 ||
+    /\s/.test(email) ||
+    at <= 0 ||
+    at !== email.lastIndexOf("@") ||
+    at === email.length - 1
+  ) {
+    return null;
+  }
+
+  const localPart = email.slice(0, at);
+  const domain = email.slice(at + 1);
+
+  if (
+    localPart.length > 64 ||
+    localPart.startsWith(".") ||
+    localPart.endsWith(".") ||
+    localPart.includes("..") ||
+    !EMAIL_LOCAL_PART_PATTERN.test(localPart) ||
+    !validDomain(domain)
+  ) {
+    return null;
+  }
+
+  return { email, localPart, domain };
 }
 
 function provisionalName(domain: string) {
-  const root = domain.replace(/\.edu$/i, "");
+  const root = domain.replace(EDU_DOMAIN_PATTERN, "");
 
   return root
     .split(/[.-]+/)
@@ -34,47 +96,96 @@ function provisionalId(domain: string) {
 }
 
 export function isEduEmail(value: string) {
-  const email = normalizeEmail(value);
-  const domain = domainFromEmail(email);
+  const parsed = parseStudentEmail(value);
 
   return Boolean(
-    domain &&
-      (domain === "edu" ||
-        domain.endsWith(".edu")),
+    parsed &&
+      EDU_DOMAIN_PATTERN.test(parsed.domain),
   );
 }
 
-export function resolveStudentEmail(
+function rejectedAssessment(
   value: string,
-): ResolvedStudentEmail | null {
-  const email = normalizeEmail(value);
-  const domain = domainFromEmail(email);
+  reason: StudentEmailRejectionReason,
+  parsed: ParsedStudentEmail | null,
+  eligibility: InstitutionEligibilityResult | null =
+    null,
+): StudentEmailAssessment {
+  return {
+    ok: false,
+    normalizedEmail: normalizeEmail(value),
+    normalizedDomain: parsed?.domain ?? null,
+    eligibility,
+    reason,
+    metadataStatus: null,
+    mailboxVerificationStatus: "unverified",
+  };
+}
 
-  if (
-    !domain ||
-    !domain.endsWith(".edu")
-  ) {
-    return null;
+export function assessStudentEmail(
+  value: string,
+): StudentEmailAssessment {
+  const parsed = parseStudentEmail(value);
+
+  if (!parsed) {
+    return rejectedAssessment(
+      value,
+      "invalid_email",
+      null,
+    );
   }
 
-  const knownEntry = Object.entries(
-    universities,
-  ).find(([, university]) =>
-    university.emailDomains?.some(
+  if (!EDU_DOMAIN_PATTERN.test(parsed.domain)) {
+    return rejectedAssessment(
+      value,
+      "not_edu_domain",
+      parsed,
+    );
+  }
+
+  const eligibility =
+    resolveInstitutionEligibility(parsed.domain);
+
+  if (
+    eligibility.status === "ineligible_k12"
+  ) {
+    return rejectedAssessment(
+      value,
+      "ineligible_k12",
+      parsed,
+      eligibility,
+    );
+  }
+
+  if (eligibility.status === "unknown") {
+    return rejectedAssessment(
+      value,
+      "unknown_institution",
+      parsed,
+      eligibility,
+    );
+  }
+
+  const canonicalDomain =
+    eligibility.canonicalDomain;
+
+  const knownUniversityId = configuredUniversityIds.find(
+    (universityId) =>
+      universities[universityId].emailDomains?.some(
       (candidate) =>
-        candidate.toLowerCase() === domain,
-    ),
+        candidate.toLowerCase() ===
+        canonicalDomain,
+      ),
   );
 
   let identity: UniversityIdentity;
 
-  if (knownEntry) {
-    const [knownUniversityId, university] =
-      knownEntry;
+  if (knownUniversityId) {
+    const university = universities[knownUniversityId];
 
     identity = {
       id: knownUniversityId,
-      domain,
+      domain: canonicalDomain,
       name: university.name,
       shortName: university.shortName,
       knownUniversityId,
@@ -82,26 +193,53 @@ export function resolveStudentEmail(
       metadataStatus: "configured",
     };
   } else {
-    const name = provisionalName(domain);
+    const name =
+      eligibility.institutionName ??
+      provisionalName(canonicalDomain);
 
     identity = {
-      id: provisionalId(domain),
-      domain,
-      name: name || domain,
-      shortName: name || domain,
+      id: provisionalId(canonicalDomain),
+      domain: canonicalDomain,
+      name: name || canonicalDomain,
+      shortName: name || canonicalDomain,
       knownUniversityId: null,
       verificationMethod: "edu_email",
       metadataStatus: "provisional",
     };
   }
 
-  return {
-    email,
-    localPart: email.slice(
-      0,
-      email.lastIndexOf("@"),
-    ),
-    domain,
+  const resolved: ResolvedStudentEmail = {
+    email: parsed.email,
+    localPart: parsed.localPart,
+    domain: parsed.domain,
     identity,
+    eligibility,
+    mailboxVerificationStatus: "unverified",
   };
+
+  return { ok: true, resolved };
+}
+
+export function resolveStudentEmail(
+  value: string,
+): ResolvedStudentEmail | null {
+  const assessment = assessStudentEmail(value);
+
+  return assessment.ok
+    ? assessment.resolved
+    : null;
+}
+
+export function getStudentEmailRejectionMessage(
+  reason: StudentEmailRejectionReason,
+) {
+  if (reason === "ineligible_k12") {
+    return "Campus Mint is currently for college and university students.";
+  }
+
+  if (reason === "unknown_institution") {
+    return "We couldn't verify this institution as a college or university yet.";
+  }
+
+  return "Enter a valid college or university .edu email.";
 }

@@ -33,6 +33,8 @@ const feedLabels: Record<MintFeed, string> = {
 };
 
 export function MintzHub({ viewer, theme, profiles, mintz, organizations, onCreateStory, onOpenProfile, onRequestOrganization }: MintzHubProps) {
+  // Retained for compatibility with the dormant Story-backed hub contract.
+  void onCreateStory;
   const [feed, setFeed] = useState<MintFeed>("campus");
   const [createOpen, setCreateOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);

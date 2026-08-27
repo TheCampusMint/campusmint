@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 import { MarketplacePhotoPlaceholder } from "@/components/marketplace/MarketplacePhotoPlaceholder";
 import type { MarketplaceDetailPanel } from "@/components/marketplace/MarketplaceDetailModal";
 import { getCampusNetwork } from "@/data/campusNetworks";
@@ -22,6 +24,26 @@ function ticketTypeLabel(listing: MarketplaceListing) {
   return ticket.ticketType === "Other" ? ticket.customTicketType ?? "Other" : ticket.ticketType;
 }
 
+function ListingPhoto({
+  listing,
+}: {
+  listing: MarketplaceListing;
+}) {
+  const photo = listing.photos[0];
+  return photo?.url ? (
+    <Image
+      src={photo.url}
+      alt={photo.alt}
+      fill
+      sizes="(max-width: 640px) 50vw, 320px"
+      className="object-cover"
+      unoptimized
+    />
+  ) : (
+    <MarketplacePhotoPlaceholder category={listing.category} />
+  );
+}
+
 export function MarketplaceCard({ listing, saved, theme, onOpen, onToggleSaved }: MarketplaceCardProps) {
   const ticket = listing.sportsTicket;
   const campusNetwork = getCampusNetwork(listing.campusNetworkId);
@@ -31,7 +53,7 @@ export function MarketplaceCard({ listing, saved, theme, onOpen, onToggleSaved }
     return (
       <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
         <button type="button" onClick={() => onOpen(listing.id)} className="block w-full text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px]" style={{ outlineColor: theme.primary }}>
-          <div className="aspect-[16/8] overflow-hidden"><MarketplacePhotoPlaceholder category={listing.category} /></div>
+          <div className="relative aspect-[16/8] overflow-hidden"><ListingPhoto listing={listing} /></div>
           <div className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-700">{listing.status}</span>
@@ -64,7 +86,7 @@ export function MarketplaceCard({ listing, saved, theme, onOpen, onToggleSaved }
   return (
     <article className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="relative aspect-[4/3] overflow-hidden">
-        <MarketplacePhotoPlaceholder category={listing.category} />
+        <ListingPhoto listing={listing} />
         <button type="button" aria-label={saved ? `Remove ${listing.title} from saved` : `Save ${listing.title}`} aria-pressed={saved} onClick={() => onToggleSaved(listing.id)} className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/95 text-xl shadow-sm" style={{ color: saved ? theme.primary : "#64748b" }}>
           <span aria-hidden="true">{saved ? "♥" : "♡"}</span>
         </button>

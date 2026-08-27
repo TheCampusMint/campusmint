@@ -19,6 +19,44 @@ body {
   margin: 0;
 }
 
+/* Shared Campus Mint primitives keep feature surfaces in one visual family. */
+.cm-eyebrow {
+  font-size: 0.625rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  line-height: 1rem;
+  text-transform: uppercase;
+}
+
+.cm-pill-control {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.cm-icon-control {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+}
+
+.cm-surface-card {
+  border: 1px solid var(--app-border);
+  border-radius: 1.5rem;
+  background: var(--app-surface);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.055);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
 button,
 a,
 input,
@@ -331,7 +369,7 @@ summary {
   transform: none !important;
 }
 
-/* Keep mobile feed area clear behind the micro notch. */
+/* Keep the glass navigation interactive without painting a safe-area block. */
 @media (max-width: 639px) {
   [data-bottom-bubble-nav] {
     background: transparent !important;
@@ -399,6 +437,12 @@ summary {
   background: transparent !important;
   border: 0 !important;
   padding: 0 !important;
+}
+
+[data-bottom-bubble-nav] button,
+[data-bottom-bubble-nav] button:hover,
+[data-bottom-bubble-nav] button:active {
+  transform: none !important;
 }
 
 

@@ -7,43 +7,42 @@ import {
   type PointerEvent,
 } from "react";
 
-import { BubbleNavItem } from "@/components/shell/BubbleNavItem";
 import {
-  dailyNavigation,
-  secondaryNavigation,
+  bottomNavigationSlots,
+  createMintAction,
+  getBottomNavigationSlotIndex,
+  getPrimaryNavigationIndex,
+  primaryNavigation,
   type PrimarySection,
+  type SwipeSection,
 } from "@/components/shell/navigation";
 
 type BottomBubbleNavProps = {
   activeSection: PrimarySection;
-  virtualIndex: number;
+  navigationSection: SwipeSection;
+  scrollY: number;
   swipeProgress: number;
   swipeSettling: boolean;
   reducedMotion: boolean;
-  onSelect: (section: PrimarySection) => void;
-  onSwipeDelta: (
-    deltaSections: number,
-    velocitySectionsPerMs: number,
-  ) => void;
-  onSwipeEnd: (velocitySectionsPerMs: number) => void;
-  onSwipeCancel: () => void;
+  onSelect: (section: SwipeSection) => void;
   onMintTap: () => void;
+  onCreateMint: () => void;
 };
 
 type DragState = {
   pointerId: number;
-  lastX: number;
-  lastTime: number;
-  distance: number;
-  velocity: number;
+  startX: number;
+  dragging: boolean;
 };
 
-const navigation = [...dailyNavigation, ...secondaryNavigation];
+const SLOT_COUNT = bottomNavigationSlots.length;
+const DRAG_THRESHOLD_PX = 5;
+const COMPACT_SCROLL_DISTANCE_PX = 160;
+const PAGE_SWIPE_SETTLE_MS = 460;
 
-const ITEM_STRIDE = 38;
-const NAV_WIDTH = ITEM_STRIDE * 5;
-const WINDOW_RADIUS = 7;
-const HOLD_MS = 230;
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
 
 function mod(value: number, length: number) {
   return ((value % length) + length) % length;
@@ -51,229 +50,207 @@ function mod(value: number, length: number) {
 
 export function BottomBubbleNav({
   activeSection,
-  virtualIndex,
+  navigationSection,
+  scrollY,
   swipeProgress,
   swipeSettling,
   reducedMotion,
   onSelect,
-  onSwipeDelta,
-  onSwipeEnd,
-  onSwipeCancel,
   onMintTap,
+  onCreateMint,
 }: BottomBubbleNavProps) {
-  const [expanded, setExpandedState] = useState(false);
-
-  const expandedRef = useRef(false);
+  const trackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
-  const holdTimerRef = useRef<number | null>(null);
+  const suppressClickRef = useRef(false);
+  const suppressClickTimerRef = useRef<number | null>(null);
+  const settleFrameRef = useRef<number | null>(null);
+  const [dragPosition, setDragPosition] = useState<number | null>(null);
+  const [previewSection, setPreviewSection] =
+    useState<SwipeSection | null>(null);
+  const [scrubbing, setScrubbing] = useState(false);
 
-  const swipeFrameRef = useRef<number | null>(null);
-  const pendingDeltaRef = useRef(0);
-  const pendingVelocityRef = useRef(0);
-
-  function setExpanded(next: boolean) {
-    expandedRef.current = next;
-    setExpandedState(next);
-  }
-
-  const visibleWindow = Array.from(
-    { length: WINDOW_RADIUS * 2 + 1 },
-    (_, slot) => {
-      const itemVirtualIndex =
-        virtualIndex + slot - WINDOW_RADIUS;
-
-      return {
-        virtualIndex: itemVirtualIndex,
-        item:
-          navigation[
-            mod(itemVirtualIndex, navigation.length)
-          ],
-      };
-    },
+  const activeNavigationIndex = Math.max(
+    0,
+    getPrimaryNavigationIndex(navigationSection),
   );
+  const activeSlot = Math.max(
+    0,
+    getBottomNavigationSlotIndex(navigationSection),
+  );
+  const pageSwipeActive = Math.abs(swipeProgress) > 0.001;
+  const targetNavigationIndex =
+    swipeProgress < 0
+      ? mod(activeNavigationIndex + 1, primaryNavigation.length)
+      : mod(activeNavigationIndex - 1, primaryNavigation.length);
+  const targetSection = primaryNavigation[targetNavigationIndex]?.id;
+  const targetSlot = targetSection
+    ? getBottomNavigationSlotIndex(targetSection)
+    : activeSlot;
+  const pageSelectorPosition = pageSwipeActive
+    ? activeSlot +
+      (targetSlot - activeSlot) * clamp(Math.abs(swipeProgress), 0, 1)
+    : activeSlot;
+  const selectorPosition = dragPosition ?? pageSelectorPosition;
+  const compactProgress = clamp(
+    scrollY / COMPACT_SCROLL_DISTANCE_PX,
+    0,
+    1,
+  );
+  const notchHeight = 46 - compactProgress * 1.5;
+  const notchInset = 3 - compactProgress * 0.25;
+  const notchScaleX = 1 - compactProgress * 0.012;
+  const sportsContrast = activeSection === "sports";
 
-  const baseOffset =
-    NAV_WIDTH / 2 -
-    (WINDOW_RADIUS + 0.5) * ITEM_STRIDE;
+  function clearSuppressClickTimer() {
+    if (suppressClickTimerRef.current === null) return;
 
-  const trackOffset =
-    baseOffset + swipeProgress * ITEM_STRIDE;
-
-  function clearHoldTimer() {
-    if (holdTimerRef.current === null) return;
-
-    window.clearTimeout(holdTimerRef.current);
-    holdTimerRef.current = null;
+    window.clearTimeout(suppressClickTimerRef.current);
+    suppressClickTimerRef.current = null;
   }
 
-  function flushSwipeFrame() {
-    if (swipeFrameRef.current !== null) {
-      window.cancelAnimationFrame(swipeFrameRef.current);
-      swipeFrameRef.current = null;
+  function suppressSyntheticClick() {
+    suppressClickRef.current = true;
+    clearSuppressClickTimer();
+    suppressClickTimerRef.current = window.setTimeout(() => {
+      suppressClickRef.current = false;
+      suppressClickTimerRef.current = null;
+    }, 0);
+  }
+
+  function positionFromClientX(clientX: number) {
+    const bounds = trackRef.current?.getBoundingClientRect();
+    if (!bounds || bounds.width === 0) return activeSlot;
+
+    return clamp(
+      ((clientX - bounds.left) / bounds.width) * SLOT_COUNT - 0.5,
+      0,
+      SLOT_COUNT - 1,
+    );
+  }
+
+  function nearestSection(position: number) {
+    return primaryNavigation.reduce(
+      (nearest, item) => {
+        const itemSlot = getBottomNavigationSlotIndex(item.id);
+        const distance = Math.abs(itemSlot - position);
+
+        return distance < nearest.distance
+          ? { item, slot: itemSlot, distance }
+          : nearest;
+      },
+      {
+        item: primaryNavigation[activeNavigationIndex],
+        slot: activeSlot,
+        distance: Number.POSITIVE_INFINITY,
+      },
+    );
+  }
+
+  function activateSection(section: SwipeSection) {
+    if (section === "mint" && activeSection === "mint") {
+      onMintTap();
+      return;
     }
 
-    const delta = pendingDeltaRef.current;
-    const velocity = pendingVelocityRef.current;
+    onSelect(section);
+  }
 
-    pendingDeltaRef.current = 0;
-
-    if (delta !== 0) {
-      onSwipeDelta(delta, velocity);
+  function beginScrub(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[data-create-mint-action]")
+    ) {
+      return;
     }
-  }
 
-  function queueSwipe(
-    deltaSections: number,
-    velocitySectionsPerMs: number,
-  ) {
-    pendingDeltaRef.current += deltaSections;
-    pendingVelocityRef.current = velocitySectionsPerMs;
+    clearSuppressClickTimer();
+    suppressClickRef.current = false;
 
-    if (swipeFrameRef.current !== null) return;
-
-    swipeFrameRef.current =
-      window.requestAnimationFrame(() => {
-        swipeFrameRef.current = null;
-
-        const delta = pendingDeltaRef.current;
-        const velocity = pendingVelocityRef.current;
-
-        pendingDeltaRef.current = 0;
-
-        if (delta !== 0) {
-          onSwipeDelta(delta, velocity);
-        }
-      });
-  }
-
-  function beginInteraction(
-    event: PointerEvent<HTMLDivElement>,
-  ) {
-    clearHoldTimer();
+    if (settleFrameRef.current !== null) {
+      window.cancelAnimationFrame(settleFrameRef.current);
+      settleFrameRef.current = null;
+    }
 
     dragRef.current = {
       pointerId: event.pointerId,
-      lastX: event.clientX,
-      lastTime: event.timeStamp,
-      distance: 0,
-      velocity: 0,
+      startX: event.clientX,
+      dragging: false,
     };
-
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
-
-    holdTimerRef.current = window.setTimeout(() => {
-      holdTimerRef.current = null;
-      setExpanded(true);
-    }, HOLD_MS);
+    event.currentTarget.setPointerCapture(event.pointerId);
   }
 
-  function moveInteraction(
-    event: PointerEvent<HTMLDivElement>,
-  ) {
+  function updateScrub(event: PointerEvent<HTMLDivElement>) {
     const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
 
-    if (!drag || drag.pointerId !== event.pointerId) {
+    if (
+      !drag.dragging &&
+      Math.abs(event.clientX - drag.startX) < DRAG_THRESHOLD_PX
+    ) {
       return;
     }
 
-    const deltaX = event.clientX - drag.lastX;
-    const elapsed = Math.max(
-      1,
-      event.timeStamp - drag.lastTime,
-    );
+    drag.dragging = true;
+    const nextPosition = positionFromClientX(event.clientX);
+    const next = nearestSection(nextPosition);
 
-    drag.distance += Math.abs(deltaX);
-    const instantaneousVelocity =
-      deltaX / ITEM_STRIDE / elapsed;
-
-    drag.velocity =
-      drag.velocity * 0.45 +
-      instantaneousVelocity * 0.55;
-
-    drag.lastX = event.clientX;
-    drag.lastTime = event.timeStamp;
-
-    // Keep tracking before expansion so there is no jump
-    // at the moment the notch opens.
-    if (!expandedRef.current) return;
-
-    queueSwipe(
-      deltaX / (ITEM_STRIDE * 0.94),
-      drag.velocity,
-    );
+    setScrubbing(true);
+    setDragPosition(nextPosition);
+    setPreviewSection(next.item.id);
   }
 
-  function finishInteraction(
-    event: PointerEvent<HTMLDivElement>,
-  ) {
+  function finishScrub(event: PointerEvent<HTMLDivElement>) {
     const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
 
-    if (!drag || drag.pointerId !== event.pointerId) {
-      return;
-    }
-
-    clearHoldTimer();
     dragRef.current = null;
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(
-        event.pointerId,
-      );
+      event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
-    if (expandedRef.current) {
-      flushSwipeFrame();
-      onSwipeEnd(drag.velocity);
-      setExpanded(false);
+    const next = nearestSection(positionFromClientX(event.clientX));
+    suppressSyntheticClick();
+
+    if (!drag.dragging) {
+      activateSection(next.item.id);
       return;
     }
 
-    if (drag.distance < 8) {
-      onMintTap();
-    }
+    setScrubbing(false);
+    setDragPosition(next.slot);
+    setPreviewSection(next.item.id);
+    activateSection(next.item.id);
+
+    settleFrameRef.current = window.requestAnimationFrame(() => {
+      settleFrameRef.current = null;
+      setDragPosition(null);
+      setPreviewSection(null);
+    });
   }
 
-  function cancelInteraction(
-    event: PointerEvent<HTMLDivElement>,
-  ) {
-    clearHoldTimer();
-
-    if (
-      event.currentTarget.hasPointerCapture(event.pointerId)
-    ) {
-      event.currentTarget.releasePointerCapture(
-        event.pointerId,
-      );
-    }
+  function cancelScrub(event: PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
 
     dragRef.current = null;
 
-    if (swipeFrameRef.current !== null) {
-      window.cancelAnimationFrame(
-        swipeFrameRef.current,
-      );
-      swipeFrameRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
-    pendingDeltaRef.current = 0;
-
-    if (expandedRef.current) {
-      onSwipeCancel();
-    }
-
-    setExpanded(false);
+    setScrubbing(false);
+    setDragPosition(null);
+    setPreviewSection(null);
   }
 
   useEffect(() => {
     return () => {
-      clearHoldTimer();
+      clearSuppressClickTimer();
 
-      if (swipeFrameRef.current !== null) {
-        window.cancelAnimationFrame(
-          swipeFrameRef.current,
-        );
+      if (settleFrameRef.current !== null) {
+        window.cancelAnimationFrame(settleFrameRef.current);
       }
     };
   }, []);
@@ -281,98 +258,175 @@ export function BottomBubbleNav({
   return (
     <nav
       data-bottom-bubble-nav
-      aria-label="Campus Mint navigation"
-      className="pointer-events-none fixed bottom-[max(0.4rem,env(safe-area-inset-bottom))] left-1/2 z-50 h-0 w-0 -translate-x-1/2 overflow-visible bg-transparent p-0"
+      data-contrast={sportsContrast ? "sports" : "default"}
+      aria-label="Campus Mint primary navigation"
+      className="pointer-events-none fixed bottom-[max(0.5rem,env(safe-area-inset-bottom))] left-1/2 z-50 w-[min(calc(100vw-1rem),30rem)] origin-bottom"
+      style={{
+        transform: `translateX(-50%) scaleX(${notchScaleX})`,
+        transition: reducedMotion
+          ? "none"
+          : "transform 180ms cubic-bezier(.22,.8,.3,1)",
+      }}
     >
       <div
-        onPointerDown={beginInteraction}
-        onPointerMove={moveInteraction}
-        onPointerUp={finishInteraction}
-        onPointerCancel={cancelInteraction}
-        className={
-          expanded
-            ? "pointer-events-auto absolute bottom-0 left-1/2 flex h-11 -translate-x-1/2 items-center justify-center overflow-visible rounded-full border border-slate-200 bg-white/95 px-1 shadow-[0_8px_24px_rgba(15,23,42,0.14)] backdrop-blur-xl"
-            : "pointer-events-auto absolute bottom-0 left-1/2 flex h-5 w-10 -translate-x-1/2 items-center justify-center overflow-visible bg-transparent"
-        }
+        ref={trackRef}
+        onPointerDown={beginScrub}
+        onPointerMove={updateScrub}
+        onPointerUp={finishScrub}
+        onPointerCancel={cancelScrub}
+        className="pointer-events-auto relative isolate select-none overflow-hidden rounded-full border"
         style={{
-          touchAction: expanded ? "none" : "manipulation",
-          transition: reducedMotion
-            ? "none"
-            : "width 460ms cubic-bezier(.22,1,.36,1), height 460ms cubic-bezier(.22,1,.36,1), background-color 460ms cubic-bezier(.22,1,.36,1), box-shadow 460ms cubic-bezier(.22,1,.36,1)",
+          height: notchHeight,
+          padding: notchInset,
+          touchAction: "pan-y",
+          background: sportsContrast
+            ? "linear-gradient(180deg, rgba(255,255,255,.82), rgba(226,232,240,.66))"
+            : "linear-gradient(180deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,.055) 38%, rgba(15,23,42,.035) 100%), linear-gradient(112deg, color-mix(in srgb, var(--app-surface-elevated) 30%, transparent) 0%, color-mix(in srgb, var(--app-surface) 18%, transparent) 54%, color-mix(in srgb, var(--app-accent-soft) 16%, transparent) 100%)",
+          borderColor: sportsContrast
+            ? "rgba(255,255,255,.82)"
+            : "color-mix(in srgb, var(--app-border) 38%, rgba(255,255,255,.34))",
+          backdropFilter:
+            sportsContrast
+              ? "blur(24px) saturate(1.5) brightness(1.05)"
+              : "blur(19px) saturate(1.42) brightness(1.06)",
+          WebkitBackdropFilter:
+            sportsContrast
+              ? "blur(24px) saturate(1.5) brightness(1.05)"
+              : "blur(19px) saturate(1.42) brightness(1.06)",
+          boxShadow: sportsContrast
+            ? "inset 0 1px 0 rgba(255,255,255,.92), 0 10px 30px rgba(1,25,17,.3), 0 2px 8px rgba(1,25,17,.2)"
+            : "inset 0 1px 0 rgba(255,255,255,.46), inset 0 -1px 0 rgba(15,23,42,.055), 0 7px 22px rgba(15,23,42,.085), 0 1px 4px rgba(15,23,42,.06)",
         }}
       >
-        {!expanded ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-0 rounded-[inherit]"
+          style={{
+            background: sportsContrast
+              ? "radial-gradient(120% 90% at 18% -12%, rgba(255,255,255,.9), transparent 55%), radial-gradient(85% 100% at 88% 115%, rgba(5,78,59,.08), transparent 62%)"
+              : "radial-gradient(120% 85% at 18% -12%, rgba(255,255,255,.28), transparent 52%), radial-gradient(85% 100% at 88% 115%, color-mix(in srgb, var(--app-accent) 9%, transparent), transparent 62%)",
+          }}
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-4 top-px z-0 h-px rounded-full bg-white/45"
+        />
+
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute z-[1] transform-gpu will-change-transform"
+          style={{
+            top: notchInset,
+            bottom: notchInset,
+            left: notchInset,
+            width: `calc((100% - ${notchInset * 2}px) / ${SLOT_COUNT})`,
+            transform: `translate3d(${selectorPosition * 100}%,0,0)`,
+            transition:
+              scrubbing || (pageSwipeActive && !swipeSettling)
+                ? "none"
+                : reducedMotion
+                  ? "none"
+                  : swipeSettling
+                    ? `transform ${PAGE_SWIPE_SETTLE_MS}ms cubic-bezier(.22,1,.36,1)`
+                    : "transform 440ms cubic-bezier(.18,.88,.24,1.055)",
+          }}
+        >
           <div
-            className="pointer-events-none flex h-4 w-4 items-center justify-center text-black"
-            aria-hidden="true"
-          >
-            <svg
-              viewBox="0 0 32 32"
-              className="h-3 w-3 overflow-visible"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path
-                d="M25.8 5.5C17 5.8 8.6 9.9 7 18.1c-.8 4.3 2.6 7.7 6.8 6.4 7.8-2.4 10.7-10.6 12-19Z"
-                strokeWidth="2.4"
-              />
-              <path
-                d="M8.6 24.8c2.8-6.2 7.2-10.1 13.8-13.2"
-                strokeWidth="2"
-              />
-              <path
-                d="M13.4 18.7c1.9.1 3.7.5 5.2 1.2M16.7 14.5c.1-1.5-.1-2.8-.5-4"
-                strokeWidth="1.45"
-                opacity=".82"
-              />
-            </svg>
-          </div>
-        ) : (
-          <div
-            className="relative select-none overflow-visible"
+            className="absolute inset-x-0.5 inset-y-0 overflow-hidden rounded-full border"
             style={{
-              width: NAV_WIDTH,
-              clipPath: "inset(-24px 0 -24px 0)",
+              background: sportsContrast
+                ? "linear-gradient(145deg, rgba(255,255,255,.9), rgba(209,250,229,.62))"
+                : "linear-gradient(145deg, rgba(255,255,255,.28) 0%, color-mix(in srgb, var(--app-surface-elevated) 18%, transparent) 34%, color-mix(in srgb, var(--app-accent-soft) 17%, transparent) 67%, rgba(15,23,42,.045) 100%)",
+              borderColor:
+                "color-mix(in srgb, var(--app-accent) 20%, rgba(255,255,255,.48))",
+              backdropFilter:
+                "blur(26px) saturate(1.68) brightness(1.12)",
+              WebkitBackdropFilter:
+                "blur(26px) saturate(1.68) brightness(1.12)",
+              boxShadow:
+                "inset 0 1px 0 rgba(255,255,255,.68), inset 1px 0 0 rgba(255,255,255,.24), inset 0 -1px 0 rgba(15,23,42,.09), 0 4px 11px rgba(15,23,42,.095), 0 1px 2px rgba(15,23,42,.07)",
+              filter: scrubbing
+                ? "brightness(1.08) saturate(1.12)"
+                : "brightness(1) saturate(1)",
+              transition: reducedMotion
+                ? "none"
+                : "filter 160ms ease, box-shadow 180ms ease",
             }}
           >
-            <div
-              className="flex w-max transform-gpu items-center will-change-transform"
-              style={{
-                transform:
-                  `translate3d(${trackOffset}px,0,0)`,
-                transition:
-                  reducedMotion || !swipeSettling
-                    ? "none"
-                    : "transform 460ms cubic-bezier(.22,1,.36,1)",
-              }}
-            >
-              {visibleWindow.map(
-                ({
-                  virtualIndex: itemIndex,
-                  item,
-                }) => (
-                  <div
-                    key={itemIndex}
-                    className="flex shrink-0 items-center justify-center overflow-visible"
-                    style={{ width: ITEM_STRIDE }}
-                  >
-                    <BubbleNavItem
-                      id={item.id}
-                      label={item.label}
-                      selected={
-                        activeSection === item.id
-                      }
-                      reducedMotion={reducedMotion}
-                      onSelect={onSelect}
-                    />
-                  </div>
-                ),
-              )}
-            </div>
+            <span className="absolute inset-x-2 top-0 h-px bg-white/80" />
+            <span className="absolute -left-1 top-1 h-3 w-5 rounded-full bg-white/30 blur-[3px]" />
+            <span
+              className="absolute inset-x-1 bottom-0 h-px opacity-35"
+              style={{ backgroundColor: "var(--app-accent)" }}
+            />
           </div>
-        )}
+        </div>
+
+        <div
+          className="relative z-10 grid h-full"
+          style={{
+            gridTemplateColumns: `repeat(${SLOT_COUNT}, minmax(0, 1fr))`,
+          }}
+        >
+          {bottomNavigationSlots.map((slot) => {
+            if (slot.kind === "action") {
+              return (
+                <button
+                  key={slot.action.id}
+                  type="button"
+                  data-create-mint-action
+                  aria-label={createMintAction.label}
+                  title={createMintAction.label}
+                  onClick={onCreateMint}
+                  className="relative z-20 flex min-h-9 min-w-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-transparent"
+                >
+                  <span
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-[1.15rem] font-medium leading-none shadow-sm"
+                    style={{
+                      backgroundColor: "var(--app-accent)",
+                      color: "var(--app-accent-contrast)",
+                    }}
+                    aria-hidden="true"
+                  >
+                    +
+                  </span>
+                </button>
+              );
+            }
+
+            const item = slot.item;
+            const selected = navigationSection === item.id;
+            const previewed = previewSection === item.id;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                aria-label={`Go to ${item.label}`}
+                aria-current={
+                  activeSection === item.id ? "page" : undefined
+                }
+                onClick={() => {
+                  if (suppressClickRef.current) return;
+                  activateSection(item.id);
+                }}
+                className="relative z-10 flex min-h-9 min-w-0 items-center justify-center rounded-full px-1 text-[0.66rem] font-semibold tracking-[-0.01em] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-transparent sm:text-[0.7rem]"
+                style={{
+                  color: sportsContrast
+                    ? selected || previewed
+                      ? "#052e2b"
+                      : "#1e293b"
+                    : selected || previewed
+                      ? "var(--app-text-primary)"
+                      : "var(--app-text-secondary)",
+                  transitionDuration: reducedMotion ? "0ms" : "160ms",
+                }}
+              >
+                <span className="max-w-full truncate">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );

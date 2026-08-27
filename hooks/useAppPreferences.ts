@@ -9,6 +9,7 @@ export const APP_PREFERENCES_STORAGE_KEY = "campusmint.preferences.v1";
 export const defaultAppPreferences: AppPreferences = {
   appearance: { mode: "campus", tint: "slate" },
   notifications: {
+    sounds: true,
     messages: true,
     clubUpdates: true,
     eventReminders: true,

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { DirectMintThread } from "@/components/messages/DirectMintThread";
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
-import { MintBackLeaf } from "@/components/profile/ProfileView";
+import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 import type { UniversityTheme } from "@/data/universities";
 import type { DirectMintState } from "@/hooks/useDirectMint";
 import type { ProfilesState } from "@/hooks/useProfiles";
@@ -43,9 +43,9 @@ export function MessagesSkeleton({
   useEffect(() => {
     if (!requestedUserId) return;
 
-    directMint.startConversation(
-      requestedUserId,
-    );
+    // Conversation creation occurs at the navigation boundary. This effect
+    // only mirrors the externally requested thread into local selection.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedId(requestedUserId);
   }, [requestedUserId]);
 
@@ -72,26 +72,14 @@ export function MessagesSkeleton({
   return (
     <div className="space-y-5">
       {onBackToProfile && (
-        <button
-          type="button"
+        <MintLeafBackButton
           onClick={onBackToProfile}
+          label="Back to profile"
           aria-label="Back to profile"
-          title="Back to profile"
-          className="interactive-pop flex h-10 w-10 items-center justify-center border-0 bg-transparent p-0 text-slate-800 shadow-none"
-        >
-          <MintBackLeaf />
-        </button>
+          tone="minimal"
+          className="text-slate-800"
+        />
       )}
-
-      <div className="px-1">
-        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
-          Private conversations
-        </p>
-
-        <h1 className="mt-1 text-3xl font-black text-slate-950">
-          Direct Mint
-        </h1>
-      </div>
 
       <div className="grid min-h-[30rem] overflow-hidden rounded-[1.75rem] border border-white/80 bg-white/90 shadow-sm md:grid-cols-[17rem_1fr]">
         <aside className="border-b border-slate-100 p-3 md:border-b-0 md:border-r">

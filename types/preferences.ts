@@ -10,6 +10,7 @@ export type AppearancePreferences = {
 };
 
 export type NotificationPreferences = {
+  sounds: boolean;
   messages: boolean;
   clubUpdates: boolean;
   eventReminders: boolean;

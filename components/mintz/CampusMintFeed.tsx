@@ -1,17 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
-import { CreateContentFlow } from "@/components/content/CreateContentFlow";
+import { FullscreenVideoViewer } from "@/components/mintz/FullscreenVideoViewer";
 import { MintFeedList } from "@/components/mintz/MintFeedList";
+import { sampleEvents } from "@/data/events";
+import { developmentOrganizations } from "@/data/organizations";
 import type { UniversityTheme } from "@/data/universities";
+import type { EventMomentsState } from "@/hooks/useEventMoments";
 import type { MintzState } from "@/hooks/useMintz";
 import type { OrganizationsState } from "@/hooks/useOrganizations";
 import type { ProfilesState } from "@/hooks/useProfiles";
+import { rankNormalMintFeed } from "@/lib/social/mintFeedRanking";
+import { rankVideoMintz } from "@/lib/social/videoFeedRanking";
 import {
-  getMintFeed,
-  type MintFeed,
-} from "@/lib/social/mintFeeds";
+  createMintVideoViewerState,
+  getMintVideoViewerReturnScrollY,
+  type MintVideoViewerState,
+} from "@/lib/social/videoViewerState";
 import type { CampusMintUser } from "@/types/profile";
 import type { Story } from "@/types/story";
 
@@ -21,6 +27,7 @@ type CampusMintFeedProps = {
   profiles: ProfilesState;
   mintz: MintzState;
   organizations: OrganizationsState;
+  eventMoments: EventMomentsState;
   onCreateStory: (story: Story) => void;
   onOpenProfile: (userId: string) => void;
   onRequestOrganization: (
@@ -30,15 +37,7 @@ type CampusMintFeedProps = {
   onRefresh?: () => void;
   reducedMotion?: boolean;
   autoplayVideo?: boolean;
-  defaultCommentsEnabled?: boolean;
-  defaultHideLikeCounts?: boolean;
 };
-
-const feedModes: MintFeed[] = [
-  "following",
-  "campus",
-  "discover",
-];
 
 export function CampusMintFeed({
   viewer,
@@ -46,6 +45,7 @@ export function CampusMintFeed({
   profiles,
   mintz,
   organizations,
+  eventMoments,
   onCreateStory,
   onOpenProfile,
   onRequestOrganization,
@@ -53,16 +53,16 @@ export function CampusMintFeed({
   onRefresh,
   reducedMotion,
   autoplayVideo,
-  defaultCommentsEnabled,
-  defaultHideLikeCounts,
 }: CampusMintFeedProps) {
-  const [createOpen, setCreateOpen] = useState(false);
   const [notice, setNotice] =
     useState<string | null>(null);
+  const [videoViewer, setVideoViewer] =
+    useState<MintVideoViewerState | null>(null);
 
   // Legacy story infrastructure remains available under
   // the hood, but there is no separate Story UI.
   void onCreateStory;
+  const allMintz = mintz.mintz;
 
   const feedState = useMemo(
     () => ({
@@ -80,9 +80,20 @@ export function CampusMintFeed({
         organizations.memberships,
       followedOrganizationIds:
         organizations.followedOrganizationIds,
+      organizationDirectory:
+        developmentOrganizations,
+      eventDirectory: sampleEvents,
+      attendingEventIds: eventMoments.rsvps
+        .filter(
+          (rsvp) =>
+            rsvp.userId === viewer.account.id &&
+            rsvp.status === "attending",
+        )
+        .map((rsvp) => rsvp.eventId),
     }),
     [
       mintz.currentTime,
+      eventMoments.rsvps,
       organizations.followedOrganizationIds,
       organizations.memberships,
       profiles.blocks,
@@ -94,52 +105,41 @@ export function CampusMintFeed({
   );
 
   const visibleMintz = useMemo(() => {
-    const unique = new Map<
-      string,
-      (typeof mintz.mintz)[number]
-    >();
+    return rankNormalMintFeed(allMintz, feedState);
+  }, [allMintz, feedState]);
 
-    for (const mode of feedModes) {
-      for (const mint of getMintFeed(
-        mintz.mintz,
-        mode,
-        feedState,
-      )) {
-        if (!unique.has(mint.id)) {
-          unique.set(mint.id, mint);
-        }
-      }
-    }
+  const rankedVideoMintz = useMemo(
+    () => rankVideoMintz(allMintz, feedState),
+    [allMintz, feedState],
+  );
 
-    return Array.from(unique.values()).sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() -
-        new Date(a.createdAt).getTime(),
+  const viewerMintz = useMemo(() => {
+    if (!videoViewer) return [];
+
+    const mintzById = new Map(
+      allMintz.map((mint) => [mint.id, mint]),
     );
-  }, [feedState, mintz.mintz]);
+
+    return videoViewer.orderedMintIds.flatMap((mintId) => {
+      const mint = mintzById.get(mintId);
+      return mint ? [mint] : [];
+    });
+  }, [allMintz, videoViewer]);
+
+  const closeVideoViewer = useCallback(() => {
+    const returnScrollY = getMintVideoViewerReturnScrollY(
+      videoViewer,
+      window.scrollY,
+    );
+    setVideoViewer(null);
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: returnScrollY, behavior: "auto" });
+    });
+  }, [videoViewer]);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-4 px-1 pt-1">
-        <h1 className="text-3xl font-black tracking-[-0.05em] text-slate-950">
-          Mint
-        </h1>
-
-        <button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          aria-label="Create Mint"
-          title="Create Mint"
-          className="interactive-pop flex h-10 w-10 items-center justify-center rounded-full text-[25px] font-black leading-none shadow-lg"
-          style={{
-            backgroundColor: "var(--app-accent)",
-            color: "var(--app-accent-contrast)",
-          }}
-        >
-          +
-        </button>
-      </div>
-
       {notice && (
         <div
           role="status"
@@ -175,27 +175,26 @@ export function CampusMintFeed({
         onRefresh={onRefresh}
         reducedMotion={reducedMotion}
         autoplayVideo={autoplayVideo}
+        onOpenVideo={(mintId, mediaId) =>
+          setVideoViewer(createMintVideoViewerState({
+            mintId,
+            mediaId,
+            feedScrollY: window.scrollY,
+            orderedMintIds: rankedVideoMintz.map((mint) => mint.id),
+          }))
+        }
       />
 
-      {createOpen && (
-        <CreateContentFlow
-          viewer={viewer}
-          users={feedState.users}
-          theme={theme}
-          onCreateMint={mintz.createMint}
-          onClose={() => setCreateOpen(false)}
-          organizationMemberships={
-            organizations.memberships
-          }
-          organizationRoles={
-            organizations.roles
-          }
-          defaultCommentsEnabled={
-            defaultCommentsEnabled
-          }
-          defaultHideLikeCounts={
-            defaultHideLikeCounts
-          }
+      {videoViewer && (
+        <FullscreenVideoViewer
+          mints={viewerMintz}
+          initialMintId={videoViewer.mintId}
+          initialMediaId={videoViewer.mediaId}
+          feedState={feedState}
+          mintz={mintz}
+          autoplayVideo={autoplayVideo}
+          reducedMotion={reducedMotion}
+          onClose={closeVideoViewer}
         />
       )}
     </div>

@@ -7,7 +7,7 @@ import { TactileButton } from "@/components/ui/TactileButton";
 import { getAcademicCatalog } from "@/data/development/campusData";
 import { getOrganizationsForUniversity } from "@/data/organizations";
 import { getUserRoleLabel } from "@/data/userRoles";
-import { universities, getAccountUniversityName } from "@/data/universities";
+import { getAccountUniversityName } from "@/data/universities";
 import type { CampusMintProfile, CampusMintUser } from "@/types/profile";
 
 type EditProfileModalProps = {

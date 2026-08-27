@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   handleOrganizationMembershipAccepted,
+  joinOrRequestOrganization,
   membershipStatusFor,
   openOrganizationContactConversation,
   rejectOrganizationMembership,
@@ -29,6 +30,28 @@ test("join creates a request and does not grant group-chat access", () => {
   const next = requestOrganizationMembership(emptyState(), organization.id, "student-1", "membership-1", "2026-08-10T12:01:00.000Z");
   assert.equal(membershipStatusFor(next.memberships, "student-1", organization.id), "requested");
   assert.equal(next.conversationParticipants.length, 0);
+});
+
+test("joining an open club grants its linked community in one transition", () => {
+  const next = joinOrRequestOrganization(
+    emptyState(),
+    { ...organization, membershipType: "open" },
+    "student-1",
+    "membership-1",
+    "2026-08-10T12:01:00.000Z",
+  );
+
+  assert.equal(
+    membershipStatusFor(next.memberships, "student-1", organization.id),
+    "member",
+  );
+  assert.deepEqual(next.conversationParticipants, [
+    {
+      conversationId: "club-group-1",
+      userId: "student-1",
+      addedAt: "2026-08-10T12:01:00.000Z",
+    },
+  ]);
 });
 
 test("acceptance changes membership and group-chat participation in one state transition", () => {

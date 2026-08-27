@@ -11,7 +11,6 @@ import { CURRENT_DEVELOPMENT_USER_ID,
   getDevelopmentUserById } from "@/data/development/users";
 import { sampleEvents } from "@/data/events";
 import {
-  universities,
   getAccountConfiguredUniversityId,
   getAccountUniversityShortName,
   getAccountUniversityDisplayTheme,

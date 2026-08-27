@@ -39,6 +39,7 @@ type MintFeedListProps = {
   onRefresh?: () => void;
   reducedMotion?: boolean;
   autoplayVideo?: boolean;
+  onOpenVideo?: (mintId: string, mediaId: string) => void;
 };
 
 export function MintFeedList({
@@ -56,6 +57,7 @@ export function MintFeedList({
   onRefresh,
   reducedMotion,
   autoplayVideo,
+  onOpenVideo,
 }: MintFeedListProps) {
   const feedRef = useRef<HTMLDivElement>(null);
   const pullStartRef = useRef<number | null>(null);
@@ -368,6 +370,7 @@ export function MintFeedList({
                     autoplayVideo={
                       autoplayVideo
                     }
+                    onOpenVideo={onOpenVideo}
                     onOrganizationMembershipAction={
                       organizationAction
                     }

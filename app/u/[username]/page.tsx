@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { developmentUsers } from "@/data/development/users";
 import { getUserRoleLabel } from "@/data/userRoles";
-import { universities, getAccountUniversityName, getAccountUniversityShortName } from "@/data/universities";
+import { universities, getAccountUniversityName } from "@/data/universities";
 import { normalizeUsername } from "@/lib/social/usernames";
 
 export function generateStaticParams() {
@@ -20,9 +20,6 @@ export default async function PublicProfileRoute({ params }: { params: Promise<{
 
   const universityName =
     getAccountUniversityName(profileUser.account);
-
-  const universityShortName =
-    getAccountUniversityShortName(profileUser.account);
 
   return (
     <main className="min-h-screen bg-slate-50 p-6 text-slate-950">

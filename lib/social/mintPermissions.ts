@@ -1,12 +1,12 @@
-import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
+import { getCampusNetworkForUniversity } from "../../data/campusNetworks.ts";
 import {
   getAccountConfiguredUniversityId,
   getAccountUniversityIdentityKey,
-} from "@/data/universities";
-import { isActiveContent } from "@/lib/content/expiration";
-import type { Mint } from "@/types/mint";
-import type { CampusMintUser, SocialDiscoveryScope } from "@/types/profile";
-import type { FriendshipStatus } from "@/types/social";
+} from "../../data/universities.ts";
+import { isActiveContent } from "../content/expiration.ts";
+import type { Mint } from "../../types/mint.ts";
+import type { CampusMintUser, SocialDiscoveryScope } from "../../types/profile.ts";
+import type { FriendshipStatus } from "../../types/social.ts";
 
 export type SocialConnectionContext = {
   viewer: CampusMintUser | null;

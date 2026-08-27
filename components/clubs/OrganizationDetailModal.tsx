@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { ClubChatPlaceholder } from "@/components/clubs/ClubChatPlaceholder";
 import { OrganizationMembershipPanel } from "@/components/clubs/OrganizationMembershipPanel";
+import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 import { getCampusNetwork } from "@/data/campusNetworks";
 import { universities, type UniversityTheme } from "@/data/universities";
 import { getClubHref } from "@/data/organizations";
@@ -30,6 +31,7 @@ type OrganizationDetailModalProps = {
   membershipAllowed: boolean;
   theme: UniversityTheme;
   onClose: () => void;
+  closeLabel?: string;
   onMembershipAction: (organization: Organization) => void;
   onViewEvents: () => void;
   viewer: CampusMintUser;
@@ -44,6 +46,7 @@ type OrganizationDetailModalProps = {
   onAcceptRequest: (userId: string) => void;
   onRejectRequest: (userId: string) => void;
   onMessageOrganization: () => boolean;
+  onOpenProfile?: (userId: string) => void;
 };
 
 function membershipLabel(organization: Organization, status: OrganizationMembershipStatus, allowed: boolean) {
@@ -69,6 +72,7 @@ export function OrganizationDetailModal({
   membershipAllowed,
   theme,
   onClose,
+  closeLabel = "Close",
   onMembershipAction,
   onViewEvents,
   viewer,
@@ -83,6 +87,7 @@ export function OrganizationDetailModal({
   onAcceptRequest,
   onRejectRequest,
   onMessageOrganization,
+  onOpenProfile,
 }: OrganizationDetailModalProps) {
   const [messageFeedback, setMessageFeedback] = useState<string | null>(null);
   const campusNetwork = organization.campusNetworkId ? getCampusNetwork(organization.campusNetworkId) : null;
@@ -105,7 +110,11 @@ export function OrganizationDetailModal({
                 <Link href={getClubHref(organization)} className="mt-2 inline-flex text-xs font-bold underline decoration-white/40 underline-offset-4">/clubs/{organization.handle}</Link>
               </div>
             </div>
-            <button type="button" onClick={onClose} className="relative rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-sm font-bold">Close</button>
+            {closeLabel === "Close" ? (
+              <button type="button" onClick={onClose} aria-label="Close" title="Close" className="cm-icon-control relative flex items-center justify-center border border-white/30 bg-white/10 text-xl text-white">×</button>
+            ) : (
+              <MintLeafBackButton onClick={onClose} label={closeLabel} tone="inverse" className="relative" />
+            )}
           </div>
         </header>
 
@@ -134,7 +143,7 @@ export function OrganizationDetailModal({
 
             <section>
               <p className="text-xs font-bold uppercase tracking-[0.15em]" style={{ color: theme.primary }}>Officers</p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">{officers.length ? officers.map((officer) => <div key={officer.id} className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4"><div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold" style={{ backgroundColor: theme.accent, color: theme.primary }}>DO</div><div><p className="font-bold text-slate-900">{officer.displayName}</p><p className="text-xs text-slate-500">{officer.role === "Other" ? officer.customRole ?? "Other" : officer.role} · development placeholder</p></div></div>) : <p className="text-sm text-slate-500 sm:col-span-2">No officer records are available.</p>}</div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">{officers.length ? officers.map((officer) => <button key={officer.id} type="button" disabled={!officer.userId || !onOpenProfile} onClick={() => officer.userId && onOpenProfile?.(officer.userId)} className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-left disabled:cursor-default"><div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold" style={{ backgroundColor: theme.accent, color: theme.primary }}>DO</div><div><p className="font-bold text-slate-900">{officer.displayName}</p><p className="text-xs text-slate-500">{officer.role === "Other" ? officer.customRole ?? "Other" : officer.role} · development placeholder</p></div></button>) : <p className="text-sm text-slate-500 sm:col-span-2">No officer records are available.</p>}</div>
             </section>
 
             <section>

@@ -45,6 +45,8 @@ const feedLabels: Record<MintFeed, string> = {
 };
 
 export function CampusSocialHub({ viewer, user, theme, profiles, mintz, organizations, stories, currentTime, onToggleStoryLike, onAddStoryComment, onCreateStory, onOpenProfile, onMembershipAction, onOpenClubs }: CampusSocialHubProps) {
+  // Retained for compatibility with the dormant Story creation contract.
+  void onCreateStory;
   const [feed, setFeed] = useState<MintFeed>("campus");
   const [createOpen, setCreateOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);

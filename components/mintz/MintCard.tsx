@@ -10,7 +10,7 @@ import { MintMediaCarousel } from "@/components/mintz/MintMediaCarousel";
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { sampleEvents } from "@/data/events";
 import { getOrganizationById } from "@/data/organizations";
-import { universities, type UniversityTheme, getAccountUniversityShortName } from "@/data/universities";
+import { type UniversityTheme, getAccountUniversityShortName } from "@/data/universities";
 import { formatEventDateTimeRange } from "@/lib/content/eventTiming";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import { canViewMintLikeCount, type MintPermissionContext } from "@/lib/social/mintPermissions";
@@ -47,6 +47,7 @@ type MintCardProps = {
   onOrganizationMembershipAction?: () => void;
   reducedMotion?: boolean;
   autoplayVideo?: boolean;
+  onOpenVideo?: (mintId: string, mediaId: string) => void;
 };
 
 function expirationLabel(expiresAt: string | null, currentTime: number) {
@@ -94,18 +95,19 @@ function RepostGlyph() {
   return (
     <svg
       viewBox="0 0 24 24"
-      className="h-5 w-5"
+      className="h-[21px] w-[21px]"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.1"
+      strokeWidth="1.9"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M17 4l4 4-4 4" />
-      <path d="M3 8h18" />
-      <path d="M7 20l-4-4 4-4" />
-      <path d="M21 16H3" />
+      <path d="M5.4 10.1A7.2 7.2 0 0 1 15.6 5.8" />
+      <path d="m14.8 3.6 3.7 3.4-4.7 1" />
+      <path d="M18.6 13.9A7.2 7.2 0 0 1 8.4 18.2" />
+      <path d="m9.2 20.4-3.7-3.4 4.7-1" />
+      <path d="M8.2 11.2c2.1 0 3.2.9 3.8 2.6.6-1.7 1.7-2.6 3.8-2.6" />
     </svg>
   );
 }
@@ -218,7 +220,7 @@ export function MintCard(props: MintCardProps) {
           )}
         </header>
 
-        <MintMediaCarousel media={mint.media} theme={theme} fallbackLabel={fallbackLabel} fallbackDetail={fallbackDetail} autoplayVideo={props.autoplayVideo} onDoubleTap={toggleLike}>
+        <MintMediaCarousel media={mint.media} theme={theme} fallbackLabel={fallbackLabel} fallbackDetail={fallbackDetail} autoplayVideo={props.autoplayVideo} onDoubleTap={toggleLike} onOpenVideo={(mediaId) => props.onOpenVideo?.(mint.id, mediaId)}>
           <div className="absolute bottom-4 right-3 flex flex-col items-center gap-2 sm:bottom-5 sm:right-4" aria-label="Mint actions">
             <button type="button" onClick={toggleLike} aria-pressed={props.liked} aria-label={props.liked ? "Unlike Mint" : "Like Mint"} className={`interactive-pop flex min-h-12 min-w-12 flex-col items-center justify-center p-2 text-xs font-black focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white ${props.liked ? "text-rose-500" : "text-white"}`}>
               <span key={likePulse} className={likePulse > 0 ? "like-pop" : ""} style={{ filter: "drop-shadow(0 2px 3px rgba(0,0,0,.88))" }}><HeartGlyph filled={props.liked} /></span>

@@ -14,7 +14,6 @@ import {
   getAccountUniversityShortName,
 } from "@/data/universities";
 import type { UniversityTheme } from "@/data/universities";
-import { universities } from "@/data/universities";
 import { getCampusNetwork } from "@/data/campusNetworks";
 import { getOrganizationById } from "@/data/organizations";
 import type { ProfilesState } from "@/hooks/useProfiles";
@@ -632,4 +631,3 @@ export function PeopleSkeleton({ viewer, theme, profiles, onOpenProfile }: Peopl
     </div>
   );
 }
-

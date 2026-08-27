@@ -21,6 +21,7 @@ type MintMediaCarouselProps = {
   children?: ReactNode;
   autoplayVideo?: boolean;
   onDoubleTap?: () => void;
+  onOpenVideo?: (mediaId: string) => void;
 };
 
 type ZoomView = {
@@ -34,6 +35,66 @@ const restingZoom: ZoomView = {
   x: 0,
   y: 0,
 };
+
+function InlineMintVideo({
+  media,
+  active,
+  autoplayVideo,
+  onOpenVideo,
+}: {
+  media: MintMedia;
+  active: boolean;
+  autoplayVideo: boolean;
+  onOpenVideo?: (mediaId: string) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!active || !autoplayVideo) {
+      video.pause();
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.65) {
+          video.play().catch(() => {
+            // Native controls remain available when autoplay is blocked.
+          });
+        } else {
+          video.pause();
+        }
+      },
+      { threshold: [0, 0.65, 1] },
+    );
+
+    observer.observe(video);
+
+    return () => {
+      observer.disconnect();
+      video.pause();
+    };
+  }, [active, autoplayVideo]);
+
+  return (
+    <video
+      ref={videoRef}
+      src={media.url ?? undefined}
+      poster={media.thumbnailUrl ?? undefined}
+      controls
+      playsInline
+      loop
+      muted={autoplayVideo}
+      preload={active ? "metadata" : "none"}
+      onClick={() => onOpenVideo?.(media.id)}
+      className="h-full w-full object-cover"
+      data-horizontal-gesture-ignore
+    />
+  );
+}
 
 function clamp(
   value: number,
@@ -110,7 +171,14 @@ function ZoomableMedia({
   }
 
   useEffect(() => {
-    if (!active) reset();
+    // Deactivation is an external carousel lifecycle boundary.
+    if (!active) {
+      pinchRef.current = null;
+      panRef.current = null;
+      viewRef.current = restingZoom;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setView(restingZoom);
+    }
   }, [active]);
 
   function handleTouchStart(
@@ -369,6 +437,7 @@ export function MintMediaCarousel({
   children,
   autoplayVideo = true,
   onDoubleTap,
+  onOpenVideo,
 }: MintMediaCarouselProps) {
   const [activeIndex, setActiveIndex] =
     useState(0);
@@ -495,15 +564,11 @@ export function MintMediaCarousel({
                     unoptimized
                   />
                 ) : (
-                  <video
-                    src={item.url}
-                    controls
-                    playsInline
-                    autoPlay={
-                      autoplayVideo
-                    }
-                    muted={autoplayVideo}
-                    className="h-full w-full object-cover"
+                  <InlineMintVideo
+                    media={item}
+                    active={index === activeIndex}
+                    autoplayVideo={autoplayVideo}
+                    onOpenVideo={onOpenVideo}
                   />
                 )}
               </ZoomableMedia>
@@ -535,6 +600,7 @@ export function MintMediaCarousel({
                 </div>
               </ZoomableMedia>
             )}
+
           </div>
         ))}
       </div>

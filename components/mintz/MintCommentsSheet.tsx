@@ -19,9 +19,10 @@ type MintCommentsSheetProps = {
   onDeleteComment: (commentId: string) => void;
   onReportComment: (commentId: string) => void;
   onClose: () => void;
+  layerClassName?: string;
 };
 
-export function MintCommentsSheet({ comments, users, viewer, theme, currentTime, reducedMotion, onComment, onDeleteComment, onReportComment, onClose }: MintCommentsSheetProps) {
+export function MintCommentsSheet({ comments, users, viewer, theme, currentTime, reducedMotion, onComment, onDeleteComment, onReportComment, onClose, layerClassName = "z-[65]" }: MintCommentsSheetProps) {
   const [body, setBody] = useState("");
   const [closing, setClosing] = useState(false);
   const closeTimer = useRef<number | null>(null);
@@ -63,7 +64,7 @@ export function MintCommentsSheet({ comments, users, viewer, theme, currentTime,
   }, [reducedMotion, requestClose]);
 
   return (
-    <div className={`comment-backdrop fixed inset-0 z-[65] flex items-end justify-center bg-slate-950/42 backdrop-blur-sm sm:items-center sm:p-5 ${closing ? "is-closing" : ""}`} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
+    <div className={`comment-backdrop fixed inset-0 ${layerClassName} flex items-end justify-center bg-slate-950/42 backdrop-blur-sm sm:items-center sm:p-5 ${closing ? "is-closing" : ""}`} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
       <section className={`comment-sheet flex max-h-[82dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-[2.75rem] border border-slate-200 bg-white shadow-2xl sm:max-h-[72dvh] sm:rounded-[2.75rem] ${closing ? "is-closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="comments-title">
         <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div><p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "var(--app-accent)" }}>Mint conversation</p><h2 id="comments-title" className="text-xl font-black text-slate-950">Comments</h2></div>

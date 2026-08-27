@@ -1,12 +1,27 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { TactileButton } from "@/components/ui/TactileButton";
+import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 import { getOrganizationsForUniversity } from "@/data/organizations";
-import { resolveStudentEmail } from "@/lib/auth/studentEmail";
-import type { UniversityId } from "@/data/universities";
-import type { ResolvedStudentEmail } from "@/types/universityIdentity";
+import {
+  assessStudentEmail,
+  getStudentEmailRejectionMessage,
+} from "@/lib/auth/studentEmail";
+import {
+  requestStudentVerificationCode,
+  verifyStudentVerificationCode,
+} from "@/lib/auth/studentVerificationClient";
+import type {
+  StudentVerificationRequestResponse,
+  VerifiedStudentEmail,
+} from "@/types/studentVerification";
+
+type VerificationRequestSuccess = Extract<
+  StudentVerificationRequestResponse,
+  { ok: true }
+>;
 
 type OnboardingProfileSetup = {
   firstName: string;
@@ -26,32 +41,33 @@ type OnboardingProfileSetup = {
 
 type StudentEmailOnboardingProps = {
   onVerified: (
-    resolved: ResolvedStudentEmail,
+    resolved: VerifiedStudentEmail,
     personalEmail: string | null,
     primaryEmail: string,
     profileSetup: OnboardingProfileSetup,
   ) => void;
 };
 
-function createDevelopmentVerificationCode() {
-  return String(
-    Math.floor(100000 + Math.random() * 900000),
-  );
-}
-
 export function StudentEmailOnboarding({
   onVerified,
 }: StudentEmailOnboardingProps) {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const [verificationTarget, setVerificationTarget] =
-    useState<ResolvedStudentEmail | null>(null);
-  const [verificationCode, setVerificationCode] =
-    useState("");
+  const [verificationChallenge, setVerificationChallenge] =
+    useState<VerificationRequestSuccess | null>(null);
   const [enteredCode, setEnteredCode] = useState("");
-  const [codeError, setCodeError] = useState(false);
+  const [codeError, setCodeError] =
+    useState<string | null>(null);
+  const [requestError, setRequestError] =
+    useState<string | null>(null);
+  const [requestPending, setRequestPending] =
+    useState(false);
+  const [verificationPending, setVerificationPending] =
+    useState(false);
+  const [verificationClock, setVerificationClock] =
+    useState(() => Date.now());
   const [verifiedTarget, setVerifiedTarget] =
-    useState<ResolvedStudentEmail | null>(null);
+    useState<VerifiedStudentEmail | null>(null);
   const [emailChoice, setEmailChoice] =
     useState<"university" | "personal" | null>(null);
   const [personalEmail, setPersonalEmail] = useState("");
@@ -83,17 +99,80 @@ export function StudentEmailOnboarding({
     useState<string[]>([]);
 
 
-  const resolved = useMemo(
-    () => resolveStudentEmail(email),
+  const emailAssessment = useMemo(
+    () => assessStudentEmail(email),
     [email],
   );
 
-  const showError =
+  const resolved = emailAssessment.ok
+    ? emailAssessment.resolved
+    : null;
+
+  const errorMessage =
     submitted &&
     email.trim().length > 0 &&
-    !resolved;
+    !emailAssessment.ok
+      ? getStudentEmailRejectionMessage(
+          emailAssessment.reason,
+        )
+      : null;
 
-  function handleSubmit(
+  useEffect(() => {
+    if (!verificationChallenge) return;
+
+    const timer = window.setInterval(() => {
+      setVerificationClock(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [verificationChallenge]);
+
+  const resendSeconds = verificationChallenge
+    ? Math.max(
+        0,
+        Math.ceil(
+          (Date.parse(
+            verificationChallenge.challenge
+              .resendAvailableAt,
+          ) -
+            verificationClock) /
+            1000,
+        ),
+      )
+    : 0;
+
+  const challengeExpired = verificationChallenge
+    ? verificationClock >=
+      Date.parse(
+        verificationChallenge.challenge.expiresAt,
+      )
+    : false;
+
+  async function requestChallenge(
+    studentEmail: string,
+  ) {
+    setRequestPending(true);
+    setRequestError(null);
+    setCodeError(null);
+
+    const result =
+      await requestStudentVerificationCode(
+        studentEmail,
+      );
+
+    setRequestPending(false);
+
+    if (!result.ok) {
+      setRequestError(result.message);
+      return;
+    }
+
+    setVerificationChallenge(result);
+    setVerificationClock(Date.now());
+    setEnteredCode("");
+  }
+
+  async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
@@ -101,29 +180,35 @@ export function StudentEmailOnboarding({
 
     if (!resolved) return;
 
-    setVerificationTarget(resolved);
-    setVerificationCode(
-      createDevelopmentVerificationCode(),
-    );
-    setEnteredCode("");
-    setCodeError(false);
+    await requestChallenge(resolved.email);
   }
 
-  function verifyCode(
+  async function verifyCode(
     event: React.FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
 
-    if (
-      !verificationTarget ||
-      enteredCode !== verificationCode
-    ) {
-      setCodeError(true);
+    if (!verificationChallenge) return;
+
+    setVerificationPending(true);
+    setCodeError(null);
+
+    const result =
+      await verifyStudentVerificationCode({
+        challengeId:
+          verificationChallenge.challenge.id,
+        code: enteredCode,
+      });
+
+    setVerificationPending(false);
+
+    if (!result.ok) {
+      setCodeError(result.message);
       return;
     }
 
-    setVerifiedTarget(verificationTarget);
-    setVerificationTarget(null);
+    setVerifiedTarget(result.verified);
+    setVerificationChallenge(null);
     setEmailChoice(null);
     setPersonalEmail("");
   }
@@ -133,10 +218,10 @@ export function StudentEmailOnboarding({
     verifiedTarget &&
     selectedPrimaryEmail
   ) {
+    const confirmedTarget = verifiedTarget;
+    const confirmedPrimaryEmail = selectedPrimaryEmail;
     const configuredUniversityId =
-      verifiedTarget.identity.knownUniversityId as
-        | UniversityId
-        | null;
+      confirmedTarget.identity.knownUniversityId;
 
     const availableClubs = configuredUniversityId
       ? getOrganizationsForUniversity(
@@ -153,9 +238,9 @@ export function StudentEmailOnboarding({
 
     function finishOnboarding() {
       onVerified(
-        verifiedTarget!,
+        confirmedTarget,
         selectedPersonalEmail,
-        selectedPrimaryEmail!,
+        confirmedPrimaryEmail,
         {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
@@ -187,16 +272,14 @@ export function StudentEmailOnboarding({
     return (
       <main className="min-h-dvh bg-white px-5 py-10 text-slate-950">
         <div className="mx-auto w-full max-w-md py-8">
-          <TactileButton
-            type="button"
+          <MintLeafBackButton
             onClick={() => {
               setClubSetupOpen(false);
               setProfileSetupOpen(true);
             }}
-            className="mb-8 w-fit text-sm font-bold text-slate-500"
-          >
-            Back
-          </TactileButton>
+            label="Back"
+            className="mb-8 text-slate-500"
+          />
 
           <p className="text-sm font-bold uppercase tracking-[0.22em] text-slate-400">
             The Campus Mint
@@ -313,23 +396,14 @@ export function StudentEmailOnboarding({
       lastName.trim().length > 0 &&
       usernameValid;
 
-    function splitTags(value: string) {
-      return value
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-    }
-
     return (
       <main className="min-h-dvh bg-white px-5 py-10 text-slate-950">
         <div className="mx-auto w-full max-w-md py-8">
-          <TactileButton
-            type="button"
+          <MintLeafBackButton
             onClick={() => setProfileSetupOpen(false)}
-            className="mb-8 w-fit text-sm font-bold text-slate-500"
-          >
-            Back
-          </TactileButton>
+            label="Back"
+            className="mb-8 text-slate-500"
+          />
 
           <p className="text-sm font-bold uppercase tracking-[0.22em] text-slate-400">
             The Campus Mint
@@ -765,16 +839,20 @@ export function StudentEmailOnboarding({
     );
   }
 
-  if (verificationTarget) {
+  if (verificationChallenge) {
+    const challenge =
+      verificationChallenge.challenge;
+
     return (
       <main className="min-h-dvh bg-white px-5 py-10 text-slate-950">
         <div className="mx-auto flex min-h-[calc(100dvh-5rem)] w-full max-w-md flex-col justify-center">
           <TactileButton
             type="button"
             onClick={() => {
-              setVerificationTarget(null);
+              setVerificationChallenge(null);
               setEnteredCode("");
-              setCodeError(false);
+              setCodeError(null);
+              setRequestError(null);
             }}
             className="mb-8 w-fit text-sm font-bold text-slate-500"
           >
@@ -792,23 +870,29 @@ export function StudentEmailOnboarding({
           <p className="mt-3 text-base leading-7 text-slate-500">
             Enter the six-digit code sent to{" "}
             <span className="font-bold text-slate-800">
-              {verificationTarget.email}
+              {challenge.email}
             </span>
             .
           </p>
 
-          {verificationCode && (
+          {verificationChallenge.development && (
             <div className="mt-6 rounded-[1.4rem] bg-amber-50 px-4 py-4">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-700">
                 Development verification code
               </p>
               <p className="mt-2 text-2xl font-black tracking-[0.2em] text-amber-950">
-                {verificationCode}
+                {verificationChallenge.development.code}
               </p>
               <p className="mt-2 text-xs leading-5 text-amber-800">
-                No email is being sent yet. This code is shown only while the app is running in development.
+                The development server exposed this code for local testing. Production responses never include it.
               </p>
             </div>
+          )}
+
+          {challengeExpired && (
+            <p className="mt-5 text-sm font-semibold text-red-600">
+              That verification code has expired. Request a new code.
+            </p>
           )}
 
           <form
@@ -827,8 +911,9 @@ export function StudentEmailOnboarding({
                     .replace(/\D/g, "")
                     .slice(0, 6),
                 );
-                setCodeError(false);
+                setCodeError(null);
               }}
+              disabled={verificationPending}
               placeholder="000000"
               aria-label="Verification code"
               className="block w-full rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4 text-center text-2xl font-black tracking-[0.22em] outline-none transition focus:border-slate-400 focus:bg-white"
@@ -836,18 +921,49 @@ export function StudentEmailOnboarding({
 
             {codeError && (
               <p className="text-sm font-semibold text-red-600">
-                That verification code is incorrect.
+                {codeError}
               </p>
             )}
 
             <TactileButton
               type="submit"
-              disabled={enteredCode.length !== 6}
+              disabled={
+                enteredCode.length !== 6 ||
+                verificationPending ||
+                challengeExpired
+              }
               className="w-full rounded-full bg-slate-950 px-5 py-4 text-base font-black text-white transition active:scale-[0.985] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
             >
-              Verify student email
+              {verificationPending
+                ? "Verifying…"
+                : "Verify student email"}
             </TactileButton>
           </form>
+
+          <div className="mt-5 text-center">
+            <TactileButton
+              type="button"
+              disabled={
+                requestPending || resendSeconds > 0
+              }
+              onClick={() =>
+                void requestChallenge(challenge.email)
+              }
+              className="px-3 py-2 text-sm font-bold text-slate-600 disabled:text-slate-300"
+            >
+              {requestPending
+                ? "Requesting…"
+                : resendSeconds > 0
+                  ? `Resend in ${resendSeconds}s`
+                  : "Resend code"}
+            </TactileButton>
+
+            {requestError && (
+              <p className="mt-2 text-sm font-semibold text-red-600">
+                {requestError}
+              </p>
+            )}
+          </div>
         </div>
       </main>
     );
@@ -889,6 +1005,7 @@ export function StudentEmailOnboarding({
               onChange={(event) => {
                 setEmail(event.target.value);
                 setSubmitted(false);
+                setRequestError(null);
               }}
               placeholder="you@university.edu"
               className="mt-2 block w-full rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base font-semibold outline-none transition focus:border-slate-400 focus:bg-white"
@@ -911,23 +1028,31 @@ export function StudentEmailOnboarding({
             </div>
           )}
 
-          {showError && (
+          {errorMessage && (
             <p className="text-sm font-semibold text-red-600">
-              Enter a valid university .edu email.
+              {errorMessage}
+            </p>
+          )}
+
+          {requestError && (
+            <p className="text-sm font-semibold text-red-600">
+              {requestError}
             </p>
           )}
 
           <TactileButton
             type="submit"
-            disabled={!resolved}
+            disabled={!resolved || requestPending}
             className="w-full rounded-full bg-slate-950 px-5 py-4 text-base font-black text-white transition active:scale-[0.985] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
           >
-            Continue
+            {requestPending
+              ? "Sending code…"
+              : "Continue"}
           </TactileButton>
         </form>
 
         <p className="mt-6 text-center text-xs leading-5 text-slate-400">
-          Any .edu university email is supported.
+          College and university .edu emails are supported after institution verification.
         </p>
       </div>
     </main>

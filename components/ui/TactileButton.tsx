@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useRef,
   type ButtonHTMLAttributes,
@@ -35,13 +36,13 @@ export function TactileButton({
   const stableBoundsRef =
     useRef<DOMRect | null>(null);
 
-  function restingTransform() {
+  const restingTransform = useCallback(() => {
     return `translate3d(0, ${
       selected ? -2.5 : 0
     }px, 10px) rotateX(0deg) rotateY(0deg) scale(${
       selected ? 1.025 : 1
     })`;
-  }
+  }, [selected]);
 
   function moveButton(
     transform: string,
@@ -140,7 +141,7 @@ export function TactileButton({
         );
       }
     };
-  }, [selected, reducedMotion]);
+  }, [reducedMotion, restingTransform]);
 
   return (
     <button

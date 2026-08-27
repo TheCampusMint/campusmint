@@ -278,6 +278,7 @@ export const developmentUsers: CampusMintUser[] = [
     graduationYear: 2028,
     interests: ["Entrepreneurship", "Running", "Live music"],
     hobbies: ["Concerts", "Coffee"],
+    discoveryScope: "community",
     academicArea: "Business",
     lookingForRoommate: true,
     roommatePreferences: [
@@ -298,6 +299,7 @@ export const developmentUsers: CampusMintUser[] = [
     major: "Biology",
     graduationYear: 2027,
     interests: ["Research", "Football", "Photography"],
+    discoveryScope: "community",
     offersTutoring: true,
     tutoringSubjects: [
       "Science",
@@ -316,6 +318,7 @@ export const developmentUsers: CampusMintUser[] = [
     major: "Communications",
     graduationYear: 2029,
     interests: ["Media", "Volleyball", "Design"],
+    discoveryScope: "community",
   }),
 ];
 

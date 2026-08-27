@@ -20,11 +20,11 @@ import {
 import {
   handleOrganizationMembershipAccepted,
   inviteOrganizationMember,
+  joinOrRequestOrganization,
   membershipStatusFor,
   openOrganizationContactConversation,
   rejectOrganizationMembership,
   removeOrganizationMembership,
-  requestOrganizationMembership,
   type OrganizationMembershipState,
 } from "@/lib/organizationMembership";
 import type {
@@ -59,7 +59,13 @@ export function useOrganizations(currentUserId: string) {
   function joinOrRequest(organization: Organization) {
     if (organization.membershipType === "invitation" || organization.membershipType === "restricted") return null;
     const now = new Date().toISOString();
-    const next = requestOrganizationMembership(membershipState, organization.id, currentUserId, crypto.randomUUID(), now);
+    const next = joinOrRequestOrganization(
+      membershipState,
+      organization,
+      currentUserId,
+      crypto.randomUUID(),
+      now,
+    );
     setMembershipState(next);
     return next.memberships.find((membership) =>
       membership.organizationId === organization.id && membership.userId === currentUserId,

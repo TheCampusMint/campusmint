@@ -7,10 +7,22 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "npm run test:social",
     "test:event-timing": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/eventTiming.test.mjs",
     "test:organizations": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/organizationMembership.test.mjs",
     "test:organization-identity": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/organizationIdentity.test.mjs",
-    "test:social": "npm run test:event-timing && npm run test:organizations && npm run test:organization-identity"
+    "test:institution-eligibility": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/institutionEligibility.test.mjs",
+    "test:student-verification": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/studentVerification.test.mjs",
+    "test:section-memory": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/sectionMemory.test.mjs",
+    "test:event-moments": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/eventMoments.test.mjs",
+    "test:unified-search": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/unifiedSearch.test.mjs",
+    "test:navigation": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/navigation.test.mjs",
+    "test:groups": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/groups.test.mjs",
+    "test:mint-social": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/mintSocial.test.mjs",
+    "test:notification-sounds": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/notificationSounds.test.mjs",
+    "test:sports": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/sports.test.mjs",
+    "test:mint-feed-ranking": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/mintFeedRanking.test.mjs",
+    "test:social": "npm run test:event-timing && npm run test:organizations && npm run test:organization-identity && npm run test:institution-eligibility && npm run test:student-verification && npm run test:section-memory && npm run test:event-moments && npm run test:unified-search && npm run test:navigation && npm run test:groups && npm run test:mint-social && npm run test:notification-sounds && npm run test:sports && npm run test:mint-feed-ranking"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2",

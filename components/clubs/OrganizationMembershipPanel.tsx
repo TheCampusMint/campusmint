@@ -1,4 +1,4 @@
-import { universities, type UniversityTheme, getAccountUniversityName } from "@/data/universities";
+import { type UniversityTheme, getAccountUniversityName } from "@/data/universities";
 import { canViewGraduationYear, canViewMajor, createProfileViewerContext } from "@/lib/social/permissions";
 import type { OrganizationMembership } from "@/types/organization";
 import type { CampusMintUser } from "@/types/profile";

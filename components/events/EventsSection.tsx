@@ -13,6 +13,7 @@ import {
   type EventCategory,
 } from "@/types/event";
 import { rankEventContent } from "@/lib/content/eventRanking";
+import type { EventMomentsState } from "@/hooks/useEventMoments";
 
 type CategoryFilter = "All" | EventCategory;
 
@@ -20,6 +21,8 @@ type EventsSectionProps = {
   events: Event[];
   accessibleCampuses: string[];
   theme: UniversityTheme;
+  currentUserId: string;
+  eventMoments: EventMomentsState;
 };
 
 const categoryFilters: CategoryFilter[] = ["All", ...eventCategories];
@@ -28,12 +31,11 @@ export function EventsSection({
   events,
   accessibleCampuses,
   theme,
+  currentUserId,
+  eventMoments,
 }: EventsSectionProps) {
   const [activeCategory, setActiveCategory] =
     useState<CategoryFilter>("All");
-  const [rsvpedEventIds, setRsvpedEventIds] = useState<Set<Event["id"]>>(
-    () => new Set(),
-  );
 
   const campusEvents = rankEventContent(events.filter((event) =>
     accessibleCampuses.includes(event.campus),
@@ -44,17 +46,8 @@ export function EventsSection({
   );
 
   function toggleRsvp(eventId: Event["id"]) {
-    setRsvpedEventIds((currentIds) => {
-      const nextIds = new Set(currentIds);
-
-      if (nextIds.has(eventId)) {
-        nextIds.delete(eventId);
-      } else {
-        nextIds.add(eventId);
-      }
-
-      return nextIds;
-    });
+    const event = events.find((candidate) => candidate.id === eventId);
+    if (event) eventMoments.toggleRsvp(event, currentUserId);
   }
 
   return (
@@ -115,7 +108,7 @@ export function EventsSection({
               key={event.id}
               event={event}
               campusName={getCampusName(event.campus)}
-              isGoing={rsvpedEventIds.has(event.id)}
+              isGoing={eventMoments.isAttending(event.id, currentUserId)}
               theme={theme}
               onToggleRsvp={toggleRsvp}
             />

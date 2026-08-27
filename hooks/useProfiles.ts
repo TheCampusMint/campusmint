@@ -62,6 +62,8 @@ export function useProfiles() {
           parsed?.account?.id ===
           CURRENT_DEVELOPMENT_USER_ID
         ) {
+          // This layout effect intentionally hydrates client-only profile storage.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setUsers((currentUsers) =>
             currentUsers.map((user) =>
               user.account.id ===

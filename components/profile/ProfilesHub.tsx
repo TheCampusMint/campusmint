@@ -6,7 +6,8 @@ import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { PeopleSearch } from "@/components/profile/PeopleSearch";
 import { ProfilePrivacyModal } from "@/components/profile/ProfilePrivacyModal";
 import { ProfileMintz } from "@/components/profile/ProfileMintz";
-import { MintBackLeaf, ProfileView } from "@/components/profile/ProfileView";
+import { ProfileView } from "@/components/profile/ProfileView";
+import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 import {
   developmentOrganizations,
   getOrganizationById,
@@ -33,10 +34,11 @@ type ProfilesHubProps = {
   onOpenDirectMint: (userId: string) => void;
   onOpenProfile: (userId: string) => void;
   onBack: () => void;
+  showBackControl?: boolean;
   onLogout: () => void;
 };
 
-export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStories, marketplaceListings, profiles, mintz, organizations, onOpenDirectMint, onOpenProfile, onBack, onLogout }: ProfilesHubProps) {
+export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStories, marketplaceListings, profiles, mintz, organizations, onOpenDirectMint, onOpenProfile, onBack, showBackControl = true, onLogout }: ProfilesHubProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStorie
   }
 
   if (!owner || profiles.isBlocked(owner.account.id)) {
-    return <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center"><h2 className="text-xl font-black text-slate-900">Profile unavailable</h2><p className="mt-2 text-sm text-slate-500">This development profile is missing or blocked.</p><button type="button" onClick={onBack} aria-label="Go back" className="interactive-pop mt-5 flex h-10 w-10 items-center justify-center border-0 bg-transparent p-0 text-slate-800 shadow-none"><MintBackLeaf /></button></div>;
+    return <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center"><h2 className="text-xl font-black text-slate-900">Profile unavailable</h2><p className="mt-2 text-sm text-slate-500">This development profile is missing or blocked.</p>{showBackControl ? <MintLeafBackButton onClick={onBack} aria-label="Go back" tone="minimal" className="mt-5 text-slate-800" /> : null}</div>;
   }
 
   const friendshipStatus = profiles.getFriendshipStatus(owner.account.id);
@@ -152,6 +154,7 @@ export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStorie
       recentStories={visibleStories.filter((story) => story.authorUserId === owner.account.id)}
       marketplaceListings={marketplaceListings}
       onBack={onBack}
+      showBackControl={showBackControl}
       onEdit={() => setEditOpen(true)}
       onEditPrivacy={() => setPrivacyOpen(true)}
       onLogout={onLogout}

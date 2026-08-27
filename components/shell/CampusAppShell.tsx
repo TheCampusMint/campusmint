@@ -5,56 +5,67 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type CSSProperties,
   type PointerEvent,
   type ReactNode,
   type TouchEvent,
   } from "react";
 
-import { ClubsDiscovery } from "@/components/clubs/ClubsDiscovery";
+import { CreateContentFlow } from "@/components/content/CreateContentFlow";
 import { DeveloperRoleSwitcher } from "@/components/developer/DeveloperRoleSwitcher";
+import { DeveloperSoundPreview } from "@/components/developer/DeveloperSoundPreview";
 import { GroupsSkeleton } from "@/components/groups/GroupsSkeleton";
-import { SimpleMarketplace } from "@/components/marketplace/SimpleMarketplace";
 import { MessagesSkeleton } from "@/components/messages/MessagesSkeleton";
 import { CampusMintFeed } from "@/components/mintz/CampusMintFeed";
 import { StudentEmailOnboarding } from "@/components/onboarding/StudentEmailOnboarding";
-import { PeopleSkeleton } from "@/components/people/PeopleSkeleton";
 import { ProfilesHub } from "@/components/profile/ProfilesHub";
+import { GlobalSearchOverlay } from "@/components/search/GlobalSearchOverlay";
 import { GlobalSearchSkeleton } from "@/components/search/GlobalSearchSkeleton";
+import { SportsHub } from "@/components/sports/SportsHub";
 import { BottomBubbleNav } from "@/components/shell/BottomBubbleNav";
 import {
   type PrimarySection,
+  type SwipeSection,
   dailyNavigation,
+  migrateStoredPrimarySection,
   secondaryNavigation,
   } from "@/components/shell/navigation";
 import { SettingsPanel } from "@/components/shell/SettingsPanel";
 import { TopUtilityBar } from "@/components/shell/TopUtilityBar";
-import { FoodSkeleton } from "@/components/secondary/FoodSkeleton";
-import { HousingSkeleton } from "@/components/secondary/HousingSkeleton";
 import { DeveloperUniversitySwitcher } from "@/components/university/DeveloperUniversitySwitcher";
 import { CURRENT_DEVELOPMENT_USER_ID } from "@/data/development/users";
 import { getAppearanceTokens } from "@/data/appearance";
 import { getOrganizationById } from "@/data/organizations";
 import { type UserRole } from "@/data/userRoles";
-import { universities,
+import {
   type UniversityId,
   getAccountConfiguredUniversityId,
   getAccountUniversityDisplayTheme,
 } from "@/data/universities";
-import { useAcademics } from "@/hooks/useAcademics";
 import { useAppPreferences } from "@/hooks/useAppPreferences";
 import { useDirectMint } from "@/hooks/useDirectMint";
+import { useEventMoments } from "@/hooks/useEventMoments";
 import { useMarketplace } from "@/hooks/useMarketplace";
 import { useMintz } from "@/hooks/useMintz";
 import { useOrganizations } from "@/hooks/useOrganizations";
 import { useProfiles } from "@/hooks/useProfiles";
 import { useStories } from "@/hooks/useStories";
 import { canJoinOrganization } from "@/lib/organizationPermissions";
+import {
+  prepareLocalMintMedia,
+  type LocalMintMediaSelection,
+} from "@/lib/content/localMintMedia";
+import { SectionMemory } from "@/lib/navigation/sectionMemory";
+import {
+  initialUnifiedSearchState,
+  migrateUnifiedSearchCategory,
+  requestUnifiedSearchDismiss,
+  type UnifiedSearchState,
+} from "@/lib/search/unifiedSearch";
 import { getVisibleStories } from "@/lib/storyPermissions";
 import type { Organization } from "@/types/organization";
 import type { TemporaryUser } from "@/types/user";
-
-type SwipeSection = Exclude<PrimarySection, "profile" | "search">;
 
 type PageDragState = {
   pointerId: number;
@@ -73,7 +84,7 @@ type SearchTouchState = {
 } | null;
 
 const navigation = [...dailyNavigation, ...secondaryNavigation];
-const sectionSequence = navigation.map((item) => item.id) as SwipeSection[];
+const sectionSequence: SwipeSection[] = navigation.map((item) => item.id);
 const SECTION_COUNT = sectionSequence.length;
 const INITIAL_MINT_INDEX = sectionSequence.indexOf("mint");
 const HORIZONTAL_SNAP_MS = 460;
@@ -92,6 +103,9 @@ const initialUser: TemporaryUser = {
 };
 
 const showDeveloperControls = process.env.NODE_ENV === "development";
+const initialDeveloperUniversityOverride = showDeveloperControls
+  ? initialUser.universityId
+  : null;
 const marketplacePermissionMode =
   process.env.NODE_ENV === "development"
     ? "development_role"
@@ -119,10 +133,9 @@ export function CampusAppShell() {
         : 0;
     }
 
-    const savedSection =
-      window.localStorage.getItem(
-        ACTIVE_SECTION_STORAGE_KEY,
-      ) as SwipeSection | null;
+    const savedSection = migrateStoredPrimarySection(
+      window.localStorage.getItem(ACTIVE_SECTION_STORAGE_KEY),
+    );
 
     const savedIndex = savedSection
       ? sectionSequence.indexOf(savedSection)
@@ -135,7 +148,7 @@ export function CampusAppShell() {
         : 0;
   });
   const [specialSection, setSpecialSection] =
-    useState<"profile" | "search" | null>(null);
+    useState<"profile" | null>(null);
   const [swipeProgress, setSwipeProgress] = useState(0);
   const [swipeSettling, setSwipeSettling] = useState(false);
   const [mintSweepProgress, setMintSweepProgress] =
@@ -146,36 +159,65 @@ export function CampusAppShell() {
     useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [createMintOpen, setCreateMintOpen] = useState(false);
+  const [createMintMedia, setCreateMintMedia] =
+    useState<LocalMintMediaSelection[]>([]);
+  const [createMintMediaError, setCreateMintMediaError] =
+    useState<string | null>(null);
+  const [createMintMediaPreparing, setCreateMintMediaPreparing] =
+    useState(false);
   const [mintHeaderHidden, setMintHeaderHidden] = useState(false);
   const [user, setUser] = useState<TemporaryUser>(initialUser);
+  const [developerUniversityOverride, setDeveloperUniversityOverride] =
+    useState<UniversityId | null>(initialDeveloperUniversityOverride);
+  const [unifiedSearchState, setUnifiedSearchState] =
+    useState<UnifiedSearchState>(() => ({ ...initialUnifiedSearchState }));
   const [onboardingOpen, setOnboardingOpen] = useState(true);
 
   const swipeProgressRef = useRef(0);
   const settleTimerRef = useRef<number | null>(null);
   const pageDragRef = useRef<PageDragState | null>(null);
   const searchTouchRef = useRef<SearchTouchState>(null);
+  const searchScrollYRef = useRef(0);
+  const profileHydrationAppliedRef = useRef(false);
   const mintReturnTimerRef = useRef<number | null>(null);
+  const sectionCommitFrameRef = useRef<number | null>(null);
+  const scrollRestoreFrameRef = useRef<number | null>(null);
+  const createMintFileInputRef = useRef<HTMLInputElement>(null);
+  const createMintMediaRequestRef = useRef(0);
   const profileReturnSectionRef =
     useRef<SwipeSection>("mint");
+  const profileReturnScrollRef = useRef(0);
+  const specialScrollPositionsRef = useRef(new Map<string, number>());
+  const scrollOwnerSectionRef = useRef<SwipeSection | null>(null);
   const [specialPageLeaving, setSpecialPageLeaving] =
     useState(false);
 
-  const academics = useAcademics();
   const marketplace = useMarketplace();
   const mintz = useMintz();
   const directMint = useDirectMint(
     CURRENT_DEVELOPMENT_USER_ID,
   );
+  const eventMoments = useEventMoments();
   const organizations = useOrganizations(CURRENT_DEVELOPMENT_USER_ID);
   const profiles = useProfiles();
   const stories = useStories();
   const preferenceState = useAppPreferences();
 
   useEffect(() => {
-    if (!profiles.developmentProfileHydrated) return;
+    if (
+      !profiles.developmentProfileHydrated ||
+      profileHydrationAppliedRef.current
+    ) {
+      return;
+    }
+
+    profileHydrationAppliedRef.current = true;
 
     const account = profiles.currentUser.account;
 
+    // Profile hydration is the external boundary that opens/closes onboarding.
     setOnboardingOpen(
       !account.onboardingCompletedAt,
     );
@@ -186,57 +228,126 @@ export function CampusAppShell() {
         profiles.currentUser.profile.firstName ||
         current.firstName,
       universityId:
-        account.knownUniversityId ??
-        account.universityId,
+        account.onboardingCompletedAt
+          ? account.knownUniversityId ?? account.universityId
+          : current.universityId,
       role: account.role,
       verifiedStudent:
         account.verifiedStudent,
     }));
+
+    if (account.onboardingCompletedAt) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDeveloperUniversityOverride(null);
+    }
   }, [
     profiles.currentUser,
     profiles.developmentProfileHydrated,
   ]);
 
-  const theme =
-    getAccountUniversityDisplayTheme(
-      profiles.currentUser.account,
-    );
-
-  const configuredUniversityId =
-    getAccountConfiguredUniversityId(
-      profiles.currentUser.account,
-    );
-
   const currentNavigationSection =
     sectionSequence[mod(navIndex, SECTION_COUNT)] ?? "mint";
 
+  const sectionMemoryRef = useRef<SectionMemory<SwipeSection> | null>(null);
+
+  if (sectionMemoryRef.current === null) {
+    sectionMemoryRef.current = new SectionMemory(currentNavigationSection, 2);
+    scrollOwnerSectionRef.current = currentNavigationSection;
+  }
+
+  const committedSectionRef = useRef<SwipeSection>(
+    currentNavigationSection,
+  );
+  const [viewportScrollY, setViewportScrollY] = useState(0);
+  const [, setSectionMemoryRevision] = useState(0);
+
   useEffect(() => {
-    window.localStorage.setItem(
-      ACTIVE_SECTION_STORAGE_KEY,
-      currentNavigationSection,
-    );
-  }, [currentNavigationSection]);
+    let animationFrame: number | null = null;
+
+    const captureScroll = () => {
+      const scrollY = window.scrollY;
+      const owner = scrollOwnerSectionRef.current;
+
+      if (owner) {
+        sectionMemoryRef.current?.capture(owner, scrollY);
+      }
+
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        setViewportScrollY(window.scrollY);
+      });
+    };
+
+    captureScroll();
+    window.addEventListener("scroll", captureScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", captureScroll);
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(ACTIVE_SECTION_STORAGE_KEY);
+    const migrated = migrateStoredPrimarySection(saved);
+    if (saved !== migrated) {
+      window.localStorage.setItem(ACTIVE_SECTION_STORAGE_KEY, migrated);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Normalize legacy in-memory/HMR Search state without touching preferences.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUnifiedSearchState((current) => {
+      const category = migrateUnifiedSearchCategory(current.category);
+      return category === current.category
+        ? current
+        : { ...current, category, history: [] };
+    });
+  }, []);
 
   const activeSection: PrimarySection =
     specialSection ?? currentNavigationSection;
 
   const viewer = useMemo(
-    () => ({
-      ...profiles.currentUser,
-      account: {
-        ...profiles.currentUser.account,
-        universityId: user.universityId,
-        role: user.role,
-        verifiedStudent: user.verifiedStudent ?? false,
-      },
-    }),
+    () => {
+      const account = developerUniversityOverride
+        ? {
+            ...profiles.currentUser.account,
+            universityId: developerUniversityOverride,
+            universityIdentityId: null,
+            universityDomain: null,
+            universityName: null,
+            universityShortName: null,
+            knownUniversityId: developerUniversityOverride,
+          }
+        : profiles.currentUser.account;
+
+      return {
+        ...profiles.currentUser,
+        account: {
+          ...account,
+          role: user.role,
+          verifiedStudent: user.verifiedStudent ?? false,
+        },
+      };
+    },
     [
+      developerUniversityOverride,
       profiles.currentUser,
       user.role,
-      user.universityId,
       user.verifiedStudent,
     ],
   );
+
+  const theme = getAccountUniversityDisplayTheme(viewer.account);
+
+  const configuredUniversityId =
+    getAccountConfiguredUniversityId(viewer.account);
 
   const appearanceTokens = useMemo(
     () =>
@@ -245,6 +356,14 @@ export function CampusAppShell() {
         theme,
       ),
     [preferenceState.preferences.appearance, theme],
+  );
+
+  const createMintUsers = useMemo(
+    () =>
+      profiles.users.map((candidate) =>
+        candidate.account.id === viewer.account.id ? viewer : candidate,
+      ),
+    [profiles.users, viewer],
   );
 
   const visibleStories = getVisibleStories(
@@ -262,7 +381,7 @@ export function CampusAppShell() {
   const previousSection =
     mintSweepProgress === 1
       ? "mint"
-      : sectionSequence[mod(navIndex - 1, SECTION_COUNT)] ?? "marketplace";
+      : sectionSequence[mod(navIndex - 1, SECTION_COUNT)] ?? "groups";
 
   const nextSection =
     mintSweepProgress === -1
@@ -287,12 +406,103 @@ export function CampusAppShell() {
     settleTimerRef.current = null;
   }
 
+  function captureCurrentMainScroll() {
+    const owner = scrollOwnerSectionRef.current;
+    if (!owner) return;
+
+    sectionMemoryRef.current?.capture(owner, window.scrollY);
+  }
+
+  function restoreWindowScroll(scrollY: number) {
+    const nextScrollY = Math.max(0, scrollY);
+
+    if (scrollRestoreFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollRestoreFrameRef.current);
+    }
+
+    scrollRestoreFrameRef.current = window.requestAnimationFrame(() => {
+      scrollRestoreFrameRef.current = window.requestAnimationFrame(() => {
+        scrollRestoreFrameRef.current = null;
+        window.scrollTo({ top: nextScrollY, behavior: "auto" });
+        setViewportScrollY(nextScrollY);
+      });
+    });
+  }
+
+  function commitMainSection(
+    section: SwipeSection,
+    scrollOverride?: number,
+  ) {
+    const result = sectionMemoryRef.current?.commit(section);
+
+    committedSectionRef.current = section;
+    scrollOwnerSectionRef.current = section;
+    window.localStorage.setItem(ACTIVE_SECTION_STORAGE_KEY, section);
+
+    if (result?.refreshed) {
+      if (section === "mint") {
+        mintz.refreshMintz();
+      }
+
+      setSectionMemoryRevision((current) => current + 1);
+    }
+
+    restoreWindowScroll(scrollOverride ?? result?.scrollY ?? 0);
+  }
+
+  function scheduleMainSectionCommit(
+    section: SwipeSection,
+    scrollOverride?: number,
+  ) {
+    if (sectionCommitFrameRef.current !== null) {
+      window.cancelAnimationFrame(sectionCommitFrameRef.current);
+    }
+
+    sectionCommitFrameRef.current = window.requestAnimationFrame(() => {
+      sectionCommitFrameRef.current = null;
+      commitMainSection(section, scrollOverride);
+    });
+  }
+
+  function cancelScheduledMainSectionCommit() {
+    if (sectionCommitFrameRef.current === null) return;
+
+    window.cancelAnimationFrame(sectionCommitFrameRef.current);
+    sectionCommitFrameRef.current = null;
+  }
+
+  function specialPageKey(
+    section: "profile",
+    profileUserId = selectedProfileUserId,
+  ) {
+    return section === "profile"
+      ? `profile:${profileUserId}`
+      : section;
+  }
+
+  function captureSpecialPageScroll() {
+    if (!specialSection) return;
+
+    specialScrollPositionsRef.current.set(
+      specialPageKey(specialSection),
+      window.scrollY,
+    );
+  }
+
+  function restoreSpecialPageScroll(key: string) {
+    scrollOwnerSectionRef.current = null;
+    restoreWindowScroll(specialScrollPositionsRef.current.get(key) ?? 0);
+  }
+
   function changeUniversity(universityId: UniversityId) {
     setUser((current) => ({ ...current, universityId }));
+    setDeveloperUniversityOverride(universityId);
+    setUnifiedSearchState((current) => ({ ...current, history: [] }));
   }
 
   function changeRole(role: UserRole) {
     setUser((current) => ({ ...current, role }));
+    setUnifiedSearchState((current) => ({ ...current, history: [] }));
   }
 
   function selectSection(section: PrimarySection) {
@@ -304,34 +514,46 @@ export function CampusAppShell() {
       setDirectMintReturnUserId(null);
     }
 
-    if (section === "profile" || section === "search") {
-      setSpecialSection(section);
+    if (section === "profile") {
+      cancelScheduledMainSectionCommit();
+      openProfile(CURRENT_DEVELOPMENT_USER_ID);
       return;
     }
 
     const targetIndex = sectionSequence.indexOf(section);
     if (targetIndex < 0) return;
 
+    captureCurrentMainScroll();
+    captureSpecialPageScroll();
     setSpecialSection(null);
     setNavIndex((current) => nearestVirtualIndex(current, targetIndex));
+    scheduleMainSectionCommit(section);
   }
 
   function openProfile(userId: string) {
+    cancelScheduledMainSectionCommit();
     clearSettleTimer();
     setGestureProgress(0);
     setSwipeSettling(false);
 
     if (!specialSection) {
       profileReturnSectionRef.current =
-        currentNavigationSection;
+        committedSectionRef.current;
+      profileReturnScrollRef.current = window.scrollY;
+      captureCurrentMainScroll();
+    } else {
+      captureSpecialPageScroll();
     }
 
     setSpecialPageLeaving(false);
     setSelectedProfileUserId(userId);
     setSpecialSection("profile");
+    restoreSpecialPageScroll(specialPageKey("profile", userId));
   }
 
   function leaveProfileTo(section: SwipeSection) {
+    captureSpecialPageScroll();
+
     const finish = () => {
       const targetIndex =
         sectionSequence.indexOf(section);
@@ -348,6 +570,12 @@ export function CampusAppShell() {
       setSpecialSection(null);
       setSpecialPageLeaving(false);
       setGestureProgress(0);
+      scheduleMainSectionCommit(
+        section,
+        section === profileReturnSectionRef.current
+          ? profileReturnScrollRef.current
+          : undefined,
+      );
     };
 
     if (
@@ -373,6 +601,7 @@ export function CampusAppShell() {
   function openDirectMintFromProfile(
     userId: string,
   ) {
+    captureSpecialPageScroll();
     directMint.startConversation(userId);
     setDirectMintReturnUserId(userId);
 
@@ -392,6 +621,8 @@ export function CampusAppShell() {
       setSpecialSection(null);
       setSpecialPageLeaving(false);
       setGestureProgress(0);
+      scrollOwnerSectionRef.current = null;
+      restoreWindowScroll(0);
     };
 
     if (
@@ -406,6 +637,91 @@ export function CampusAppShell() {
     window.setTimeout(finish, 460);
   }
 
+  function openDirectMintFromSearch(userId: string) {
+    directMint.startConversation(userId);
+    setDirectMintReturnUserId(null);
+    setSearchOpen(false);
+    selectSection("messages");
+  }
+
+  function openSearchOverlay() {
+    setSettingsOpen(false);
+    setNotificationsOpen(false);
+    setSearchOpen(true);
+  }
+
+  function dismissSearchOverlay() {
+    const result = requestUnifiedSearchDismiss(unifiedSearchState);
+
+    if (result.closeOverlay) {
+      setSearchOpen(false);
+      return;
+    }
+
+    setUnifiedSearchState(result.state);
+  }
+
+  function openCreateMintMediaPicker() {
+    const input = createMintFileInputRef.current;
+    if (!input) return;
+
+    input.value = "";
+    input.click();
+  }
+
+  function beginCreateMint() {
+    createMintMediaRequestRef.current += 1;
+    setCreateMintMedia([]);
+    setCreateMintMediaError(null);
+    setCreateMintMediaPreparing(false);
+    setCreateMintOpen(true);
+    openCreateMintMediaPicker();
+  }
+
+  async function selectCreateMintMedia(
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
+    const files = Array.from(event.currentTarget.files ?? []);
+    if (files.length === 0) return;
+
+    const requestId = createMintMediaRequestRef.current + 1;
+    createMintMediaRequestRef.current = requestId;
+    setCreateMintMediaPreparing(true);
+    setCreateMintMediaError(null);
+
+    const prepared = await prepareLocalMintMedia(files);
+    if (requestId !== createMintMediaRequestRef.current) return;
+
+    setCreateMintMedia(prepared.accepted);
+    setCreateMintMediaPreparing(false);
+
+    if (prepared.rejectedFileNames.length > 0) {
+      setCreateMintMediaError(
+        `${prepared.rejectedFileNames.length} unsupported or unreadable file${prepared.rejectedFileNames.length === 1 ? " was" : "s were"} skipped.`,
+      );
+    }
+  }
+
+  function closeCreateMint() {
+    createMintMediaRequestRef.current += 1;
+    setCreateMintOpen(false);
+    setCreateMintMedia([]);
+    setCreateMintMediaError(null);
+    setCreateMintMediaPreparing(false);
+  }
+
+  function logoutDevelopmentUser() {
+    profiles.logoutDevelopmentUser();
+    closeCreateMint();
+    setSearchOpen(false);
+    setSpecialSection(null);
+    setSelectedProfileUserId(CURRENT_DEVELOPMENT_USER_ID);
+    setUnifiedSearchState({ ...initialUnifiedSearchState });
+    setUser(initialUser);
+    setDeveloperUniversityOverride(initialDeveloperUniversityOverride);
+    setOnboardingOpen(true);
+  }
+
   function returnToProfileFromDirectMint() {
     if (!directMintReturnUserId) return;
 
@@ -415,13 +731,16 @@ export function CampusAppShell() {
 
     /*
      * Do NOT call openProfile() here.
-     * That would overwrite the original People return
+     * That would overwrite the original profile return
      * destination with Messages.
      */
     setDirectMintReturnUserId(null);
     setSpecialPageLeaving(false);
     setSpecialSection("profile");
     setGestureProgress(0);
+    restoreSpecialPageScroll(
+      specialPageKey("profile", directMintReturnUserId),
+    );
   }
 
   function clearMintReturnTimer() {
@@ -433,6 +752,9 @@ export function CampusAppShell() {
 
   function scrollMintHomeToTop() {
     setMintHeaderHidden(false);
+    sectionMemoryRef.current?.capture("mint", 0);
+    window.scrollTo({ top: 0, behavior: "auto" });
+    setViewportScrollY(0);
 
     window.requestAnimationFrame(() => {
       document
@@ -452,6 +774,7 @@ export function CampusAppShell() {
   function animateTrackToMint(startingIndex = navIndex) {
     clearSettleTimer();
     clearMintReturnTimer();
+    captureCurrentMainScroll();
 
     const mintIndex = sectionSequence.indexOf("mint");
     if (mintIndex < 0) return;
@@ -468,6 +791,7 @@ export function CampusAppShell() {
       setGestureProgress(0);
       setSwipeSettling(false);
       scrollMintHomeToTop();
+      scheduleMainSectionCommit("mint", 0);
       return;
     }
 
@@ -500,19 +824,15 @@ export function CampusAppShell() {
       mintReturnTimerRef.current = null;
 
       scrollMintHomeToTop();
+      scheduleMainSectionCommit("mint", 0);
     }, MINT_HOME_SWEEP_MS);
   }
 
   function handleMintTap() {
     clearMintReturnTimer();
 
-    if (specialSection === "search") {
-      setSpecialSection(null);
-      animateTrackToMint(navIndex);
-      return;
-    }
-
     if (specialSection === "profile") {
+      captureSpecialPageScroll();
       if (
         preferenceState.preferences.content.reducedMotion
       ) {
@@ -564,6 +884,7 @@ export function CampusAppShell() {
   ) {
     if (specialSection || settingsOpen) return;
 
+    captureCurrentMainScroll();
     clearSettleTimer();
 
     if (swipeSettling) setSwipeSettling(false);
@@ -605,6 +926,11 @@ export function CampusAppShell() {
     if (projected <= -0.14) target = -1;
     if (projected >= 0.14) target = 1;
 
+    const destinationIndex =
+      navIndex + (target < 0 ? 1 : target > 0 ? -1 : 0);
+    const destinationSection =
+      sectionSequence[mod(destinationIndex, SECTION_COUNT)] ?? "mint";
+
     if (preferenceState.preferences.content.reducedMotion) {
       if (target < 0) {
         setNavIndex((current) => current + 1);
@@ -613,6 +939,7 @@ export function CampusAppShell() {
       }
 
       setGestureProgress(0);
+      scheduleMainSectionCommit(destinationSection);
       return;
     }
 
@@ -629,6 +956,7 @@ export function CampusAppShell() {
       setGestureProgress(0);
       setSwipeSettling(false);
       settleTimerRef.current = null;
+      scheduleMainSectionCommit(destinationSection);
     }, HORIZONTAL_SNAP_MS);
   }
 
@@ -673,6 +1001,8 @@ export function CampusAppShell() {
     ) {
       return;
     }
+
+    captureCurrentMainScroll();
 
     pageDragRef.current = {
       pointerId: event.pointerId,
@@ -757,7 +1087,7 @@ export function CampusAppShell() {
     if (
       event.touches.length !== 1 ||
       settingsOpen ||
-      activeSection === "search" ||
+      searchOpen ||
       gestureStartsOnInteractiveTarget(event.target)
     ) {
       searchTouchRef.current = null;
@@ -797,7 +1127,7 @@ export function CampusAppShell() {
       elapsed <= 700;
 
     if (deliberateDownSwipe) {
-      selectSection("search");
+      openSearchOverlay();
     }
   }
 
@@ -910,42 +1240,18 @@ export function CampusAppShell() {
     resetGlobalMotionTarget(control);
   }
 
-  function scrollMintFeedToTop() {
-    setMintHeaderHidden(false);
-
-    const scrollFeed = () => {
-      const feed =
-        document.querySelector<HTMLElement>(
-          "[data-mint-snap-feed]",
-        );
-
-      feed?.scrollTo({
-        top: 0,
-        behavior:
-          preferenceState.preferences.content
-            .reducedMotion
-            ? "auto"
-            : "smooth",
-      });
-    };
-
-    if (activeSection !== "mint") {
-      selectSection("mint");
-      window.setTimeout(scrollFeed, 0);
-      return;
-    }
-
-    scrollFeed();
-  }
-
   function refreshMintFeed() {
-    window.location.reload();
+    const result = sectionMemoryRef.current?.refresh("mint");
+    mintz.refreshMintz();
+    setMintHeaderHidden(false);
+    setSectionMemoryRevision((current) => current + 1);
+
+    if (result) {
+      restoreWindowScroll(result.scrollY);
+    }
   }
 
-  function sectionContent(
-    section: PrimarySection,
-    isActive = false,
-  ): ReactNode {
+  function sectionContent(section: PrimarySection): ReactNode {
     if (section === "mint") {
       return (
         <CampusMintFeed
@@ -954,6 +1260,7 @@ export function CampusAppShell() {
           profiles={profiles}
           mintz={mintz}
           organizations={organizations}
+          eventMoments={eventMoments}
           onCreateStory={stories.addStory}
           onOpenProfile={openProfile}
           onRequestOrganization={(organizationId) => {
@@ -962,35 +1269,8 @@ export function CampusAppShell() {
           }}
           reducedMotion={preferenceState.preferences.content.reducedMotion}
           autoplayVideo={preferenceState.preferences.content.autoplayVideo}
-          defaultCommentsEnabled={
-            preferenceState.preferences.content.commentsDefault
-          }
-          defaultHideLikeCounts={preferenceState.preferences.content.hideLikeCountsDefault} onFeedChromeChange={setMintHeaderHidden} onRefresh={refreshMintFeed}
-        />
-      );
-    }
-
-    if (section === "people") {
-      return (
-        <PeopleSkeleton
-          viewer={viewer}
-          theme={theme}
-          profiles={profiles}
-          onOpenProfile={openProfile}
-        />
-      );
-    }
-
-    if (section === "clubs") {
-      return (
-        <ClubsDiscovery
-          user={user}
-          configuredUniversityId={
-            configuredUniversityId
-          }
-          theme={theme}
-          organizations={organizations}
-          onMembershipAction={handleOrganizationMembership}
+          onFeedChromeChange={setMintHeaderHidden}
+          onRefresh={refreshMintFeed}
         />
       );
     }
@@ -1014,16 +1294,12 @@ export function CampusAppShell() {
       );
     }
 
-    if (section === "search") {
+    if (section === "sports") {
       return (
-        <GlobalSearchSkeleton
-          viewer={viewer}
+        <SportsHub
+          key={configuredUniversityId ?? theme.shortName}
           theme={theme}
-          profiles={profiles}
-          listings={marketplace.listings}
-          onOpenProfile={openProfile}
-          onSelectSection={selectSection}
-          autoFocus={isActive}
+          universityId={configuredUniversityId}
         />
       );
     }
@@ -1032,45 +1308,11 @@ export function CampusAppShell() {
       return (
         <GroupsSkeleton
           currentUserId={CURRENT_DEVELOPMENT_USER_ID}
+          user={user}
+          configuredUniversityId={configuredUniversityId}
           theme={theme}
           organizations={organizations}
-        />
-      );
-    }
-
-    if (section === "food") {
-      return (
-        <FoodSkeleton
-          universityId={
-            configuredUniversityId
-          }
-          theme={theme}
-        />
-      );
-    }
-
-    if (section === "housing") {
-      return (
-        <HousingSkeleton
-          universityId={
-            configuredUniversityId
-          }
-          theme={theme}
-        />
-      );
-    }
-
-    if (section === "marketplace") {
-      return (
-        <SimpleMarketplace
-          user={user}
-          configuredUniversityId={
-            configuredUniversityId
-          }
-          theme={theme}
-          marketplace={marketplace}
-          permissionMode={marketplacePermissionMode}
-          onOpenProfile={openProfile}
+          onOrganizationMembershipAction={handleOrganizationMembership}
         />
       );
     }
@@ -1097,14 +1339,7 @@ export function CampusAppShell() {
             onOpenDirectMint={openDirectMintFromProfile}
             onOpenProfile={openProfile}
             onBack={goBackFromProfile}
-            onLogout={() => {
-              profiles.logoutDevelopmentUser();
-              setSpecialSection(null);
-              setSelectedProfileUserId(
-                CURRENT_DEVELOPMENT_USER_ID,
-              );
-              setOnboardingOpen(true);
-            }}
+            onLogout={logoutDevelopmentUser}
           />
         </div>
       );
@@ -1113,16 +1348,26 @@ export function CampusAppShell() {
     return null;
   }
 
-  function sectionFrame(section: SwipeSection, isActive: boolean) {
+  function sectionFrame(section: SwipeSection) {
+    const rememberedScrollY =
+      sectionMemoryRef.current?.getScrollY(section) ?? 0;
+    const refreshGeneration =
+      sectionMemoryRef.current?.getRefreshGeneration(section) ?? 0;
+
     return (
       <div
-        className={`mx-auto pb-3 pt-2 sm:pb-36 sm:pt-5 ${
+        className={`mx-auto pb-24 pt-1 sm:pb-36 sm:pt-3 ${
           section === "mint"
             ? "max-w-[44rem] px-2.5 sm:px-5 lg:px-6"
             : "max-w-5xl px-4 sm:px-6"
         }`}
+        style={{
+          transform: `translate3d(0, ${viewportScrollY - rememberedScrollY}px, 0)`,
+        }}
       >
-        {sectionContent(section, isActive)}
+        <div key={`${section}:${refreshGeneration}`}>
+          {sectionContent(section)}
+        </div>
       </div>
     );
   }
@@ -1154,6 +1399,14 @@ export function CampusAppShell() {
       if (mintReturnTimerRef.current) {
         window.clearTimeout(mintReturnTimerRef.current);
       }
+
+      if (sectionCommitFrameRef.current !== null) {
+        window.cancelAnimationFrame(sectionCommitFrameRef.current);
+      }
+
+      if (scrollRestoreFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollRestoreFrameRef.current);
+      }
     };
   }, []);
 
@@ -1172,7 +1425,8 @@ export function CampusAppShell() {
           primaryEmail,
           profileSetup,
         ) => {
-          const verifiedAt = new Date().toISOString();
+          const onboardingCompletedAt =
+            new Date().toISOString();
 
           profiles.updateCurrentAccount({
             studentEmail: resolved.email,
@@ -1180,15 +1434,19 @@ export function CampusAppShell() {
             primaryEmail,
             phoneNumber: profileSetup.phoneNumber,
             studentEmailDomain: resolved.domain,
-            studentEmailVerifiedAt: verifiedAt,
-            studentEmailVerificationMethod: "edu_email",
-            onboardingCompletedAt: verifiedAt,
+            studentEmailVerifiedAt:
+              resolved.mailboxVerifiedAt,
+            studentEmailVerificationMethod:
+              resolved.mailboxVerificationMethod,
+            studentEmailVerificationChallengeId:
+              resolved.verificationChallengeId,
+            onboardingCompletedAt,
             universityIdentityId: resolved.identity.id,
             universityDomain: resolved.identity.domain,
             universityName: resolved.identity.name,
             universityShortName: resolved.identity.shortName,
             knownUniversityId:
-              resolved.identity.knownUniversityId as UniversityId | null,
+              resolved.identity.knownUniversityId,
             verifiedStudent: true,
           });
 
@@ -1233,11 +1491,12 @@ export function CampusAppShell() {
             ...current,
             firstName: profileSetup.firstName,
             universityId:
-              (resolved.identity.knownUniversityId as UniversityId | null) ??
+              resolved.identity.knownUniversityId ??
               current.universityId,
             verifiedStudent: true,
           }));
 
+          setDeveloperUniversityOverride(null);
           setOnboardingOpen(false);
         }}
       />
@@ -1267,15 +1526,19 @@ export function CampusAppShell() {
       <TopUtilityBar
         hidden={activeSection === "mint" && mintHeaderHidden} viewer={viewer}
         theme={theme}
+        onOpenSearch={openSearchOverlay}
         onOpenSettings={() => {
+          setSearchOpen(false);
           setNotificationsOpen(false);
           setSettingsOpen(true);
         }}
         onOpenNotifications={() => {
+          setSearchOpen(false);
           setSettingsOpen(false);
           setNotificationsOpen((open) => !open);
         }}
         onOpenProfile={() => {
+          setSearchOpen(false);
           setNotificationsOpen(false);
           openProfile(CURRENT_DEVELOPMENT_USER_ID);
         }}
@@ -1292,14 +1555,48 @@ export function CampusAppShell() {
                 primaryColor={theme.primary}
                 secondaryColor={theme.secondary}
               />
+              <DeveloperSoundPreview
+                enabled={preferenceState.preferences.notifications.sounds}
+              />
             </>
           ) : undefined
         }
       />
 
+      {searchOpen && (
+        <GlobalSearchOverlay
+          theme={theme}
+          historyDepth={unifiedSearchState.history.length}
+          initialScrollY={searchScrollYRef.current}
+          onRequestClose={dismissSearchOverlay}
+          onScrollYChange={(scrollY) => {
+            searchScrollYRef.current = scrollY;
+          }}
+        >
+          <GlobalSearchSkeleton
+            viewer={viewer}
+            user={user}
+            theme={theme}
+            profiles={profiles}
+            mintz={mintz}
+            eventMoments={eventMoments}
+            marketplace={marketplace}
+            marketplacePermissionMode={marketplacePermissionMode}
+            organizations={organizations}
+            stories={visibleStories}
+            searchState={unifiedSearchState}
+            onSearchStateChange={setUnifiedSearchState}
+            onOpenDirectMint={openDirectMintFromSearch}
+            onLogout={logoutDevelopmentUser}
+            onOrganizationMembershipAction={handleOrganizationMembership}
+            autoFocus
+          />
+        </GlobalSearchOverlay>
+      )}
+
       {specialSection ? (
         <div className="mx-auto max-w-5xl px-4 pb-36 pt-5 sm:px-6">
-          {sectionContent(specialSection, true)}
+          {sectionContent(specialSection)}
         </div>
       ) : (
         <div
@@ -1323,26 +1620,67 @@ export function CampusAppShell() {
             }}
           >
             {swipeSections.map((section) => (
-              <div key={section} className="w-1/3 shrink-0">
-                {sectionFrame(section, section === activeSection)}
+              <div
+                key={section}
+                className="w-1/3 shrink-0"
+                data-active-swipe-frame={section === activeSection ? "true" : "false"}
+                style={{ height: section === activeSection ? "auto" : 0 }}
+              >
+                {sectionFrame(section)}
               </div>
             ))}
           </div>
         </div>
       )}
 
+      <input
+        ref={createMintFileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        hidden
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={selectCreateMintMedia}
+      />
+
       <BottomBubbleNav
         activeSection={activeSection}
-        virtualIndex={navIndex}
+        navigationSection={currentNavigationSection}
+        scrollY={viewportScrollY}
         swipeProgress={swipeProgress}
         swipeSettling={swipeSettling}
         reducedMotion={preferenceState.preferences.content.reducedMotion}
         onSelect={selectSection}
-        onSwipeDelta={applyHorizontalDelta}
-        onSwipeEnd={finishHorizontalGesture}
-        onSwipeCancel={cancelHorizontalGesture}
         onMintTap={handleMintTap}
+        onCreateMint={beginCreateMint}
       />
+
+      {createMintOpen && (
+        <CreateContentFlow
+          viewer={viewer}
+          users={createMintUsers}
+          theme={theme}
+          onCreateMint={mintz.createMint}
+          onClose={closeCreateMint}
+          organizationMemberships={organizations.memberships}
+          organizationRoles={organizations.roles}
+          selectedMedia={createMintMedia}
+          mediaError={createMintMediaError}
+          mediaPreparing={createMintMediaPreparing}
+          onChooseMedia={openCreateMintMediaPicker}
+          onClearMedia={() => {
+            setCreateMintMedia([]);
+            setCreateMintMediaError(null);
+          }}
+          defaultCommentsEnabled={
+            preferenceState.preferences.content.commentsDefault
+          }
+          defaultHideLikeCounts={
+            preferenceState.preferences.content.hideLikeCountsDefault
+          }
+        />
+      )}
 
       {notificationsOpen && (
         <div className="fixed right-3 top-[4.35rem] z-[70] w-[min(22rem,calc(100vw-1.5rem))] rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-[0_18px_55px_rgba(15,23,42,0.16)] backdrop-blur-xl">

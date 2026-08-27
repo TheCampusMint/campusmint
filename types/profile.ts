@@ -43,7 +43,7 @@ export type CampusMintAccount = {
   /** Legacy configured-campus ID used while existing campus features migrate. */
   universityId: UniversityId;
 
-  /** Universal verified university identity. Works for any accepted .edu domain. */
+  /** Universal identity for a registry-confirmed higher-ed .edu domain. */
   universityIdentityId?: string | null;
   universityDomain?: string | null;
   universityName?: string | null;
@@ -52,6 +52,10 @@ export type CampusMintAccount = {
 
   role: UserRole;
 
+  /**
+   * Legacy feature gate. True after eligible-institution email mailbox
+   * verification; it does not prove enrollment, identity, DOB, or age.
+   */
   verifiedStudent: boolean;
   verifiedAlumni: boolean;
 
@@ -62,7 +66,11 @@ export type CampusMintAccount = {
 
   studentEmailDomain?: string | null;
   studentEmailVerifiedAt?: string | null;
-  studentEmailVerificationMethod?: "edu_email" | null;
+  studentEmailVerificationMethod?:
+    | "edu_email"
+    | "email_otp"
+    | null;
+  studentEmailVerificationChallengeId?: string | null;
   onboardingCompletedAt?: string | null;
 
   isDevelopment: boolean;

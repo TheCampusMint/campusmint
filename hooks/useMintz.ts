@@ -10,6 +10,14 @@ import {
   canViewMint,
   type MintPermissionContext,
 } from "@/lib/social/mintPermissions";
+import {
+  applyEditableMintPatch,
+  type EditableMintPatch,
+} from "@/lib/social/mintUpdates";
+import {
+  nextRepostCount,
+  toggleRepostRecords,
+} from "@/lib/social/repostState";
 import type {
   ContentReport,
   PendingContentNotification,
@@ -30,6 +38,7 @@ function localId(prefix: string) {
 
 export function useMintz() {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [, setRefreshGeneration] = useState(0);
   const [storedMintz, setStoredMintz] = useState<Mint[]>(() => createDevelopmentMintz(currentTime));
   const [likes, setLikes] = useState<MintLike[]>([]);
   const [comments, setComments] = useState<MintComment[]>([]);
@@ -43,6 +52,11 @@ export function useMintz() {
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  function refreshMintz() {
+    setCurrentTime(Date.now());
+    setRefreshGeneration((current) => current + 1);
+  }
 
   const mintz = useMemo(() => storedMintz.map((mint) => ({
     ...mint,
@@ -146,43 +160,24 @@ export function useMintz() {
     const viewerId = context.viewer?.account.id;
     if (!viewerId || !canViewMint(context)) return false;
 
-    const exists = reposts.some(
-      (repost) =>
-        repost.mintId === context.mint.id &&
-        repost.userId === viewerId,
-    );
-
     const now = new Date().toISOString();
+    const next = toggleRepostRecords(reposts, {
+      mintId: context.mint.id,
+      userId: viewerId,
+      repostId: localId("mint-repost"),
+      createdAt: now,
+    });
 
-    setReposts((current) =>
-      exists
-        ? current.filter(
-            (repost) =>
-              !(
-                repost.mintId === context.mint.id &&
-                repost.userId === viewerId
-              ),
-          )
-        : [
-            ...current,
-            {
-              id: localId("mint-repost"),
-              mintId: context.mint.id,
-              userId: viewerId,
-              createdAt: now,
-            },
-          ],
-    );
+    setReposts(next.reposts);
 
     setStoredMintz((current) =>
       current.map((mint) =>
         mint.id === context.mint.id
           ? {
               ...mint,
-              repostCount: Math.max(
-                0,
-                (mint.repostCount ?? 0) +
-                  (exists ? -1 : 1),
+              repostCount: nextRepostCount(
+                mint.repostCount ?? 0,
+                next.reposted,
               ),
               updatedAt: now,
             }
@@ -201,22 +196,21 @@ export function useMintz() {
     return true;
   }
 
-  function updateOwnMint(mintId: string, userId: string, patch: Partial<Pick<Mint, "caption" | "likesVisible" | "commentsEnabled">>) {
+  function updateOwnMint(
+    mintId: string,
+    userId: string,
+    patch: EditableMintPatch,
+  ) {
     const mint = storedMintz.find((candidate) => candidate.id === mintId);
     if (!mint || mint.authorId !== userId || mint.status !== "active") return false;
 
-    if (typeof patch.caption !== "string") {
-      return false;
-    }
+    const updatedAt = new Date().toISOString();
+    if (!applyEditableMintPatch(mint, patch, updatedAt)) return false;
 
     setStoredMintz((current) =>
       current.map((candidate) =>
         candidate.id === mintId
-          ? {
-              ...candidate,
-              caption: patch.caption!,
-              updatedAt: new Date().toISOString(),
-            }
+          ? applyEditableMintPatch(candidate, patch, updatedAt) ?? candidate
           : candidate,
       ),
     );
@@ -267,6 +261,7 @@ export function useMintz() {
     shares,
     reports,
     pendingNotifications,
+    refreshMintz,
     createMint,
     toggleLike,
     addComment,

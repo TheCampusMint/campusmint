@@ -9,7 +9,7 @@ import {
   getAccountUniversityShortName,
 } from "@/data/universities";
 import type { UniversityTheme } from "@/data/universities";
-import { universities, type UniversityId } from "@/data/universities";
+import { type UniversityId } from "@/data/universities";
 import {
   canViewGraduationYear,
   canViewMajor,
@@ -64,7 +64,9 @@ export function PeopleSearch({ viewer, users, theme, getFriendshipStatus, isBloc
       getAccountUniversityName(user.account),
       visibleMajor,
       visibleYear?.toString(),
-    ].filter(Boolean).some((value) => value!.toLowerCase().includes(normalizedQuery));
+    ]
+      .filter((value): value is string => Boolean(value))
+      .some((value) => value.toLowerCase().includes(normalizedQuery));
   });
 
   return (
