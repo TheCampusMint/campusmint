@@ -114,54 +114,7 @@ summary {
 
 .mint-float-layer {
   transform-style: preserve-3d;
-  will-change: transform;
 }
-
-.interactive-pop {
-  transform: translate3d(0, 0, 0);
-  transition: transform 180ms cubic-bezier(.2, 1.3, .32, 1), box-shadow 180ms ease, filter 180ms ease;
-}
-
-.interactive-pop:active {
-  transform: translate3d(0, 1px, 0) scale(.96);
-  filter: brightness(.98);
-}
-
-.like-pop {
-  display: inline-block;
-  animation: like-pop 260ms cubic-bezier(.18, 1.5, .35, 1) both;
-}
-
-@keyframes like-pop {
-  0% { transform: scale(.78); }
-  55% { transform: scale(1.22); }
-  100% { transform: scale(1); }
-}
-
-.settings-backdrop,
-.comment-backdrop {
-  animation: backdrop-in 200ms ease-out both;
-}
-
-.settings-sheet,
-.comment-sheet {
-  animation: sheet-in 360ms cubic-bezier(.18, 1.06, .25, 1) both;
-}
-
-.settings-backdrop.is-closing,
-.comment-backdrop.is-closing {
-  animation: backdrop-out 200ms ease-in both;
-}
-
-.settings-sheet.is-closing,
-.comment-sheet.is-closing {
-  animation: sheet-out 210ms cubic-bezier(.55, 0, .85, .3) both;
-}
-
-@keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes backdrop-out { from { opacity: 1; } to { opacity: 0; } }
-@keyframes sheet-in { from { opacity: 0; transform: translate3d(0, 30px, 0) scale(.985); } to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } }
-@keyframes sheet-out { from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } to { opacity: 0; transform: translate3d(0, 24px, 0) scale(.99); } }
 
 .mint-carousel {
   scrollbar-width: none;
@@ -172,135 +125,6 @@ summary {
   display: none;
 }
 
-.section-enter {
-  animation: section-enter 460ms cubic-bezier(.22,1,.36,1) both;
-}
-
-@keyframes section-enter {
-  from {
-    opacity: 0;
-    transform: translate3d(18px, 0, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-
-  .mint-float-layer {
-    transform: none !important;
-  }
-}
-
-.campus-app-shell[data-reduced-motion="true"] *,
-.campus-app-shell[data-reduced-motion="true"] *::before,
-.campus-app-shell[data-reduced-motion="true"] *::after {
-  scroll-behavior: auto !important;
-  animation-duration: 0.01ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.01ms !important;
-}
-
-.campus-app-shell[data-reduced-motion="true"] .mint-float-layer {
-  transform: none !important;
-}
-
-@media (min-width: 640px) {
-  @keyframes sheet-in { from { opacity: 0; transform: translate3d(0, 14px, 0) scale(.97); } to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } }
-  @keyframes sheet-out { from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } to { opacity: 0; transform: translate3d(0, 8px, 0) scale(.975); } }
-}
-
-
-/* CAMPUS_MINT_GLOBAL_BUTTON_MOTION */
-.campus-app-shell button:not(:disabled) {
-  transition:
-    transform 170ms cubic-bezier(.2,.9,.25,1.25),
-    box-shadow 180ms ease,
-    filter 180ms ease,
-    background-color 180ms ease;
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .campus-app-shell button:not(:disabled):hover {
-    transform: translate3d(0, -1.5px, 0) scale(1.012);
-  }
-}
-
-.campus-app-shell button:not(:disabled):active {
-  transform: translate3d(0, 1px, 0) scale(0.982);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .campus-app-shell button:not(:disabled),
-  .campus-app-shell button:not(:disabled):hover,
-  .campus-app-shell button:not(:disabled):active {
-    transition: none !important;
-    transform: none !important;
-  }
-}
-
-
-
-/* FEED_MOTION_TAB_BUTTON_SHELL */
-.campus-app-shell button[data-feed-motion-tab],
-.campus-app-shell button[data-feed-motion-tab]:hover,
-.campus-app-shell button[data-feed-motion-tab]:active {
-  transform: none !important;
-}
-
-/* Event / Club floating tabs stay solid and motionless. */
-.campus-app-shell button[data-static-badge],
-.campus-app-shell button[data-static-badge]:hover,
-.campus-app-shell button[data-static-badge]:active {
-  transform: none !important;
-}
-
-
-/* CM_SHARED_CONTENT_TRANSITIONS_V1 */
-:root {
-  --cm-motion-duration: 230ms;
-  --cm-motion-curve: cubic-bezier(.22,1,.36,1);
-}
-
-.cm-content-swap {
-  animation:
-    cm-content-swap
-    var(--cm-motion-duration)
-    var(--cm-motion-curve)
-    both;
-}
-
-@keyframes cm-content-swap {
-  from {
-    opacity: 0;
-    transform: translate3d(12px, 0, 0) scale(.995);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-/* Settings category pills keep identical geometry when active. */
-.campus-app-shell button[data-static-control],
-.campus-app-shell button[data-static-control]:hover,
-.campus-app-shell button[data-static-control]:active {
-  transform: none !important;
-}
-
 /* Keep mobile pull / pinch gestures crisp. */
 [data-mint-snap-feed] {
   -webkit-overflow-scrolling: touch;
@@ -309,64 +133,6 @@ summary {
 [data-mint-zoomable] {
   -webkit-user-select: none;
   user-select: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cm-content-swap {
-    animation: none !important;
-  }
-}
-
-.campus-app-shell[data-reduced-motion="true"] .cm-content-swap {
-  animation: none !important;
-}
-
-
-/* IOS_MOTION_POLISH_2026 */
-
-/* Settings content feels like an actual page moving in. */
-.cm-content-swap {
-  animation: cm-content-slide-right 460ms cubic-bezier(.22,1,.36,1) both;
-  will-change: transform, opacity;
-}
-
-.cm-content-swap[data-direction="-1"] {
-  animation-name: cm-content-slide-left;
-}
-
-@keyframes cm-content-slide-right {
-  from {
-    opacity: .72;
-    transform: translate3d(42px,0,0) scale(.992);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0,0,0) scale(1);
-  }
-}
-
-@keyframes cm-content-slide-left {
-  from {
-    opacity: .72;
-    transform: translate3d(-42px,0,0) scale(.992);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0,0,0) scale(1);
-  }
-}
-
-/* General section swaps use the same family of timing. */
-.section-enter {
-  animation-duration: 520ms !important;
-  animation-timing-function: cubic-bezier(.22,1,.36,1) !important;
-}
-
-/* Settings category geometry never shifts on press/selection. */
-.campus-app-shell button[data-static-control],
-.campus-app-shell button[data-static-control]:hover,
-.campus-app-shell button[data-static-control]:active {
-  transform: none !important;
 }
 
 /* Keep the glass navigation interactive without painting a safe-area block. */
@@ -381,53 +147,6 @@ summary {
   }
 }
 
-
-/* SPECIAL_PAGE_NAVIGATION */
-.cm-special-page {
-  animation:
-    cm-special-enter 480ms
-    cubic-bezier(.22,1,.36,1)
-    both;
-  will-change: transform, opacity;
-}
-
-.cm-special-page.is-leaving {
-  animation:
-    cm-special-leave 420ms
-    cubic-bezier(.4,0,.2,1)
-    both;
-  pointer-events: none;
-}
-
-@keyframes cm-special-enter {
-  from {
-    opacity: .78;
-    transform:
-      translate3d(44px,0,0)
-      scale(.992);
-  }
-  to {
-    opacity: 1;
-    transform:
-      translate3d(0,0,0)
-      scale(1);
-  }
-}
-
-@keyframes cm-special-leave {
-  from {
-    opacity: 1;
-    transform:
-      translate3d(0,0,0)
-      scale(1);
-  }
-  to {
-    opacity: .72;
-    transform:
-      translate3d(46px,0,0)
-      scale(.992);
-  }
-}
 
 /*
   The bottom nav is purely an overlay.
@@ -523,4 +242,259 @@ summary {
         24rem
       );
   }
+}
+
+/* CAMPUS MINT INTERACTION SYSTEM — authoritative motion and layer tokens. */
+:root {
+  --cm-duration-micro: 120ms;
+  --cm-duration-fast: 180ms;
+  --cm-duration-standard: 240ms;
+  --cm-duration-panel: 300ms;
+  --cm-duration-scene: 360ms;
+  --cm-duration-settle: 400ms;
+  --cm-ease-standard: cubic-bezier(.2,.8,.2,1);
+  --cm-ease-enter: cubic-bezier(.16,1,.3,1);
+  --cm-ease-exit: cubic-bezier(.4,0,1,1);
+  --cm-ease-settle: cubic-bezier(.2,.9,.24,1);
+  --cm-radius-control: .875rem;
+  --cm-radius-card: 1.5rem;
+  --cm-radius-panel: 2rem;
+  --cm-shadow-card: 0 8px 28px rgba(15,23,42,.055);
+  --cm-shadow-panel: 0 24px 70px rgba(15,23,42,.22);
+  --cm-z-header: 40;
+  --cm-z-navigation: 50;
+  --cm-z-popover: 70;
+  --cm-z-overlay: 80;
+  --cm-z-modal: 100;
+  --cm-z-nested-modal: 120;
+  --cm-motion-duration: var(--cm-duration-scene);
+  --cm-motion-curve: var(--cm-ease-enter);
+}
+
+.campus-app-shell :where(button, a, input, textarea, select, summary):focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+.campus-app-shell :where(input, textarea, select) {
+  transition:
+    border-color var(--cm-duration-fast) ease,
+    box-shadow var(--cm-duration-fast) ease,
+    background-color var(--cm-duration-fast) ease;
+}
+
+.mint-float-layer {
+  will-change: auto;
+}
+
+.campus-app-shell button:not(:disabled),
+.interactive-pop,
+.cm-pressable {
+  transform: translate3d(0,0,0);
+  will-change: auto;
+  transition:
+    transform var(--cm-duration-fast) var(--cm-ease-standard),
+    box-shadow var(--cm-duration-fast) ease,
+    filter var(--cm-duration-fast) ease,
+    background-color var(--cm-duration-fast) ease,
+    border-color var(--cm-duration-fast) ease,
+    color var(--cm-duration-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .campus-app-shell button:not(:disabled):hover,
+  .interactive-pop:hover,
+  .cm-pressable:hover {
+    transform: translate3d(0,-1px,0);
+    filter: brightness(1.015);
+  }
+}
+
+.campus-app-shell button:not(:disabled):active,
+.interactive-pop:active,
+.cm-pressable:active {
+  transform: translate3d(0,1px,0) scale(.98);
+  transition-duration: var(--cm-duration-micro);
+}
+
+.cm-pressable[data-selected="true"] {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent, currentColor) 30%, transparent);
+}
+
+.like-pop,
+.cm-state-pop {
+  display: inline-block;
+  animation: cm-state-pop var(--cm-duration-standard) var(--cm-ease-enter) both;
+}
+
+.cm-save-pop {
+  animation: cm-save-pop var(--cm-duration-standard) var(--cm-ease-enter) both;
+  transform-origin: 50% 80%;
+}
+
+.cm-repost-flow {
+  animation: cm-repost-flow var(--cm-duration-standard) var(--cm-ease-enter) both;
+}
+
+.settings-backdrop,
+.comment-backdrop,
+.cm-overlay-backdrop {
+  animation: cm-backdrop-in var(--cm-duration-fast) ease-out both;
+}
+
+.settings-sheet,
+.comment-sheet,
+.cm-panel-sheet {
+  animation: cm-sheet-in var(--cm-duration-panel) var(--cm-ease-enter) both;
+}
+
+.settings-backdrop.is-closing,
+.comment-backdrop.is-closing,
+.cm-overlay-backdrop.is-closing {
+  animation: cm-backdrop-out var(--cm-duration-fast) var(--cm-ease-exit) both;
+}
+
+.settings-sheet.is-closing,
+.comment-sheet.is-closing,
+.cm-panel-sheet.is-closing {
+  animation: cm-sheet-out var(--cm-duration-fast) var(--cm-ease-exit) both;
+}
+
+.cm-search-layer {
+  animation: cm-search-in var(--cm-duration-panel) var(--cm-ease-enter) both;
+}
+
+.cm-search-layer.is-closing {
+  animation: cm-search-out var(--cm-duration-fast) var(--cm-ease-exit) both;
+  pointer-events: none;
+}
+
+.cm-popover-surface {
+  transform-origin: top right;
+  animation: cm-popover-in var(--cm-duration-standard) var(--cm-ease-enter) both;
+}
+
+.cm-content-swap,
+.section-enter,
+.cm-special-page,
+.cm-onboarding-scene {
+  animation: cm-scene-forward var(--cm-duration-scene) var(--cm-ease-enter) both !important;
+  will-change: auto;
+}
+
+.cm-content-swap[data-direction="-1"],
+.cm-scene-back {
+  animation-name: cm-scene-back !important;
+}
+
+.cm-special-page.is-leaving {
+  animation: cm-scene-leave var(--cm-duration-fast) var(--cm-ease-exit) both !important;
+  pointer-events: none;
+}
+
+.cm-message-enter {
+  animation: cm-message-enter var(--cm-duration-standard) var(--cm-ease-enter) both;
+  transform-origin: bottom right;
+}
+
+.cm-interactive-card {
+  transition:
+    transform var(--cm-duration-fast) var(--cm-ease-standard),
+    border-color var(--cm-duration-fast) ease,
+    box-shadow var(--cm-duration-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cm-interactive-card:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--app-accent) 28%, var(--app-border));
+    box-shadow: 0 12px 32px rgba(15,23,42,.085);
+  }
+}
+
+.cm-notice {
+  animation: cm-notice-in var(--cm-duration-standard) var(--cm-ease-enter) both;
+}
+
+@keyframes cm-state-pop {
+  0% { transform: scale(.82); }
+  62% { transform: scale(1.14); }
+  100% { transform: scale(1); }
+}
+
+@keyframes cm-save-pop {
+  0% { transform: translateY(-2px) scale(.86); }
+  65% { transform: translateY(1px) scale(1.09); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes cm-repost-flow {
+  0% { transform: translateX(-2px) rotate(-10deg) scale(.9); }
+  60% { transform: translateX(1px) rotate(8deg) scale(1.06); }
+  100% { transform: translateX(0) rotate(0) scale(1); }
+}
+
+@keyframes cm-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cm-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes cm-sheet-in { from { opacity: 0; transform: translate3d(0,24px,0) scale(.985); } to { opacity: 1; transform: translate3d(0,0,0) scale(1); } }
+@keyframes cm-sheet-out { from { opacity: 1; transform: translate3d(0,0,0) scale(1); } to { opacity: 0; transform: translate3d(0,16px,0) scale(.99); } }
+@keyframes cm-search-in { from { opacity: 0; transform: translate3d(0,-12px,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
+@keyframes cm-search-out { from { opacity: 1; transform: translate3d(0,0,0); } to { opacity: 0; transform: translate3d(0,-8px,0); } }
+@keyframes cm-popover-in { from { opacity: 0; transform: translate3d(0,-5px,0) scale(.97); } to { opacity: 1; transform: translate3d(0,0,0) scale(1); } }
+@keyframes cm-scene-forward { from { opacity: .35; transform: translate3d(18px,0,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
+@keyframes cm-scene-back { from { opacity: .35; transform: translate3d(-18px,0,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
+@keyframes cm-scene-leave { from { opacity: 1; transform: translate3d(0,0,0); } to { opacity: 0; transform: translate3d(16px,0,0); } }
+@keyframes cm-message-enter { from { opacity: 0; transform: translate3d(0,7px,0) scale(.98); } to { opacity: 1; transform: translate3d(0,0,0) scale(1); } }
+@keyframes cm-notice-in { from { opacity: 0; transform: translate3d(0,-6px,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
+
+@media (min-width: 640px) {
+  @keyframes cm-sheet-in { from { opacity: 0; transform: translate3d(0,8px,0) scale(.97); } to { opacity: 1; transform: translate3d(0,0,0) scale(1); } }
+  @keyframes cm-sheet-out { from { opacity: 1; transform: translate3d(0,0,0) scale(1); } to { opacity: 0; transform: translate3d(0,5px,0) scale(.98); } }
+}
+
+/* Direct-manipulation controls keep geometry stable; their own progress drives motion. */
+.campus-app-shell button[data-feed-motion-tab],
+.campus-app-shell button[data-static-badge],
+.campus-app-shell button[data-static-control],
+[data-bottom-bubble-nav] button,
+.campus-app-shell button[data-feed-motion-tab]:hover,
+.campus-app-shell button[data-static-badge]:hover,
+.campus-app-shell button[data-static-control]:hover,
+[data-bottom-bubble-nav] button:hover,
+.campus-app-shell button[data-feed-motion-tab]:active,
+.campus-app-shell button[data-static-badge]:active,
+.campus-app-shell button[data-static-control]:active,
+[data-bottom-bubble-nav] button:active {
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.campus-app-shell[data-reduced-motion="true"] *,
+.campus-app-shell[data-reduced-motion="true"] *::before,
+.campus-app-shell[data-reduced-motion="true"] *::after,
+[data-reduced-motion="true"] {
+  scroll-behavior: auto !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mint-float-layer {
+    transform: none !important;
+  }
+}
+
+.campus-app-shell[data-reduced-motion="true"] .mint-float-layer {
+  transform: none !important;
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 import { getCampusName, type UniversityTheme } from "@/data/universities";
 import type { EventMomentsState } from "@/hooks/useEventMoments";
+import { useModalLayer } from "@/hooks/useModalLayer";
 import {
   getEventMomentExpirationLabel,
   getVisibleEventMoments,
@@ -56,6 +57,8 @@ export function EventMomentEventDetail({
   const [simulationMessage, setSimulationMessage] = useState<string | null>(
     null,
   );
+  const dialogRef = useRef<HTMLElement>(null);
+  useModalLayer(dialogRef, onClose);
 
   if (typeof document === "undefined") return null;
 
@@ -104,17 +107,19 @@ export function EventMomentEventDetail({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+      className="cm-overlay-backdrop fixed inset-0 z-[120] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-6"
       data-horizontal-gesture-ignore
       onMouseDown={(pointerEvent) => {
         if (pointerEvent.target === pointerEvent.currentTarget) onClose();
       }}
     >
       <section
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="event-moment-detail-title"
-        className="max-h-[92dvh] w-full overflow-y-auto rounded-t-[2rem] border border-white/80 bg-slate-50 shadow-2xl sm:max-w-3xl sm:rounded-[2rem]"
+        className="cm-panel-sheet max-h-[92dvh] w-full overflow-y-auto rounded-t-[2rem] border border-white/80 bg-slate-50 shadow-2xl sm:max-w-3xl sm:rounded-[2rem]"
       >
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200/80 bg-white/95 p-5 backdrop-blur-xl sm:p-6">
           <div className="min-w-0">
@@ -140,6 +145,7 @@ export function EventMomentEventDetail({
           {closeLabel ? (
             <MintLeafBackButton
               onClick={onClose}
+              data-initial-focus
               label={closeLabel}
               aria-label={closeLabel}
             />
@@ -147,6 +153,7 @@ export function EventMomentEventDetail({
             <button
               type="button"
               onClick={onClose}
+              data-initial-focus
               aria-label="Close event details"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl font-bold text-slate-600"
             >

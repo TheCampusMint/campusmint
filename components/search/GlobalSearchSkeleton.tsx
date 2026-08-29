@@ -404,6 +404,7 @@ export function GlobalSearchSkeleton({
             ⌕
           </span>
           <input
+            data-initial-focus
             autoFocus={autoFocus}
             value={searchState.query}
             onChange={(event) =>
@@ -473,8 +474,9 @@ export function GlobalSearchSkeleton({
         </div>
       </div>
 
-      {campusOnlyCategory && !configuredUniversityId ? (
-        <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-8 text-center">
+      <div key={searchState.category} className="cm-content-swap">
+        {campusOnlyCategory && !configuredUniversityId ? (
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-8 text-center">
           <h2 className="font-black text-slate-900">
             {selectedCategory?.label} is not configured for your university yet
           </h2>
@@ -482,11 +484,11 @@ export function GlobalSearchSkeleton({
             Your student identity still works across Campus Mint. Campus-specific
             discovery will appear here when your university is configured.
           </p>
-        </div>
-      ) : searchState.category === "marketplace" && !marketplaceAllowed ? (
-        <MarketplaceRestricted user={user} theme={theme} />
-      ) : (
-        <SearchDiscoveryResults
+          </div>
+        ) : searchState.category === "marketplace" && !marketplaceAllowed ? (
+          <MarketplaceRestricted user={user} theme={theme} />
+        ) : (
+          <SearchDiscoveryResults
           state={searchState}
           candidates={filtered}
           viewer={viewer}
@@ -516,8 +518,9 @@ export function GlobalSearchSkeleton({
             })
           }
           onOrganizationMembershipAction={onOrganizationMembershipAction}
-        />
-      )}
+          />
+        )}
+      </div>
 
       <SearchResultDetails
         state={searchState}

@@ -10,6 +10,7 @@ type TopUtilityBarProps = {
   theme: UniversityTheme;
   developerControls?: ReactNode;
   hidden?: boolean;
+  compact?: boolean;
   onOpenSettings: () => void;
   onOpenSearch: () => void;
   onOpenNotifications: () => void;
@@ -21,6 +22,7 @@ export function TopUtilityBar({
   theme,
   developerControls,
   hidden = false,
+  compact = false,
   onOpenSettings,
   onOpenSearch,
   onOpenNotifications,
@@ -31,7 +33,7 @@ export function TopUtilityBar({
       aria-hidden={hidden}
       className={
         `sticky top-0 z-40 overflow-hidden border-b backdrop-blur-xl ` +
-        `transition-[max-height,transform,opacity,border-color,background-color,box-shadow] duration-[460ms] ease-[cubic-bezier(.22,1,.36,1)] ` +
+        `transition-[max-height,transform,opacity,border-color,background-color,box-shadow] duration-[300ms] ease-[cubic-bezier(.16,1,.3,1)] ` +
         (
           hidden
             ? "pointer-events-none max-h-0 -translate-y-full border-transparent opacity-0"
@@ -50,7 +52,11 @@ export function TopUtilityBar({
         WebkitBackdropFilter: "blur(18px) saturate(1.22)",
       }}
     >
-      <div className="relative mx-auto flex min-h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
+      <div
+        className={`relative mx-auto flex max-w-5xl items-center justify-between px-4 transition-[min-height] duration-200 sm:px-6 ${
+          compact ? "min-h-12" : "min-h-14"
+        }`}
+      >
         <button
           type="button"
           onClick={onOpenSettings}
@@ -68,13 +74,19 @@ export function TopUtilityBar({
           </span>
         </button>
 
-        <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-center">
-          <p className="cm-eyebrow text-slate-400">
+        <div className="pointer-events-none absolute left-[42%] -translate-x-1/2 text-center sm:left-1/2">
+          <p
+            className={`cm-eyebrow hidden overflow-hidden text-slate-400 transition-[max-height,opacity,transform] duration-200 min-[430px]:block ${
+              compact
+                ? "max-h-0 -translate-y-1 opacity-0"
+                : "max-h-4 translate-y-0 opacity-100"
+            }`}
+          >
             The Campus Mint
           </p>
 
           <p
-            className="max-w-36 truncate text-sm font-black"
+            className="max-w-28 truncate text-xs font-black min-[430px]:max-w-36 min-[430px]:text-sm"
             style={{
               color: "var(--app-accent)",
             }}

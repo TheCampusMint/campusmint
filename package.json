@@ -22,7 +22,8 @@
     "test:notification-sounds": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/notificationSounds.test.mjs",
     "test:sports": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/sports.test.mjs",
     "test:mint-feed-ranking": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/mintFeedRanking.test.mjs",
-    "test:social": "npm run test:event-timing && npm run test:organizations && npm run test:organization-identity && npm run test:institution-eligibility && npm run test:student-verification && npm run test:section-memory && npm run test:event-moments && npm run test:unified-search && npm run test:navigation && npm run test:groups && npm run test:mint-social && npm run test:notification-sounds && npm run test:sports && npm run test:mint-feed-ranking"
+    "test:motion": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/motion.test.mjs",
+    "test:social": "npm run test:event-timing && npm run test:organizations && npm run test:organization-identity && npm run test:institution-eligibility && npm run test:student-verification && npm run test:section-memory && npm run test:event-moments && npm run test:unified-search && npm run test:navigation && npm run test:groups && npm run test:mint-social && npm run test:notification-sounds && npm run test:sports && npm run test:mint-feed-ranking && npm run test:motion"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2",

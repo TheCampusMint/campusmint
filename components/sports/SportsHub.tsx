@@ -125,7 +125,7 @@ function GameRow({
       type="button"
       onClick={() => onOpponent?.(opponent.id)}
       disabled={!onOpponent}
-      className="flex w-full items-center gap-3 rounded-2xl border border-white/12 bg-black/24 p-3 text-left text-white disabled:cursor-default sm:p-4"
+      className="cm-interactive-card flex w-full items-center gap-3 rounded-2xl border border-white/12 bg-black/24 p-3 text-left text-white disabled:cursor-default sm:p-4"
     >
       <TeamMark team={opponent} theme={theme} size="sm" />
       <span className="min-w-0 flex-1">
@@ -220,7 +220,7 @@ function ProgramChooser({
         if (!team) return null;
         const active = selectedTeamId === team.id;
         return (
-          <button key={season.id} type="button" aria-pressed={active} onClick={() => onSelect(team.id)} className={`cm-pill-control shrink-0 border px-3 ${active ? "border-white bg-white text-emerald-950" : "border-white/20 bg-emerald-950/45 text-white/85"}`}>
+          <button key={season.id} type="button" aria-pressed={active} onClick={() => onSelect(team.id)} className={`cm-pill-control shrink-0 border px-3 ${active ? "border-white bg-[#fff] text-emerald-950" : "border-white/20 bg-emerald-950/45 text-white/85"}`}>
             {team.shortName}
           </button>
         );
@@ -344,7 +344,7 @@ export function SportsHub({ theme, universityId }: SportsHubProps) {
             const team = getSportsTeam(entry.teamId);
             if (!team) return null;
             return (
-              <button key={entry.id} type="button" aria-pressed={program?.teamId === entry.teamId} onClick={() => setProgramOverrides((current) => ({ ...current, track: entry.teamId }))} className={`cm-pill-control shrink-0 border px-3 ${program?.teamId === entry.teamId ? "border-white bg-white text-emerald-950" : "border-white/20 bg-emerald-950/45 text-white/85"}`}>
+              <button key={entry.id} type="button" aria-pressed={program?.teamId === entry.teamId} onClick={() => setProgramOverrides((current) => ({ ...current, track: entry.teamId }))} className={`cm-pill-control shrink-0 border px-3 ${program?.teamId === entry.teamId ? "border-white bg-[#fff] text-emerald-950" : "border-white/20 bg-emerald-950/45 text-white/85"}`}>
                 {team.shortName}
               </button>
             );
@@ -395,7 +395,7 @@ export function SportsHub({ theme, universityId }: SportsHubProps) {
               </button>
 
               {navigation.scheduleOpen ? (
-                <div id="featured-campus-schedule" className="absolute inset-x-0 top-[calc(100%+0.7rem)] z-30 max-h-[68dvh] overflow-y-auto rounded-[1.5rem] border border-white/40 bg-emerald-950/96 p-3 shadow-[0_22px_70px_rgba(0,0,0,.38)] backdrop-blur-xl sm:left-auto sm:right-0 sm:w-[25rem]">
+                <div id="featured-campus-schedule" className="cm-popover-surface absolute inset-x-0 top-[calc(100%+0.7rem)] z-30 max-h-[68dvh] overflow-y-auto rounded-[1.5rem] border border-white/40 bg-emerald-950/96 p-3 shadow-[0_22px_70px_rgba(0,0,0,.38)] backdrop-blur-xl sm:left-auto sm:right-0 sm:w-[25rem]">
                   <div className="sticky -top-3 z-10 mb-2 flex items-center justify-between bg-emerald-950/96 px-1 pb-2 pt-1">
                     <div>
                       <p className="cm-eyebrow text-emerald-200">{featuredSeason.label}</p>
@@ -443,6 +443,10 @@ export function SportsHub({ theme, universityId }: SportsHubProps) {
           })}
         </div>
 
+        <div
+          key={`${activeSport}:${footballView}:${navigation.selectedTeamId ?? "overview"}:${JSON.stringify(programOverrides)}`}
+          className="cm-content-swap"
+        >
         {activeSport === "football" ? (
           selectedFootballTeam && selectedFootballSeason ? (
             <div className="mt-7">
@@ -455,7 +459,7 @@ export function SportsHub({ theme, universityId }: SportsHubProps) {
             <div className="mt-7">
               <div className="flex gap-1.5 overflow-x-auto pb-2" aria-label="Football conferences">
                 {footballConferenceOptions.map((option) => (
-                  <button key={option.id} type="button" aria-pressed={footballView === option.id} onClick={() => setFootballView(option.id)} className={`cm-pill-control shrink-0 border px-3 text-[11px] backdrop-blur-md ${footballView === option.id ? "border-white bg-white text-emerald-950" : "border-white/20 bg-emerald-950/52 text-white/85"}`}>
+                  <button key={option.id} type="button" aria-pressed={footballView === option.id} onClick={() => setFootballView(option.id)} className={`cm-pill-control shrink-0 border px-3 text-[11px] backdrop-blur-md ${footballView === option.id ? "border-white bg-[#fff] text-emerald-950" : "border-white/20 bg-emerald-950/52 text-white/85"}`}>
                     {option.label}
                   </button>
                 ))}
@@ -472,6 +476,7 @@ export function SportsHub({ theme, universityId }: SportsHubProps) {
             </div>
           )
         ) : nonFootballContent}
+        </div>
       </div>
     </section>
   );

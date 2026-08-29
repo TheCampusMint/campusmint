@@ -140,7 +140,7 @@ export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStorie
       : [];
 
   return <>
-    {notice && <div role="status" className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{notice}</div>}
+    {notice && <div role="status" className="cm-notice mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{notice}</div>}
     <ProfileView
       viewer={viewer}
       owner={owner}

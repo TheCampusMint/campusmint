@@ -16,11 +16,12 @@ import {
   type PrimarySection,
   type SwipeSection,
 } from "@/components/shell/navigation";
+import { motion } from "@/lib/motion/interaction";
 
 type BottomBubbleNavProps = {
   activeSection: PrimarySection;
   navigationSection: SwipeSection;
-  scrollY: number;
+  collapsed: boolean;
   swipeProgress: number;
   swipeSettling: boolean;
   reducedMotion: boolean;
@@ -36,9 +37,8 @@ type DragState = {
 };
 
 const SLOT_COUNT = bottomNavigationSlots.length;
-const DRAG_THRESHOLD_PX = 5;
-const COMPACT_SCROLL_DISTANCE_PX = 160;
-const PAGE_SWIPE_SETTLE_MS = 460;
+const DRAG_THRESHOLD_PX = 8;
+const PAGE_SWIPE_SETTLE_MS = motion.duration.settle;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -51,7 +51,7 @@ function mod(value: number, length: number) {
 export function BottomBubbleNav({
   activeSection,
   navigationSection,
-  scrollY,
+  collapsed,
   swipeProgress,
   swipeSettling,
   reducedMotion,
@@ -91,14 +91,9 @@ export function BottomBubbleNav({
       (targetSlot - activeSlot) * clamp(Math.abs(swipeProgress), 0, 1)
     : activeSlot;
   const selectorPosition = dragPosition ?? pageSelectorPosition;
-  const compactProgress = clamp(
-    scrollY / COMPACT_SCROLL_DISTANCE_PX,
-    0,
-    1,
-  );
-  const notchHeight = 46 - compactProgress * 1.5;
-  const notchInset = 3 - compactProgress * 0.25;
-  const notchScaleX = 1 - compactProgress * 0.012;
+  const notchHeight = collapsed ? 42 : 56;
+  const notchInset = collapsed ? 2.5 : 4;
+  const notchScaleX = collapsed ? 0.9 : 1;
   const sportsContrast = activeSection === "sports";
 
   function clearSuppressClickTimer() {
@@ -258,6 +253,7 @@ export function BottomBubbleNav({
   return (
     <nav
       data-bottom-bubble-nav
+      data-collapsed={collapsed ? "true" : "false"}
       data-contrast={sportsContrast ? "sports" : "default"}
       aria-label="Campus Mint primary navigation"
       className="pointer-events-none fixed bottom-[max(0.5rem,env(safe-area-inset-bottom))] left-1/2 z-50 w-[min(calc(100vw-1rem),30rem)] origin-bottom"
@@ -265,7 +261,7 @@ export function BottomBubbleNav({
         transform: `translateX(-50%) scaleX(${notchScaleX})`,
         transition: reducedMotion
           ? "none"
-          : "transform 180ms cubic-bezier(.22,.8,.3,1)",
+          : `transform ${motion.duration.standard}ms ${motion.easing.settle}`,
       }}
     >
       <div
@@ -278,6 +274,9 @@ export function BottomBubbleNav({
         style={{
           height: notchHeight,
           padding: notchInset,
+          transition: reducedMotion
+            ? "none"
+            : `height ${motion.duration.standard}ms ${motion.easing.settle}, padding ${motion.duration.standard}ms ${motion.easing.settle}, box-shadow ${motion.duration.fast}ms ease`,
           touchAction: "pan-y",
           background: sportsContrast
             ? "linear-gradient(180deg, rgba(255,255,255,.82), rgba(226,232,240,.66))"
@@ -328,7 +327,7 @@ export function BottomBubbleNav({
                   ? "none"
                   : swipeSettling
                     ? `transform ${PAGE_SWIPE_SETTLE_MS}ms cubic-bezier(.22,1,.36,1)`
-                    : "transform 440ms cubic-bezier(.18,.88,.24,1.055)",
+                    : `transform ${motion.duration.panelEnter}ms ${motion.easing.settle}`,
           }}
         >
           <div
@@ -381,7 +380,7 @@ export function BottomBubbleNav({
                   className="relative z-20 flex min-h-9 min-w-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-transparent"
                 >
                   <span
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-[1.15rem] font-medium leading-none shadow-sm"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-[1.15rem] font-medium leading-none shadow-sm transition-transform duration-200"
                     style={{
                       backgroundColor: "var(--app-accent)",
                       color: "var(--app-accent-contrast)",
@@ -422,7 +421,18 @@ export function BottomBubbleNav({
                   transitionDuration: reducedMotion ? "0ms" : "160ms",
                 }}
               >
-                <span className="max-w-full truncate">{item.label}</span>
+                <span
+                  className="max-w-full truncate transition-[font-size,opacity]"
+                  style={{
+                    fontSize: collapsed ? "0.63rem" : undefined,
+                    opacity: collapsed ? 0.86 : 1,
+                    transitionDuration: reducedMotion
+                      ? "0ms"
+                      : `${motion.duration.fast}ms`,
+                  }}
+                >
+                  {item.label}
+                </span>
               </button>
             );
           })}

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 
 import { universities, type UniversityId, type UniversityTheme } from "@/data/universities";
 import { organizationCategories, type NewOrganizationSubmission, type OrganizationCategory } from "@/types/organization";
 import { normalizeOrganizationHandle, suggestOrganizationHandle, type OrganizationSubmissionResult } from "@/lib/organizationIdentity";
+import { useModalLayer } from "@/hooks/useModalLayer";
 
 type OrganizationSubmissionModalProps = {
   universityId: UniversityId;
@@ -23,6 +24,8 @@ export function OrganizationSubmissionModal({ universityId, theme, onClose, onSu
   const [contact, setContact] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submissionResult, setSubmissionResult] = useState<OrganizationSubmissionResult | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalLayer(dialogRef, onClose);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -46,11 +49,11 @@ export function OrganizationSubmissionModal({ universityId, theme, onClose, onSu
       ? `/clubs/${conflict.record.handle}` : null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm" role="presentation">
-      <div role="dialog" aria-modal="true" aria-labelledby="organization-submission-title" className="mx-auto my-6 max-w-2xl rounded-3xl bg-white shadow-2xl">
+    <div className="cm-overlay-backdrop fixed inset-0 z-[100] overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="organization-submission-title" className="cm-panel-sheet mx-auto my-6 max-w-2xl rounded-3xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-6">
           <div><p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: theme.primary }}>Community submission</p><h2 id="organization-submission-title" className="mt-1 text-2xl font-extrabold text-slate-950">Suggest an organization</h2><p className="mt-1 text-sm leading-6 text-slate-500">Suggestions remain pending until reviewed. They are never automatically marked official.</p></div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600">Close</button>
+          <button type="button" data-initial-focus onClick={onClose} aria-label="Close organization submission" title="Close" className="cm-icon-control flex shrink-0 items-center justify-center border border-slate-200 text-xl font-bold text-slate-600">×</button>
         </div>
         <form onSubmit={submit} className="space-y-5 p-6">
           <label className="block text-sm font-bold text-slate-700">Organization name<input value={name} maxLength={120} onChange={(event) => { const nextName = event.target.value; setName(nextName); setSubmissionResult(null); if (!handleEdited) setHandle(suggestOrganizationHandle(universityId, nextName)); }} className="mt-1 block w-full rounded-xl border border-slate-200 px-4 py-3 font-normal" /></label>

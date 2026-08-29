@@ -41,13 +41,33 @@ export function MessagesSkeleton({
     );
 
   useEffect(() => {
-    if (!requestedUserId) return;
+    if (requestedUserId) {
+      // Conversation creation occurs at the navigation boundary. This effect
+      // only mirrors the externally requested thread into local selection.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedId(requestedUserId);
+      return;
+    }
 
-    // Conversation creation occurs at the navigation boundary. This effect
-    // only mirrors the externally requested thread into local selection.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedId(requestedUserId);
-  }, [requestedUserId]);
+    if (
+      selectedId &&
+      directMint.conversationUserIds.includes(selectedId)
+    ) {
+      return;
+    }
+
+    const firstConversationId =
+      directMint.conversationUserIds[0] ?? null;
+    if (!firstConversationId) return;
+
+    // Search can create a conversation while Messages is mounted offscreen.
+    // Select that first real thread as soon as it enters the shared state.
+    setSelectedId(firstConversationId);
+  }, [
+    directMint.conversationUserIds,
+    requestedUserId,
+    selectedId,
+  ]);
 
   const conversationUsers =
     directMint.conversationUserIds
@@ -145,7 +165,7 @@ export function MessagesSkeleton({
           </div>
         </aside>
 
-        <section className="min-h-72">
+        <section key={selected?.account.id ?? "empty"} className="cm-content-swap min-h-72">
           {selected ? (
             <DirectMintThread
               viewer={viewer}

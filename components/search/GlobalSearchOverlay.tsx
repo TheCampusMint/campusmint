@@ -1,14 +1,17 @@
 "use client";
 
 import {
-  useEffect,
+  useCallback,
   useLayoutEffect,
   useRef,
+  useState,
   type ReactNode,
 } from "react";
 
 import type { UniversityTheme } from "@/data/universities";
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
+import { useModalLayer } from "@/hooks/useModalLayer";
+import { motion } from "@/lib/motion/interaction";
 
 type GlobalSearchOverlayProps = {
   theme: UniversityTheme;
@@ -28,6 +31,24 @@ export function GlobalSearchOverlay({
   children,
 }: GlobalSearchOverlayProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const [closing, setClosing] = useState(false);
+
+  const requestClose = useCallback(() => {
+    if (historyDepth > 0) {
+      onRequestClose();
+      return;
+    }
+
+    if (closing) return;
+    setClosing(true);
+    closeTimerRef.current = window.setTimeout(
+      onRequestClose,
+      motion.duration.fast,
+    );
+  }, [closing, historyDepth, onRequestClose]);
+
+  useModalLayer(scrollContainerRef, requestClose);
 
   useLayoutEffect(() => {
     scrollContainerRef.current?.scrollTo({
@@ -36,23 +57,13 @@ export function GlobalSearchOverlay({
     });
   }, [initialScrollY]);
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      onRequestClose();
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-
+  useLayoutEffect(() => {
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", handleKeyDown);
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+      }
     };
-  }, [onRequestClose]);
+  }, []);
 
   return (
     <div
@@ -62,8 +73,11 @@ export function GlobalSearchOverlay({
       role="dialog"
       aria-modal="true"
       aria-label="Campus Mint Search"
+      tabIndex={-1}
       onScroll={(event) => onScrollYChange(event.currentTarget.scrollTop)}
-      className="fixed inset-0 z-[80] overflow-y-auto bg-[var(--app-background)]"
+      className={`cm-search-layer fixed inset-0 z-[80] overflow-y-auto bg-[var(--app-background)] ${
+        closing ? "is-closing" : ""
+      }`}
       style={{
         backgroundImage:
           "radial-gradient(circle at 82% 0%, color-mix(in srgb, var(--app-accent-soft) 70%, transparent), transparent 30%)",
@@ -85,7 +99,7 @@ export function GlobalSearchOverlay({
 
           {historyDepth > 0 ? (
             <MintLeafBackButton
-              onClick={onRequestClose}
+              onClick={requestClose}
               label="Back"
               aria-label="Back one Search layer"
               style={{ outlineColor: theme.primary }}
@@ -93,7 +107,7 @@ export function GlobalSearchOverlay({
           ) : (
             <button
               type="button"
-              onClick={onRequestClose}
+              onClick={requestClose}
               aria-label="Close Search"
               title="Close"
               className="cm-icon-control interactive-pop flex items-center justify-center border border-[var(--app-border)] bg-[var(--app-surface-elevated)] text-xl text-[var(--app-text-primary)] shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2"

@@ -1,6 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
+import { useRef } from "react";
 
 import { OrganizationDetailModal } from "@/components/clubs/OrganizationDetailModal";
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
@@ -22,6 +23,7 @@ import type { useMarketplace } from "@/hooks/useMarketplace";
 import type { OrganizationsState } from "@/hooks/useOrganizations";
 import type { ProfilesState } from "@/hooks/useProfiles";
 import type { MintzState } from "@/hooks/useMintz";
+import { useModalLayer } from "@/hooks/useModalLayer";
 import type { MarketplacePermissionMode } from "@/lib/marketplacePermissions";
 import { canViewMarketplace } from "@/lib/marketplacePermissions";
 import {
@@ -80,25 +82,36 @@ function DiscoveryDetailOverlay({
   backLabel?: string;
   children: React.ReactNode;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalLayer(dialogRef, onClose);
+
   if (typeof document === "undefined") return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[110] overflow-y-auto bg-slate-950/55 p-3 backdrop-blur-sm sm:p-6"
+      className="cm-overlay-backdrop fixed inset-0 z-[110] overflow-y-auto bg-slate-950/55 p-3 backdrop-blur-sm sm:p-6"
       data-horizontal-gesture-ignore
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="mx-auto my-2 max-w-6xl">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        tabIndex={-1}
+        className="cm-panel-sheet mx-auto my-2 max-w-6xl"
+      >
         <MintLeafBackButton
           onClick={onClose}
+          data-initial-focus
           label={backLabel}
           tone="inverse"
           className="mb-3 focus-visible:outline-white"
         />
-        <div aria-label={label}>{children}</div>
+        <div>{children}</div>
       </div>
     </div>,
     document.body,

@@ -270,7 +270,7 @@ export function StudentEmailOnboarding({
     }
 
     return (
-      <main className="min-h-dvh bg-white px-5 py-10 text-slate-950">
+      <main className="cm-onboarding-scene min-h-dvh bg-white px-5 py-10 text-slate-950">
         <div className="mx-auto w-full max-w-md py-8">
           <MintLeafBackButton
             onClick={() => {
@@ -397,7 +397,7 @@ export function StudentEmailOnboarding({
       usernameValid;
 
     return (
-      <main className="min-h-dvh bg-white px-5 py-10 text-slate-950">
+      <main className="cm-onboarding-scene min-h-dvh bg-white px-5 py-10 text-slate-950">
         <div className="mx-auto w-full max-w-md py-8">
           <MintLeafBackButton
             onClick={() => setProfileSetupOpen(false)}
@@ -710,7 +710,7 @@ export function StudentEmailOnboarding({
       !normalizedPersonalEmail.endsWith(".edu");
 
     return (
-      <main className="min-h-dvh bg-white px-5 py-10 text-slate-950">
+      <main className="cm-onboarding-scene min-h-dvh bg-white px-5 py-10 text-slate-950">
         <div className="mx-auto flex min-h-[calc(100dvh-5rem)] w-full max-w-md flex-col justify-center">
           <p className="text-sm font-bold uppercase tracking-[0.22em] text-slate-400">
             The Campus Mint
@@ -844,7 +844,7 @@ export function StudentEmailOnboarding({
       verificationChallenge.challenge;
 
     return (
-      <main className="min-h-dvh bg-white px-5 py-10 text-slate-950">
+      <main className="cm-onboarding-scene min-h-dvh bg-white px-5 py-10 text-slate-950">
         <div className="mx-auto flex min-h-[calc(100dvh-5rem)] w-full max-w-md flex-col justify-center">
           <TactileButton
             type="button"
@@ -970,7 +970,7 @@ export function StudentEmailOnboarding({
   }
 
   return (
-    <main className="min-h-dvh bg-white px-5 py-10 text-slate-950">
+    <main className="cm-onboarding-scene min-h-dvh bg-white px-5 py-10 text-slate-950">
       <div className="mx-auto flex min-h-[calc(100dvh-5rem)] w-full max-w-md flex-col justify-center">
         <div>
           <p className="text-sm font-bold uppercase tracking-[0.22em] text-slate-400">

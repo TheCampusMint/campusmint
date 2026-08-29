@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -15,6 +16,8 @@ import {
   getAccountUniversityShortName,
 } from "@/data/universities";
 import type { MintzState } from "@/hooks/useMintz";
+import { useModalLayer } from "@/hooks/useModalLayer";
+import { motion } from "@/lib/motion/interaction";
 import {
   createMintPermissionContext,
   type MintFeedState,
@@ -113,6 +116,20 @@ export function FullscreenVideoViewer({
   onClose,
 }: FullscreenVideoViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const [closing, setClosing] = useState(false);
+
+  const requestClose = useCallback(() => {
+    if (closing) return;
+    setClosing(true);
+    closeTimerRef.current = window.setTimeout(
+      onClose,
+      reducedMotion ? 0 : motion.duration.fast,
+    );
+  }, [closing, onClose, reducedMotion]);
+
+  useModalLayer(dialogRef, requestClose);
 
   const entries = useMemo(() => {
     const usersById = new Map(
@@ -143,9 +160,6 @@ export function FullscreenVideoViewer({
   const [commentsEntry, setCommentsEntry] = useState<VideoEntry | null>(null);
 
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
     const frame = window.requestAnimationFrame(() => {
       const container = scrollRef.current;
       if (!container) return;
@@ -156,18 +170,13 @@ export function FullscreenVideoViewer({
       });
     });
 
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-
-    window.addEventListener("keydown", closeOnEscape);
-
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener("keydown", closeOnEscape);
-      document.body.style.overflow = previousOverflow;
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+      }
     };
-  }, [onClose, requestedIndex]);
+  }, [requestedIndex]);
 
   function updateActiveVideo(event: UIEvent<HTMLDivElement>) {
     const height = event.currentTarget.clientHeight;
@@ -223,7 +232,11 @@ export function FullscreenVideoViewer({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] bg-black text-white"
+      ref={dialogRef}
+      tabIndex={-1}
+      className={`cm-search-layer fixed inset-0 z-[100] bg-black text-white ${
+        closing ? "is-closing" : ""
+      }`}
       role="dialog"
       aria-modal="true"
       aria-label="Campus Mint video viewer"
@@ -231,7 +244,8 @@ export function FullscreenVideoViewer({
     >
       <button
         type="button"
-        onClick={onClose}
+        onClick={requestClose}
+        data-initial-focus
         aria-label="Close video viewer"
         className="interactive-pop fixed left-[max(0.85rem,env(safe-area-inset-left))] top-[max(0.85rem,env(safe-area-inset-top))] z-[115] flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-2xl font-light text-white shadow-lg backdrop-blur-md"
       >
@@ -242,10 +256,7 @@ export function FullscreenVideoViewer({
         ref={scrollRef}
         onScroll={updateActiveVideo}
         className="h-dvh snap-y snap-mandatory overflow-y-auto overscroll-y-contain"
-        style={{
-          scrollBehavior: reducedMotion ? "auto" : "smooth",
-          WebkitOverflowScrolling: "touch",
-        }}
+        style={{ WebkitOverflowScrolling: "touch" }}
       >
         {entries.map((entry, index) => {
           const permissionContext = createMintPermissionContext(

@@ -133,6 +133,8 @@ export function MintCard(props: MintCardProps) {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [attendeesOpen, setAttendeesOpen] = useState(false);
   const [likePulse, setLikePulse] = useState(0);
+  const [savePulse, setSavePulse] = useState(0);
+  const [repostPulse, setRepostPulse] = useState(0);
   const [captionDraft, setCaptionDraft] = useState(mint.caption);
   const ownMint = viewer.account.id === mint.authorId;
   const organization = getOrganizationById(mint.organizationId);
@@ -160,6 +162,16 @@ export function MintCard(props: MintCardProps) {
   function toggleLike() {
     setLikePulse((current) => current + 1);
     props.onToggleLike();
+  }
+
+  function toggleSave() {
+    setSavePulse((current) => current + 1);
+    props.onToggleSave();
+  }
+
+  function toggleRepost() {
+    setRepostPulse((current) => current + 1);
+    props.onToggleRepost();
   }
 
   async function shareMint() {
@@ -249,7 +261,7 @@ export function MintCard(props: MintCardProps) {
             )}
           </div>
           {attendeesOpen && mint.postType === "event" && (
-            <div className="absolute bottom-4 left-3 rounded-full bg-slate-950/65 px-3 py-2 text-xs font-bold text-white shadow-lg backdrop-blur-md sm:bottom-5 sm:left-4">
+            <div className="cm-notice absolute bottom-4 left-3 rounded-full bg-slate-950/65 px-3 py-2 text-xs font-bold text-white shadow-lg backdrop-blur-md sm:bottom-5 sm:left-4">
               {attendeeCount} attending
             </div>
           )}
@@ -265,13 +277,13 @@ export function MintCard(props: MintCardProps) {
           {(mint.location || mint.music) && <div className="mt-3 space-y-1 text-xs text-slate-500">{mint.location && <p>⌖ {mint.location.label}</p>}{mint.music && <p>♫ {mint.music.trackTitle} — {mint.music.artist}</p>}</div>}
 
           <div className="mt-3 flex items-center justify-between pt-2.5 text-xs sm:mt-4 sm:pt-3">
-            <p className="font-semibold text-slate-500">{canShowLikeCount ? `${mint.likeCount} ${mint.likeCount === 1 ? "like" : "likes"}` : "Likes private"} · {mint.commentCount} {mint.commentCount === 1 ? "comment" : "comments"}</p>
+            <p className="whitespace-nowrap font-semibold tabular-nums text-slate-500">{canShowLikeCount ? `${mint.likeCount} ${mint.likeCount === 1 ? "like" : "likes"}` : "Likes private"} · {mint.commentCount} {mint.commentCount === 1 ? "comment" : "comments"}</p>
             <div className="flex gap-1">
               <button
 
                 type="button"
 
-                onClick={props.onToggleRepost}
+                onClick={toggleRepost}
 
                 aria-pressed={props.reposted}
 
@@ -289,29 +301,40 @@ export function MintCard(props: MintCardProps) {
 
               >
 
-                <RepostGlyph />
+                <span
+                  key={repostPulse}
+                  className={repostPulse > 0 ? "cm-repost-flow" : ""}
+                >
+                  <RepostGlyph />
+                </span>
 
               </button>
 
               <button
                 type="button"
-                onClick={props.onToggleSave}
+                onClick={toggleSave}
+                aria-pressed={props.saved}
                 aria-label={props.saved ? "Unsave Mint" : "Save Mint"}
                 title={props.saved ? "Saved" : "Save"}
                 className="interactive-pop flex h-10 w-10 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-5 w-5"
-                  fill={props.saved ? "currentColor" : "none"}
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
+                <span
+                  key={savePulse}
+                  className={savePulse > 0 ? "cm-save-pop" : ""}
                 >
-                  <path d="M6 3.5h12v17l-6-4-6 4v-17Z" />
-                </svg>
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-5 w-5"
+                    fill={props.saved ? "currentColor" : "none"}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 3.5h12v17l-6-4-6 4v-17Z" />
+                  </svg>
+                </span>
               </button>
 
               <button

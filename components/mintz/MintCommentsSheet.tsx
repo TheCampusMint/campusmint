@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import type { UniversityTheme } from "@/data/universities";
+import { useModalLayer } from "@/hooks/useModalLayer";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import type { MintComment } from "@/types/mint";
 import type { CampusMintUser } from "@/types/profile";
@@ -29,6 +30,7 @@ export function MintCommentsSheet({ comments, users, viewer, theme, currentTime,
   const closingRef = useRef(false);
   const onCloseRef = useRef(onClose);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -41,6 +43,8 @@ export function MintCommentsSheet({ comments, users, viewer, theme, currentTime,
     closeTimer.current = window.setTimeout(() => onCloseRef.current(), reducedMotion ? 0 : 190);
   }, [reducedMotion]);
 
+  useModalLayer(dialogRef, requestClose);
+
   function submit(event: FormEvent) {
     event.preventDefault();
     const trimmed = body.trim();
@@ -52,20 +56,15 @@ export function MintCommentsSheet({ comments, users, viewer, theme, currentTime,
 
   useEffect(() => {
     const timer = window.setTimeout(() => inputRef.current?.focus(), reducedMotion ? 0 : 240);
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") requestClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
     return () => {
       window.clearTimeout(timer);
       if (closeTimer.current) window.clearTimeout(closeTimer.current);
-      window.removeEventListener("keydown", onKeyDown);
     };
-  }, [reducedMotion, requestClose]);
+  }, [reducedMotion]);
 
   return (
     <div className={`comment-backdrop fixed inset-0 ${layerClassName} flex items-end justify-center bg-slate-950/42 backdrop-blur-sm sm:items-center sm:p-5 ${closing ? "is-closing" : ""}`} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
-      <section className={`comment-sheet flex max-h-[82dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-[2.75rem] border border-slate-200 bg-white shadow-2xl sm:max-h-[72dvh] sm:rounded-[2.75rem] ${closing ? "is-closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="comments-title">
+      <section ref={dialogRef} tabIndex={-1} className={`comment-sheet flex max-h-[82dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-[2.75rem] border border-slate-200 bg-white shadow-2xl sm:max-h-[72dvh] sm:rounded-[2.75rem] ${closing ? "is-closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="comments-title">
         <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div><p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "var(--app-accent)" }}>Mint conversation</p><h2 id="comments-title" className="text-xl font-black text-slate-950">Comments</h2></div>
           <button type="button" onClick={requestClose} aria-label="Close comments" className="interactive-pop flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-600">×</button>
@@ -77,7 +76,7 @@ export function MintCommentsSheet({ comments, users, viewer, theme, currentTime,
           })}</div>}
         </div>
         <form onSubmit={submit} className="flex gap-2 border-t border-slate-100 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <input ref={inputRef} value={body} onChange={(event) => setBody(event.target.value)} placeholder="Add a comment" aria-label="Add a comment" className="min-w-0 flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] sm:text-sm" />
+          <input ref={inputRef} data-initial-focus value={body} onChange={(event) => setBody(event.target.value)} placeholder="Add a comment" aria-label="Add a comment" className="min-w-0 flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] sm:text-sm" />
           <button type="submit" disabled={!body.trim()} className="interactive-pop rounded-full px-5 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-40" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>Post</button>
         </form>
       </section>

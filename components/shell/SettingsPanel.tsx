@@ -13,6 +13,7 @@ import { getUserRoleLabel } from "@/data/userRoles";
 import type { UniversityTheme } from "@/data/universities";
 import type { AppPreferencesState } from "@/hooks/useAppPreferences";
 import type { ProfilesState } from "@/hooks/useProfiles";
+import { useModalLayer } from "@/hooks/useModalLayer";
 import { InfoRow, SelectRow, ToggleRow } from "@/components/shell/SettingsControls";
 import { profileVisibilityOptions, type CampusMintUser, type ProfilePrivacyField, type ProfileVisibility } from "@/types/profile";
 import type { AppearanceMode, ContentPreferences, NotificationPreferences } from "@/types/preferences";
@@ -61,6 +62,7 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
   const [closing, setClosing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const closeTimer = useRef<number | null>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const closingRef = useRef(false);
   const categoryTouchRef = useRef<{
     x: number;
@@ -89,20 +91,15 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
     closeTimer.current = window.setTimeout(() => onCloseRef.current(), preferences.content.reducedMotion ? 0 : 220);
   }, [preferences.content.reducedMotion]);
 
+  useModalLayer(dialogRef, requestClose);
+
   function updatePrivacy(field: ProfilePrivacyField, value: string) {
     profiles.updateCurrentPrivacy({ [field]: value as ProfileVisibility });
   }
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") requestClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      if (closeTimer.current) window.clearTimeout(closeTimer.current);
-    };
-  }, [requestClose]);
+  useEffect(() => () => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+  }, []);
 
   function selectCategory(next: SettingsCategory) {
     const currentIndex = categories.findIndex(
@@ -244,10 +241,10 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
 
   return (
     <div className={`settings-backdrop fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/42 backdrop-blur-sm sm:items-center sm:p-5 ${closing ? "is-closing" : ""}`} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="settings-title" className={`settings-sheet flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:max-h-[84dvh] sm:rounded-[2rem] ${closing ? "is-closing" : ""}`}>
+      <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="settings-title" className={`settings-sheet flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:max-h-[84dvh] sm:rounded-[2rem] ${closing ? "is-closing" : ""}`}>
         <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
           <div><p className="text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: "var(--app-accent)" }}>Campus Mint</p><h2 id="settings-title" className="text-xl font-black text-slate-950">Settings</h2></div>
-          <button type="button" onClick={requestClose} aria-label="Close settings" className="interactive-pop flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-600">×</button>
+          <button type="button" data-initial-focus onClick={requestClose} aria-label="Close settings" className="interactive-pop flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-600">×</button>
         </div>
         <div className="flex gap-2 overflow-x-auto border-b border-slate-100 px-4 py-3 sm:px-6" aria-label="Settings categories">
           {categories.map((category) => <button key={category.id} type="button" onClick={() => selectCategory(category.id)} data-static-control aria-pressed={activeCategory === category.id} className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border px-3 py-2 text-center text-xs font-black transition" style={activeCategory === category.id ? { backgroundColor: "var(--app-accent)", borderColor: "var(--app-accent)", color: "var(--app-accent-contrast)" } : { borderColor: "var(--app-border)", color: "var(--app-text-secondary)" }}>{category.label}</button>)}

@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  useLayoutEffect,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -26,11 +28,18 @@ export function DirectMintThread({
   compact = false,
 }: DirectMintThreadProps) {
   const [draft, setDraft] = useState("");
+  const messagesRef = useRef<HTMLDivElement>(null);
 
   const messages =
     directMint.messagesFor(
       otherUser.account.id,
     );
+
+  useLayoutEffect(() => {
+    const container = messagesRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+  }, [messages.length, otherUser.account.id]);
 
   function submit(
     event: FormEvent<HTMLFormElement>,
@@ -73,7 +82,7 @@ export function DirectMintThread({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4">
+      <div ref={messagesRef} aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4">
         {messages.length === 0 ? (
           <div className="m-auto max-w-xs text-center">
             <p className="text-sm font-bold text-slate-700">
@@ -93,7 +102,7 @@ export function DirectMintThread({
             return (
               <div
                 key={message.id}
-                className={`flex ${
+                className={`cm-message-enter flex ${
                   own
                     ? "justify-end"
                     : "justify-start"

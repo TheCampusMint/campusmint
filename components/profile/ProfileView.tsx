@@ -277,9 +277,9 @@ export function ProfileView({
                         }
                   }
                 >
-                  {following
-                    ? "Following"
-                    : "Follow"}
+                  <span key={following ? "following" : "follow"} className="cm-state-pop">
+                    {following ? "Following" : "Follow"}
+                  </span>
                 </button>
 
                 <button
@@ -317,7 +317,7 @@ export function ProfileView({
           {clubInviteOpen &&
             !isOwnProfile &&
             clubInviteOptions.length > 0 && (
-              <div className="mx-auto mt-4 max-w-md rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="cm-popover-surface mx-auto mt-4 max-w-md rounded-2xl border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs font-black uppercase tracking-wide text-slate-500">
                   Invite to club
                 </p>
@@ -571,7 +571,7 @@ export function ProfileView({
             </div>
 
             {reportOpen && (
-              <div className="mt-4 w-full max-w-md space-y-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="cm-popover-surface mt-4 w-full max-w-md space-y-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                 <select
                   value={reportReason}
                   onChange={(event) =>

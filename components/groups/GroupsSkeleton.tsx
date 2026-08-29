@@ -56,7 +56,7 @@ function GroupCard({
       : group.memberCount + (status === "member" ? 1 : 0);
 
   return (
-    <article className="cm-surface-card flex h-full flex-col p-5">
+    <article className="cm-surface-card cm-interactive-card flex h-full flex-col p-5">
       <div className="flex items-start justify-between gap-3">
         <span
           className="flex h-12 w-12 items-center justify-center rounded-2xl text-lg font-black"
@@ -110,15 +110,17 @@ function GroupCard({
               : undefined
           }
         >
-          {status === "member"
-            ? "Leave"
-            : status === "requested"
-              ? "Requested"
-              : group.access === "open"
-                ? "Join"
-                : group.access === "request"
-                  ? "Request"
-                  : "Restricted"}
+          <span key={status} className="cm-state-pop">
+            {status === "member"
+              ? "Leave"
+              : status === "requested"
+                ? "Requested"
+                : group.access === "open"
+                  ? "Join"
+                  : group.access === "request"
+                    ? "Request"
+                    : "Restricted"}
+          </span>
         </button>
       </div>
     </article>
@@ -146,7 +148,7 @@ function OrganizationGroupCard({
     organization.membershipType === "restricted";
 
   return (
-    <article className="cm-surface-card flex h-full flex-col p-5">
+    <article className="cm-surface-card cm-interactive-card flex h-full flex-col p-5">
       <div className="flex items-start justify-between gap-3">
         <span
           className="flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black"
@@ -197,15 +199,17 @@ function OrganizationGroupCard({
               : undefined
           }
         >
-          {joined
-            ? "Leave club"
-            : status === "requested"
-              ? "Requested"
-              : organization.membershipType === "open"
-                ? "Join club"
-                : organization.membershipType === "application"
-                  ? "Request"
-                  : "Restricted"}
+          <span key={status} className="cm-state-pop">
+            {joined
+              ? "Leave club"
+              : status === "requested"
+                ? "Requested"
+                : organization.membershipType === "open"
+                  ? "Join club"
+                  : organization.membershipType === "application"
+                    ? "Request"
+                    : "Restricted"}
+          </span>
         </button>
       </div>
     </article>
@@ -413,6 +417,7 @@ export function GroupsSkeleton({
         </div>
       )}
 
+      <div key={`${view}:${category}`} className="cm-content-swap">
       {!configuredUniversityId ? (
         <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-9 text-center">
           <h2 className="font-black text-slate-900">Groups are not configured yet</h2>
@@ -491,6 +496,7 @@ export function GroupsSkeleton({
           </p>
         </div>
       )}
+      </div>
 
       <section className="rounded-3xl bg-slate-950 p-5 text-white">
         <p className="cm-eyebrow text-amber-300">

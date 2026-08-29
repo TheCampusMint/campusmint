@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 
 import { MarketplacePhotoPlaceholder } from "@/components/marketplace/MarketplacePhotoPlaceholder";
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 import { getCampusNetwork } from "@/data/campusNetworks";
 import { universities, type UniversityTheme } from "@/data/universities";
 import type { MarketplaceListing, MarketplaceListingStatus, MarketplaceMessage, MarketplaceOffer, MarketplaceReportReason } from "@/types/marketplace";
+import { useModalLayer } from "@/hooks/useModalLayer";
 
 export type MarketplaceDetailPanel = "none" | "offer" | "message" | "report";
 
@@ -56,6 +57,8 @@ export function MarketplaceDetailModal(props: MarketplaceDetailModalProps) {
   const [reportReason, setReportReason] = useState<MarketplaceReportReason>("prohibited_item");
   const [reportDetails, setReportDetails] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalLayer(dialogRef, props.onClose);
   const ownListing = listing.sellerId === currentUserId;
   const ticket = listing.sportsTicket;
   const campusNetwork = getCampusNetwork(listing.campusNetworkId);
@@ -85,14 +88,14 @@ export function MarketplaceDetailModal(props: MarketplaceDetailModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6" role="presentation">
-      <div role="dialog" aria-modal="true" aria-labelledby="marketplace-detail-title" className="mx-auto my-2 max-w-6xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+    <div className="cm-overlay-backdrop fixed inset-0 z-[100] overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) props.onClose(); }}>
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="marketplace-detail-title" className="cm-panel-sheet mx-auto my-2 max-w-6xl overflow-hidden rounded-3xl bg-white shadow-2xl">
         <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-7">
           <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase text-amber-800">Development listing</span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase text-slate-700">{statusLabel(listing.status)}</span><span className="text-xs text-slate-500">No real seller or item</span></div>
           {props.closeLabel ? (
-            <MintLeafBackButton onClick={props.onClose} label={props.closeLabel} />
+            <MintLeafBackButton data-initial-focus onClick={props.onClose} label={props.closeLabel} />
           ) : (
-            <button type="button" onClick={props.onClose} aria-label="Close" title="Close" className="cm-icon-control flex items-center justify-center border border-slate-200 text-xl text-slate-600">×</button>
+            <button type="button" data-initial-focus onClick={props.onClose} aria-label="Close" title="Close" className="cm-icon-control flex items-center justify-center border border-slate-200 text-xl text-slate-600">×</button>
           )}
         </div>
 

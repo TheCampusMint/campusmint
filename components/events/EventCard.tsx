@@ -23,7 +23,7 @@ export function EventCard({
   const organization = getOrganizationById(event.organizationId);
 
   return (
-    <article className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <article className="cm-interactive-card flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span
           className="rounded-full px-3 py-1 text-xs font-semibold"

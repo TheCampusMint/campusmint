@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 
 import { ClubChatPlaceholder } from "@/components/clubs/ClubChatPlaceholder";
@@ -18,6 +18,7 @@ import type {
   OrganizationOfficer,
 } from "@/types/organization";
 import type { CampusMintUser } from "@/types/profile";
+import { useModalLayer } from "@/hooks/useModalLayer";
 import type { ProfilesState } from "@/hooks/useProfiles";
 import type { Story } from "@/types/story";
 
@@ -90,14 +91,16 @@ export function OrganizationDetailModal({
   onOpenProfile,
 }: OrganizationDetailModalProps) {
   const [messageFeedback, setMessageFeedback] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalLayer(dialogRef, onClose);
   const campusNetwork = organization.campusNetworkId ? getCampusNetwork(organization.campusNetworkId) : null;
   const membershipDisabled = !membershipAllowed || (membershipStatus === "none"
     && (organization.membershipType === "invitation" || organization.membershipType === "restricted"));
   const initials = organization.name.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6" role="presentation">
-      <div role="dialog" aria-modal="true" aria-labelledby="organization-detail-title" className="mx-auto my-2 max-w-6xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+    <div className="cm-overlay-backdrop fixed inset-0 z-[100] overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="organization-detail-title" className="cm-panel-sheet mx-auto my-2 max-w-6xl overflow-hidden rounded-3xl bg-white shadow-2xl">
         <header className="relative overflow-hidden p-6 sm:p-8" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}dd)`, color: theme.secondary }}>
           <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full border-[32px] opacity-10" style={{ borderColor: theme.secondary }} />
           <div className="relative flex items-start justify-between gap-4">
@@ -111,9 +114,9 @@ export function OrganizationDetailModal({
               </div>
             </div>
             {closeLabel === "Close" ? (
-              <button type="button" onClick={onClose} aria-label="Close" title="Close" className="cm-icon-control relative flex items-center justify-center border border-white/30 bg-white/10 text-xl text-white">×</button>
+              <button type="button" data-initial-focus onClick={onClose} aria-label="Close" title="Close" className="cm-icon-control relative flex items-center justify-center border border-white/30 bg-white/10 text-xl text-white">×</button>
             ) : (
-              <MintLeafBackButton onClick={onClose} label={closeLabel} tone="inverse" className="relative" />
+              <MintLeafBackButton data-initial-focus onClick={onClose} label={closeLabel} tone="inverse" className="relative" />
             )}
           </div>
         </header>

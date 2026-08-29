@@ -49,7 +49,7 @@ export function OrganizationCard({
   const initials = organization.name.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
 
   return (
-    <article className="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+    <article className="cm-interactive-card flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
       <div className="h-2" style={{ backgroundColor: theme.primary }} />
       <div className="flex flex-1 flex-col p-5 sm:p-6">
         <div className="flex items-start gap-4">
@@ -73,7 +73,7 @@ export function OrganizationCard({
 
         <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
           <button type="button" onClick={() => onView(organization.id)} className="rounded-xl border px-3 py-2.5 text-sm font-bold" style={{ borderColor: theme.primary, color: theme.primary }}>View Club</button>
-          <button type="button" disabled={membershipDisabled} onClick={() => onMembershipAction(organization)} className="rounded-xl px-3 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500" style={!membershipDisabled ? { backgroundColor: theme.primary, color: theme.secondary } : undefined}>{membershipButtonLabel(organization, membershipStatus, membershipAllowed)}</button>
+          <button type="button" disabled={membershipDisabled} onClick={() => onMembershipAction(organization)} className="rounded-xl px-3 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500" style={!membershipDisabled ? { backgroundColor: theme.primary, color: theme.secondary } : undefined}><span key={membershipStatus} className="cm-state-pop">{membershipButtonLabel(organization, membershipStatus, membershipAllowed)}</span></button>
         </div>
       </div>
     </article>

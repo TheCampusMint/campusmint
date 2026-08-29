@@ -51,7 +51,7 @@ export function MarketplaceCard({ listing, saved, theme, onOpen, onToggleSaved }
 
   if (ticket) {
     return (
-      <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <article className="cm-interactive-card overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <button type="button" onClick={() => onOpen(listing.id)} className="block w-full text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px]" style={{ outlineColor: theme.primary }}>
           <div className="relative aspect-[16/8] overflow-hidden"><ListingPhoto listing={listing} /></div>
           <div className="p-5">
@@ -84,7 +84,7 @@ export function MarketplaceCard({ listing, saved, theme, onOpen, onToggleSaved }
   }
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+    <article className="cm-interactive-card group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="relative aspect-[4/3] overflow-hidden">
         <ListingPhoto listing={listing} />
         <button type="button" aria-label={saved ? `Remove ${listing.title} from saved` : `Save ${listing.title}`} aria-pressed={saved} onClick={() => onToggleSaved(listing.id)} className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/95 text-xl shadow-sm" style={{ color: saved ? theme.primary : "#64748b" }}>

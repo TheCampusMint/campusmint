@@ -50,6 +50,7 @@ import { useMarketplace } from "@/hooks/useMarketplace";
 import { useMintz } from "@/hooks/useMintz";
 import { useOrganizations } from "@/hooks/useOrganizations";
 import { useProfiles } from "@/hooks/useProfiles";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useStories } from "@/hooks/useStories";
 import { canJoinOrganization } from "@/lib/organizationPermissions";
 import {
@@ -57,6 +58,12 @@ import {
   type LocalMintMediaSelection,
 } from "@/lib/content/localMintMedia";
 import { SectionMemory } from "@/lib/navigation/sectionMemory";
+import {
+  initialNotchScrollState,
+  motion,
+  resolveGestureAxis,
+  updateNotchScrollState,
+} from "@/lib/motion/interaction";
 import {
   initialUnifiedSearchState,
   migrateUnifiedSearchCategory,
@@ -87,8 +94,8 @@ const navigation = [...dailyNavigation, ...secondaryNavigation];
 const sectionSequence: SwipeSection[] = navigation.map((item) => item.id);
 const SECTION_COUNT = sectionSequence.length;
 const INITIAL_MINT_INDEX = sectionSequence.indexOf("mint");
-const HORIZONTAL_SNAP_MS = 460;
-const MINT_HOME_SWEEP_MS = 460;
+const HORIZONTAL_SNAP_MS = motion.duration.settle;
+const MINT_HOME_SWEEP_MS = motion.duration.settle;
 const ACTIVE_SECTION_STORAGE_KEY =
   "campusmint:active-section:v1";
 
@@ -191,8 +198,10 @@ export function CampusAppShell() {
   const profileReturnScrollRef = useRef(0);
   const specialScrollPositionsRef = useRef(new Map<string, number>());
   const scrollOwnerSectionRef = useRef<SwipeSection | null>(null);
+  const notchScrollStateRef = useRef(initialNotchScrollState);
   const [specialPageLeaving, setSpecialPageLeaving] =
     useState(false);
+  const [notchCollapsed, setNotchCollapsed] = useState(false);
 
   const marketplace = useMarketplace();
   const mintz = useMintz();
@@ -204,6 +213,9 @@ export function CampusAppShell() {
   const profiles = useProfiles();
   const stories = useStories();
   const preferenceState = useAppPreferences();
+  const reducedMotion = useReducedMotion(
+    preferenceState.preferences.content.reducedMotion,
+  );
 
   useEffect(() => {
     if (
@@ -276,7 +288,14 @@ export function CampusAppShell() {
 
       animationFrame = window.requestAnimationFrame(() => {
         animationFrame = null;
-        setViewportScrollY(window.scrollY);
+        const next = updateNotchScrollState(
+          notchScrollStateRef.current,
+          window.scrollY,
+        );
+        notchScrollStateRef.current = next;
+        setNotchCollapsed((current) =>
+          current === next.collapsed ? current : next.collapsed,
+        );
       });
     };
 
@@ -579,8 +598,7 @@ export function CampusAppShell() {
     };
 
     if (
-      preferenceState.preferences.content
-        .reducedMotion
+      reducedMotion
     ) {
       finish();
       return;
@@ -588,7 +606,7 @@ export function CampusAppShell() {
 
     setSpecialPageLeaving(true);
 
-    window.setTimeout(finish, 460);
+    window.setTimeout(finish, motion.duration.fast);
   }
 
   function goBackFromProfile() {
@@ -625,16 +643,13 @@ export function CampusAppShell() {
       restoreWindowScroll(0);
     };
 
-    if (
-      preferenceState.preferences.content
-        .reducedMotion
-    ) {
+    if (reducedMotion) {
       finish();
       return;
     }
 
     setSpecialPageLeaving(true);
-    window.setTimeout(finish, 460);
+    window.setTimeout(finish, motion.duration.fast);
   }
 
   function openDirectMintFromSearch(userId: string) {
@@ -764,7 +779,7 @@ export function CampusAppShell() {
         ?.scrollTo({
           top: 0,
           behavior:
-            preferenceState.preferences.content.reducedMotion
+            reducedMotion
               ? "auto"
               : "smooth",
         });
@@ -783,7 +798,7 @@ export function CampusAppShell() {
       nearestVirtualIndex(startingIndex, mintIndex);
 
     if (
-      preferenceState.preferences.content.reducedMotion ||
+      reducedMotion ||
       destination === startingIndex
     ) {
       setMintSweepProgress(null);
@@ -834,7 +849,7 @@ export function CampusAppShell() {
     if (specialSection === "profile") {
       captureSpecialPageScroll();
       if (
-        preferenceState.preferences.content.reducedMotion
+        reducedMotion
       ) {
         setSpecialSection(null);
         setSpecialPageLeaving(false);
@@ -931,7 +946,7 @@ export function CampusAppShell() {
     const destinationSection =
       sectionSequence[mod(destinationIndex, SECTION_COUNT)] ?? "mint";
 
-    if (preferenceState.preferences.content.reducedMotion) {
+    if (reducedMotion) {
       if (target < 0) {
         setNavIndex((current) => current + 1);
       } else if (target > 0) {
@@ -1003,6 +1018,7 @@ export function CampusAppShell() {
     }
 
     captureCurrentMainScroll();
+    setViewportScrollY(window.scrollY);
 
     pageDragRef.current = {
       pointerId: event.pointerId,
@@ -1023,9 +1039,9 @@ export function CampusAppShell() {
     const totalY = event.clientY - drag.startY;
 
     if (drag.axis === "pending") {
-      if (Math.max(Math.abs(totalX), Math.abs(totalY)) < 5) return;
+      const axis = resolveGestureAxis(totalX, totalY);
 
-      if (Math.abs(totalX) > Math.abs(totalY) * 1.08) {
+      if (axis === "horizontal") {
         drag.axis = "horizontal";
         drag.lastX = event.clientX;
         drag.lastTime = event.timeStamp;
@@ -1037,7 +1053,7 @@ export function CampusAppShell() {
         return;
       }
 
-      if (Math.abs(totalY) > Math.abs(totalX) * 1.08) {
+      if (axis === "vertical") {
         drag.axis = "vertical";
         return;
       }
@@ -1131,115 +1147,6 @@ export function CampusAppShell() {
     }
   }
 
-  function findGlobalMotionTarget(target: EventTarget | null) {
-    if (!(target instanceof Element)) return null;
-
-    const control = target.closest(
-      "button:not(:disabled), summary",
-    );
-
-    if (!(control instanceof HTMLElement)) return null;
-
-    // Bottom nav already has its own motion system.
-    if (control.closest("[data-bottom-bubble-nav]")) return null;
-
-    // Feed tabs already use the copied bottom-icon engine.
-    if (control.hasAttribute("data-feed-motion-tab")) return null;
-
-    // EVENT / CLUB floating tabs intentionally stay solid.
-    if (control.hasAttribute("data-static-badge")) return null;
-
-    // Settings category controls keep perfectly stable geometry.
-    if (control.hasAttribute("data-static-control")) return null;
-
-    return control;
-  }
-
-  function resetGlobalMotionTarget(control: HTMLElement) {
-    if (preferenceState.preferences.content.reducedMotion) return;
-
-    control.style.transition =
-      "transform 460ms cubic-bezier(.2,1.5,.3,1), filter 300ms ease, box-shadow 300ms ease";
-
-    control.style.transform =
-      "translate3d(0, 0, 10px) rotateX(0deg) rotateY(0deg) scale(1)";
-  }
-
-  function handleGlobalIconPointerMove(
-    event: PointerEvent<HTMLElement>,
-  ) {
-    if (preferenceState.preferences.content.reducedMotion) return;
-
-    const control = findGlobalMotionTarget(event.target);
-    if (!control) return;
-
-    const bounds = control.getBoundingClientRect();
-
-    const nx =
-      (event.clientX - bounds.left) / Math.max(bounds.width, 1) - 0.5;
-
-    const ny =
-      (event.clientY - bounds.top) / Math.max(bounds.height, 1) - 0.5;
-
-    const x = nx * 6.5;
-    const y = ny * 5;
-    const rotateX = ny * -24;
-    const rotateY = nx * 26;
-
-    control.style.transition =
-      "transform 80ms linear, filter 120ms ease, box-shadow 120ms ease";
-
-    control.style.transformOrigin = "center";
-    control.style.willChange = "transform";
-    control.style.transformStyle = "preserve-3d";
-
-    control.style.transform =
-      `translate3d(${x}px, ${y}px, 16px) ` +
-      `rotateX(${rotateX}deg) ` +
-      `rotateY(${rotateY}deg) scale(1.11)`;
-  }
-
-  function handleGlobalIconPointerDown(
-    event: PointerEvent<HTMLElement>,
-  ) {
-    if (preferenceState.preferences.content.reducedMotion) return;
-
-    const control = findGlobalMotionTarget(event.target);
-    if (!control) return;
-
-    control.style.transition = "transform 80ms linear";
-
-    control.style.transform =
-      "translate3d(0, 1px, 5px) rotateX(8deg) rotateY(0deg) scale(.91)";
-  }
-
-  function handleGlobalIconPointerUp(
-    event: PointerEvent<HTMLElement>,
-  ) {
-    const control = findGlobalMotionTarget(event.target);
-    if (!control) return;
-
-    resetGlobalMotionTarget(control);
-  }
-
-  function handleGlobalIconPointerOut(
-    event: PointerEvent<HTMLElement>,
-  ) {
-    const control = findGlobalMotionTarget(event.target);
-    if (!control) return;
-
-    const nextTarget = event.relatedTarget;
-
-    if (
-      nextTarget instanceof Node &&
-      control.contains(nextTarget)
-    ) {
-      return;
-    }
-
-    resetGlobalMotionTarget(control);
-  }
-
   function refreshMintFeed() {
     const result = sectionMemoryRef.current?.refresh("mint");
     mintz.refreshMintz();
@@ -1267,7 +1174,7 @@ export function CampusAppShell() {
             const organization = getOrganizationById(organizationId);
             if (organization) handleOrganizationMembership(organization);
           }}
-          reducedMotion={preferenceState.preferences.content.reducedMotion}
+          reducedMotion={reducedMotion}
           autoplayVideo={preferenceState.preferences.content.autoplayVideo}
           onFeedChromeChange={setMintHeaderHidden}
           onRefresh={refreshMintFeed}
@@ -1362,7 +1269,10 @@ export function CampusAppShell() {
             : "max-w-5xl px-4 sm:px-6"
         }`}
         style={{
-          transform: `translate3d(0, ${viewportScrollY - rememberedScrollY}px, 0)`,
+          transform:
+            section === currentNavigationSection
+              ? "none"
+              : `translate3d(0, ${viewportScrollY - rememberedScrollY}px, 0)`,
         }}
       >
         <div key={`${section}:${refreshGeneration}`}>
@@ -1510,13 +1420,8 @@ export function CampusAppShell() {
       style={shellStyle}
       data-appearance={preferenceState.preferences.appearance.mode}
       data-reduced-motion={
-        preferenceState.preferences.content.reducedMotion ? "true" : "false"
+        reducedMotion ? "true" : "false"
       }
-      onPointerMoveCapture={handleGlobalIconPointerMove}
-      onPointerDownCapture={handleGlobalIconPointerDown}
-      onPointerUpCapture={handleGlobalIconPointerUp}
-      onPointerCancelCapture={handleGlobalIconPointerUp}
-      onPointerOutCapture={handleGlobalIconPointerOut}
       onTouchStart={beginSearchTouch}
       onTouchEnd={finishSearchTouch}
       onTouchCancel={() => {
@@ -1524,7 +1429,9 @@ export function CampusAppShell() {
       }}
     >
       <TopUtilityBar
-        hidden={activeSection === "mint" && mintHeaderHidden} viewer={viewer}
+        hidden={activeSection === "mint" && mintHeaderHidden}
+        compact={notchCollapsed}
+        viewer={viewer}
         theme={theme}
         onOpenSearch={openSearchOverlay}
         onOpenSettings={() => {
@@ -1613,7 +1520,7 @@ export function CampusAppShell() {
                 swipeProgress * 33.333333
               }%), 0, 0)`,
               transition:
-                preferenceState.preferences.content.reducedMotion ||
+                reducedMotion ||
                 !swipeSettling
                   ? "none"
                   : `transform ${HORIZONTAL_SNAP_MS}ms cubic-bezier(.22,1,.36,1)`,
@@ -1647,10 +1554,10 @@ export function CampusAppShell() {
       <BottomBubbleNav
         activeSection={activeSection}
         navigationSection={currentNavigationSection}
-        scrollY={viewportScrollY}
+        collapsed={notchCollapsed}
         swipeProgress={swipeProgress}
         swipeSettling={swipeSettling}
-        reducedMotion={preferenceState.preferences.content.reducedMotion}
+        reducedMotion={reducedMotion}
         onSelect={selectSection}
         onMintTap={handleMintTap}
         onCreateMint={beginCreateMint}
@@ -1683,7 +1590,7 @@ export function CampusAppShell() {
       )}
 
       {notificationsOpen && (
-        <div className="fixed right-3 top-[4.35rem] z-[70] w-[min(22rem,calc(100vw-1.5rem))] rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-[0_18px_55px_rgba(15,23,42,0.16)] backdrop-blur-xl">
+        <div className="cm-popover-surface fixed right-3 top-[4.35rem] z-[70] w-[min(22rem,calc(100vw-1.5rem))] rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-[0_18px_55px_rgba(15,23,42,0.16)] backdrop-blur-xl">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-black text-slate-950">
               Notifications
