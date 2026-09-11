@@ -1,62 +1,66 @@
 import { NextResponse } from "next/server";
 
-import { getStudentVerificationService } from "@/lib/auth/studentVerificationServer";
+import { isSignupAccountType, normalizeAuthEmail } from "@/lib/auth/accountTypes";
+import { assessStudentEmail } from "@/lib/auth/studentEmail";
+import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig, hasSupabaseServerConfig } from "@/lib/supabase/server";
+import type { EmailOtpVerifyResponse } from "@/types/auth";
 
 export const runtime = "nodejs";
 
-function verificationInputFromBody(body: unknown) {
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("challengeId" in body) ||
-    !("code" in body) ||
-    typeof body.challengeId !== "string" ||
-    typeof body.code !== "string"
-  ) {
-    return null;
-  }
-
-  return {
-    challengeId: body.challengeId,
-    code: body.code,
-  };
+function json(payload: EmailOtpVerifyResponse, status: number) {
+  return NextResponse.json(payload, { status, headers: { "Cache-Control": "private, no-store, max-age=0" } });
 }
 
 export async function POST(request: Request) {
   let body: unknown;
+  try { body = await request.json(); } catch { body = null; }
 
-  try {
-    body = await request.json();
-  } catch {
-    body = null;
+  if (!body || typeof body !== "object" || !("email" in body) || typeof body.email !== "string" || !("code" in body) || typeof body.code !== "string" || !/^\d{6}$/.test(body.code) || !("accountType" in body) || !isSignupAccountType(body.accountType)) {
+    return json({ ok: false, reason: "invalid_request", message: "Enter the six-digit verification code." }, 400);
+  }
+  if (!hasSupabasePublicConfig() || !hasSupabaseServerConfig()) {
+    return json({ ok: false, reason: "auth_unavailable", message: "Email verification is not configured for this environment." }, 503);
   }
 
-  const input = verificationInputFromBody(body);
-
-  if (!input) {
-    return NextResponse.json(
-      {
-        ok: false,
-        reason: "invalid_request",
-        message:
-          "Enter the six-digit verification code.",
-      },
-      {
-        status: 400,
-        headers: { "Cache-Control": "no-store" },
-      },
-    );
+  const email = normalizeAuthEmail(body.email);
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.verifyOtp({ email, token: body.code, type: "email" });
+  if (error || !data.user?.email) {
+    return json({ ok: false, reason: "invalid_or_expired_code", message: "That code is invalid or has expired. Request a new code and try again." }, 400);
   }
 
-  const result =
-    await getStudentVerificationService().verifyCode(
-      input,
-    );
+  const metadataType = data.user.app_metadata?.account_type;
+  if (metadataType && metadataType !== body.accountType) {
+    await supabase.auth.signOut();
+    return json({ ok: false, reason: "invalid_request", message: "This account uses a different sign-in type." }, 400);
+  }
+  if (!metadataType) {
+    const admin = createSupabaseAdminClient();
+    const { error: claimError } = await admin.auth.admin.updateUserById(data.user.id, {
+      app_metadata: { ...data.user.app_metadata, account_type: body.accountType },
+    });
+    if (claimError) {
+      await supabase.auth.signOut();
+      return json({ ok: false, reason: "auth_unavailable", message: "We couldn't finish secure account setup. Please try again." }, 503);
+    }
+  }
 
-  return NextResponse.json(result, {
-    status: result.ok ? 200 : 400,
-    headers: {
-      "Cache-Control": "private, no-store, max-age=0",
-    },
-  });
+  if (body.accountType === "student") {
+    const assessment = assessStudentEmail(email);
+    if (!assessment.ok) {
+      await supabase.auth.signOut();
+      return json({ ok: false, reason: "invalid_request", message: "This student email is not eligible." }, 400);
+    }
+    const now = new Date().toISOString();
+    return json({ ok: true, userId: data.user.id, email, accountType: "student", verifiedStudent: {
+      ...assessment.resolved,
+      mailboxVerificationStatus: "verified",
+      mailboxVerifiedAt: now,
+      mailboxVerificationMethod: "email_otp",
+      verificationChallengeId: data.user.id,
+      assurance: { institutionEligibilityVerified: true, mailboxOwnershipVerified: true, enrollmentVerified: false, identityVerified: false, ageVerified: false },
+    } }, 200);
+  }
+
+  return json({ ok: true, userId: data.user.id, email, accountType: "brand" }, 200);
 }

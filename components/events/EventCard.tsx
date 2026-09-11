@@ -1,5 +1,5 @@
 import type { UniversityTheme } from "@/data/universities";
-import { getOrganizationById } from "@/data/organizations";
+import { CalendarIcon, ClockIcon, LocationIcon } from "@/components/icons/CampusIcons";
 import type { Event } from "@/types/event";
 
 type EventCardProps = {
@@ -9,6 +9,7 @@ type EventCardProps = {
   theme: UniversityTheme;
   onToggleRsvp: (eventId: Event["id"]) => void;
   onOpenDetails?: () => void;
+  currentTime?: number;
 };
 
 export function EventCard({
@@ -18,9 +19,10 @@ export function EventCard({
   theme,
   onToggleRsvp,
   onOpenDetails,
+  currentTime,
 }: EventCardProps) {
   const displayedRsvpCount = event.rsvpCount + (isGoing ? 1 : 0);
-  const organization = getOrganizationById(event.organizationId);
+  const ended = (typeof currentTime === "number" && new Date(event.eventEndAt ?? event.eventStartAt).getTime() <= currentTime) || event.status === "cancelled";
 
   return (
     <article className="cm-interactive-card flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -41,17 +43,17 @@ export function EventCard({
 
       <h3 className="mt-4 text-xl font-bold text-slate-950">{event.title}</h3>
 
-      {organization && <p className="mt-2 text-sm font-semibold" style={{ color: theme.primary }}>Hosted by {organization.name}</p>}
+      {event.organizer && <p className="mt-2 text-sm font-semibold" style={{ color: theme.primary }}>Hosted by {event.organizer}</p>}
 
       <dl className="mt-4 grid gap-3 text-sm text-slate-600">
         <div>
-          <dt className="font-semibold text-slate-800">Date & time</dt>
+          <dt className="flex items-center gap-1.5 font-semibold text-slate-800"><ClockIcon className="h-4 w-4"/>Date &amp; time</dt>
           <dd className="mt-0.5">
             {event.date} · {event.time}
           </dd>
         </div>
         <div>
-          <dt className="font-semibold text-slate-800">Location</dt>
+          <dt className="flex items-center gap-1.5 font-semibold text-slate-800"><LocationIcon className="h-4 w-4"/>Location</dt>
           <dd className="mt-0.5">{event.location}</dd>
         </div>
       </dl>
@@ -64,9 +66,11 @@ export function EventCard({
         {event.audience}
       </p>
 
+      {event.source && <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500"><CalendarIcon className="h-3.5 w-3.5"/><span>{event.authorBrandId ? `${event.sourceTrust === "verified_brand" ? "Verified Brand" : "Brand source"}: ${event.organizer ?? event.source.sourceTitle}` : event.systemGenerated ? `Sourced by Campus Mint from ${event.source.sourceTitle}` : event.source.sourceTitle}</span><a href={event.source.sourceUrl} target="_blank" rel="noreferrer" className="font-bold underline underline-offset-2">Official page</a>{typeof event.distanceFromCampusMiles === "number" && <span>· {event.distanceFromCampusMiles.toFixed(1)} mi from campus</span>}</div>}
+
       <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
         <p className="text-sm font-medium text-slate-600" aria-live="polite">
-          {displayedRsvpCount.toLocaleString("en-US")} going
+          {displayedRsvpCount.toLocaleString("en-US")} attending
         </p>
         <div className="flex items-center gap-2">
           {onOpenDetails && (
@@ -82,6 +86,7 @@ export function EventCard({
           <button
             type="button"
             aria-pressed={isGoing}
+            disabled={ended}
             onClick={() => onToggleRsvp(event.id)}
             className="min-w-24 rounded-xl border px-4 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{
@@ -91,7 +96,7 @@ export function EventCard({
               outlineColor: theme.primary,
             }}
           >
-            {isGoing ? "Going" : "RSVP"}
+            {ended ? "Event ended" : isGoing ? "Attending ✓" : "Attend"}
           </button>
         </div>
       </div>

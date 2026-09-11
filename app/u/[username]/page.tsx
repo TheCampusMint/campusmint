@@ -5,13 +5,15 @@ import { developmentUsers } from "@/data/development/users";
 import { getUserRoleLabel } from "@/data/userRoles";
 import { universities, getAccountUniversityName } from "@/data/universities";
 import { normalizeUsername } from "@/lib/social/usernames";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 
 export function generateStaticParams() {
-  return developmentUsers.map((user) => ({ username: user.profile.usernameNormalized }));
+  return (areDevelopmentFixturesEnabled() ? developmentUsers : []).map((user) => ({ username: user.profile.usernameNormalized }));
 }
 
 export default async function PublicProfileRoute({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
+  if (!areDevelopmentFixturesEnabled()) notFound();
   const profileUser = developmentUsers.find((user) =>
     user.profile.usernameNormalized === normalizeUsername(username));
   if (!profileUser) notFound();

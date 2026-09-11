@@ -4,15 +4,17 @@ import { notFound } from "next/navigation";
 import { developmentOrganizations, getOrganizationByHandle } from "@/data/organizations";
 import { sampleEvents } from "@/data/events";
 import { universities } from "@/data/universities";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 
 export function generateStaticParams() {
-  return developmentOrganizations
+  return (areDevelopmentFixturesEnabled() ? developmentOrganizations : [])
     .filter((organization) => organization.recordStatus === "active")
     .map((organization) => ({ handle: organization.handle }));
 }
 
 export default async function ClubHandlePage({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
+  if (!areDevelopmentFixturesEnabled()) notFound();
   const organization = getOrganizationByHandle(handle);
   if (!organization || organization.recordStatus !== "active") notFound();
   const theme = universities[organization.universityId];

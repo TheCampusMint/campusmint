@@ -7,3 +7,13 @@ export function parseHashtags(input: string) {
     input.split(/[\s,]+/).map(normalizeHashtag).filter(Boolean),
   ));
 }
+
+export function extractHashtagsFromCaption(caption: string) {
+  return Array.from(
+    new Set(
+      Array.from(caption.matchAll(/(?:^|\s)#([a-z0-9_]+)/gi))
+        .map((match) => normalizeHashtag(match[1]))
+        .filter(Boolean),
+    ),
+  );
+}

@@ -5,6 +5,8 @@ export type SportsDataSource = {
   sourceUrl: string;
   season: string;
   verifiedAt: string;
+  lastFetchedAt?: string;
+  staleAfter?: string;
 };
 
 export type SportsTeamIdentity = {

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -12,6 +13,7 @@ import { MintCard } from "@/components/mintz/MintCard";
 import { getOrganizationById } from "@/data/organizations";
 import type { UniversityTheme } from "@/data/universities";
 import type { MintzState } from "@/hooks/useMintz";
+import type { EventMomentsState } from "@/hooks/useEventMoments";
 import type { OrganizationsState } from "@/hooks/useOrganizations";
 import type { ProfilesState } from "@/hooks/useProfiles";
 import { canJoinOrganization } from "@/lib/organizationPermissions";
@@ -19,18 +21,29 @@ import {
   createMintPermissionContext,
   type MintFeedState,
 } from "@/lib/social/mintFeeds";
+import {
+  getCreatorAppreciationMetrics,
+  getPublicEndorsementContext,
+} from "@/lib/social/mintInteractions";
 import type { Mint } from "@/types/mint";
 import type { CampusMintUser } from "@/types/profile";
+import { FEED_REFRESH_THRESHOLD_PX, type MintFeedGeneration } from "@/lib/social/feedGeneration";
+import { rankRelevantEventAttendees } from "@/lib/events/attendingContext";
+import { sampleEvents } from "@/data/events";
 
 type MintFeedListProps = {
   mints: Mint[];
+  generation?: MintFeedGeneration;
   viewer: CampusMintUser;
   theme: UniversityTheme;
   profiles: ProfilesState;
   mintz: MintzState;
+  eventMoments?: EventMomentsState;
+  messageAffinityByUserId?: Readonly<Record<string, number>>;
   organizations: OrganizationsState;
   feedState: MintFeedState;
   onOpenProfile: (userId: string) => void;
+  onMessageUser?: (userId: string) => void;
   onRequestOrganization: (
     organizationId: string,
   ) => void;
@@ -40,17 +53,22 @@ type MintFeedListProps = {
   reducedMotion?: boolean;
   autoplayVideo?: boolean;
   onOpenVideo?: (mintId: string, mediaId: string) => void;
+  surfaceActive?: boolean;
 };
 
 export function MintFeedList({
   mints,
+  generation,
   viewer,
   theme,
   profiles,
   mintz,
+  eventMoments,
+  messageAffinityByUserId,
   organizations,
   feedState,
   onOpenProfile,
+  onMessageUser,
   onRequestOrganization,
   onNotice,
   onFeedChromeChange,
@@ -58,15 +76,65 @@ export function MintFeedList({
   reducedMotion,
   autoplayVideo,
   onOpenVideo,
+  surfaceActive = true,
 }: MintFeedListProps) {
   const feedRef = useRef<HTMLDivElement>(null);
   const pullStartRef = useRef<number | null>(null);
+  const pullModeRef = useRef<"top" | "bottom" | null>(null);
   const refreshHoldTimerRef = useRef<number | null>(null);
   const refreshArmedRef = useRef(false);
   const chromeHiddenRef = useRef(false);
+  const dwellStartsRef = useRef(new Map<string, number>());
+  const dwellVisibleRef = useRef(new Set<string>());
+  const recordDwellRef = useRef(mintz.recordMeaningfulDwell);
 
   const [pullDistance, setPullDistance] =
     useState(0);
+
+  useEffect(() => {
+    recordDwellRef.current = mintz.recordMeaningfulDwell;
+  });
+
+  useEffect(() => {
+    if (!surfaceActive || typeof IntersectionObserver === "undefined") return;
+    const root = feedRef.current;
+    if (!root) return;
+    const dwellStarts = dwellStartsRef.current;
+    const dwellVisible = dwellVisibleRef.current;
+    const flush = (mintId: string) => {
+      const started = dwellStarts.get(mintId);
+      if (started === undefined) return;
+      dwellStarts.delete(mintId);
+      recordDwellRef.current(mintId, performance.now() - started, surfaceActive);
+    };
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const mintId = (entry.target as HTMLElement).dataset.dwellMintId;
+        if (!mintId) continue;
+        const meaningful = entry.isIntersecting && entry.intersectionRatio >= 0.6;
+        if (meaningful) dwellVisible.add(mintId);
+        else dwellVisible.delete(mintId);
+        if (meaningful && document.visibilityState === "visible") {
+          if (!dwellStarts.has(mintId)) dwellStarts.set(mintId, performance.now());
+        } else flush(mintId);
+      }
+    }, { threshold: [0, 0.6, 1] });
+    root.querySelectorAll<HTMLElement>("[data-dwell-mint-id]").forEach((element) => observer.observe(element));
+    const visibilityChanged = () => {
+      if (document.visibilityState === "hidden") {
+        [...dwellStarts.keys()].forEach(flush);
+      } else {
+        dwellVisible.forEach((mintId) => dwellStarts.set(mintId, performance.now()));
+      }
+    };
+    document.addEventListener("visibilitychange", visibilityChanged);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", visibilityChanged);
+      [...dwellStarts.keys()].forEach(flush);
+      dwellVisible.clear();
+    };
+  }, [mints, surfaceActive]);
 
   function clearRefreshHoldTimer() {
     if (refreshHoldTimerRef.current === null) return;
@@ -105,6 +173,7 @@ export function MintFeedList({
   ) {
     clearRefreshHoldTimer();
     refreshArmedRef.current = false;
+    pullModeRef.current = null;
     setPullDistance(0);
 
     if (event.touches.length !== 1) {
@@ -119,6 +188,13 @@ export function MintFeedList({
       return;
     }
 
+    const atBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 3;
+    if (atBottom) {
+      pullModeRef.current = "bottom";
+      pullStartRef.current = event.touches[0].clientY;
+      return;
+    }
+
     // Refresh is only available when the actual page is
     // already back at the very top.
     if (window.scrollY > 2) {
@@ -128,6 +204,7 @@ export function MintFeedList({
 
     pullStartRef.current =
       event.touches[0].clientY;
+    pullModeRef.current = "top";
 
     // A normal immediate downward swipe is Search.
     // Holding first arms pull-to-refresh instead.
@@ -154,6 +231,15 @@ export function MintFeedList({
     const delta =
       event.touches[0].clientY -
       pullStartRef.current;
+
+    if (pullModeRef.current === "bottom") {
+      const upwardDistance = -delta;
+      if (upwardDistance <= 0) return;
+      event.stopPropagation();
+      event.preventDefault();
+      setPullDistance(Math.min(96, upwardDistance * 0.5));
+      return;
+    }
 
     // Movement before the hold finishes means this is the
     // quick pull-down Search gesture, not refresh.
@@ -195,8 +281,8 @@ export function MintFeedList({
       refreshArmedRef.current;
 
     const shouldRefresh =
-      wasArmed &&
-      pullDistance >= 62;
+      (pullModeRef.current === "bottom" && pullDistance >= FEED_REFRESH_THRESHOLD_PX) ||
+      (wasArmed && pullDistance >= FEED_REFRESH_THRESHOLD_PX);
 
     if (wasArmed) {
       event?.stopPropagation();
@@ -204,12 +290,17 @@ export function MintFeedList({
 
     refreshArmedRef.current = false;
     pullStartRef.current = null;
+    pullModeRef.current = null;
     setPullDistance(0);
 
     if (shouldRefresh) {
       onRefresh?.();
     }
   }
+
+  const firstPinnedId = generation?.pinnedMintIds[0] ?? null;
+  const firstOldId = generation?.oldMintIds[0] ?? null;
+  const hasOldPosts = Boolean(generation?.oldMintIds.length);
 
   return (
     <div
@@ -311,10 +402,46 @@ export function MintFeedList({
                     )
                 : undefined;
 
+            const endorsementContext = getPublicEndorsementContext({
+              mintId: item.id,
+              viewerId: viewer.account.id,
+              endorsements: mintz.publicEndorsements,
+              friendships: profiles.friendships,
+              follows: profiles.follows,
+              blocks: profiles.blocks,
+              eligibleUserIds: profiles.users.map((user) => user.account.id),
+            });
+            const friendEndorsementUsers = endorsementContext.userIds.flatMap(
+              (userId) => {
+                const user = profiles.users.find(
+                  (candidate) => candidate.account.id === userId,
+                );
+                return user ? [user] : [];
+              },
+            );
+            const creatorMetrics = getCreatorAppreciationMetrics({
+              mintId: item.id,
+              authorId: item.authorId,
+              viewerId: viewer.account.id,
+              privateAppreciations: mintz.privateAppreciations,
+              publicEndorsements: mintz.publicEndorsements,
+              legacyAggregate: item.likeCount,
+              viewCount: item.viewCount,
+              commentCount: item.commentCount,
+            });
+            const event = item.eventData?.eventId ? sampleEvents.find((candidate) => candidate.id === item.eventData?.eventId) ?? null : null;
+            const attendingUserIds = event ? (eventMoments?.rsvps ?? []).filter((rsvp) => rsvp.eventId === event.id && rsvp.status === "attending").map((rsvp) => rsvp.userId) : [];
+            const attendeeUsers = event ? rankRelevantEventAttendees({ viewer, candidates: profiles.users, attendingUserIds, friendships: profiles.friendships, follows: profiles.follows, blocks: profiles.blocks, messageAffinityByUserId }).map((item) => item.user) : [];
+            const viewerAttending = event ? eventMoments?.isAttending(event.id, viewer.account.id) ?? false : false;
+            const eventEnded = event ? new Date(event.eventEndAt ?? event.eventStartAt).getTime() <= mintz.currentTime || event.status === "cancelled" : false;
+
             return (
+              <Fragment key={item.id}>
+              {item.id === firstPinnedId && <p className="px-2 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Pinned</p>}
+              {generation?.refreshed && item.id === firstOldId && <div className="py-5 text-center"><div aria-label="You're all caught up" className="text-sm font-black text-slate-700"><span aria-hidden="true">✓</span><span className="ml-2">You&apos;re all caught up</span></div><p className="mt-4 px-2 text-left text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Old posts</p></div>}
               <div
-                key={item.id}
                 className="flex snap-start snap-always items-start"
+                data-dwell-mint-id={item.id}
                 style={{
                   scrollSnapStop: "always",
                 }}
@@ -338,28 +465,44 @@ export function MintFeedList({
                     permissionContext={
                       permissionContext
                     }
-                    liked={mintz.likes.some(
-                      (like) =>
-                        like.mintId === item.id &&
-                        like.userId ===
-                          viewer.account.id,
+                    privateAppreciated={mintz.privateAppreciations.some(
+                      (appreciation) => appreciation.mintId === item.id && appreciation.userId === viewer.account.id,
                     )}
-                    saved={mintz.saves.some(
-                      (save) =>
-                        save.mintId === item.id &&
-                        save.userId ===
-                          viewer.account.id,
+                    publiclyEndorsed={mintz.publicEndorsements.some(
+                      (endorsement) => endorsement.mintId === item.id && endorsement.userId === viewer.account.id,
                     )}
-                    reposted={mintz.reposts.some(
-                      (repost) =>
-                        repost.mintId === item.id &&
-                        repost.userId ===
+                    friendEndorsementUsers={friendEndorsementUsers}
+                    additionalFriendEndorsementCount={endorsementContext.additionalCount}
+                    creatorAppreciationCount={creatorMetrics?.appreciationCount ?? null}
+                    attendeeUsers={attendeeUsers}
+                    attendeeCount={event ? event.rsvpCount + attendingUserIds.length : null}
+                    attending={viewerAttending}
+                    attendingDisabled={eventEnded}
+                    onToggleAttending={event && !eventEnded && eventMoments ? () => eventMoments.toggleRsvp(event, viewer.account.id) : undefined}
+                    pinned={mintz.pins.some(
+                      (pin) =>
+                        pin.mintId === item.id &&
+                        pin.userId ===
                           viewer.account.id,
                     )}
                     comments={mintz.comments.filter(
                       (comment) =>
                         comment.targetId ===
                         item.id,
+                    )}
+                    likedCommentIds={mintz.commentLikes
+                      .filter((like) => like.userId === viewer.account.id)
+                      .map((like) => like.commentId)}
+                    repostedCommentIds={mintz.commentReposts
+                      .filter((repost) => repost.userId === viewer.account.id)
+                      .map((repost) => repost.commentId)}
+                    hiddenCommentIds={mintz.hiddenCommentIds}
+                    blockedCommentAuthorIds={profiles.blocks.flatMap((block) =>
+                      block.blockerId === viewer.account.id
+                        ? [block.blockedId]
+                        : block.blockedId === viewer.account.id
+                          ? [block.blockerId]
+                          : [],
                     )}
                     organizationMembershipStatus={
                       organizationStatus
@@ -371,24 +514,24 @@ export function MintFeedList({
                       autoplayVideo
                     }
                     onOpenVideo={onOpenVideo}
+                    surfaceActive={surfaceActive}
                     onOrganizationMembershipAction={
                       organizationAction
                     }
                     onOpenProfile={
                       onOpenProfile
                     }
-                    onToggleLike={() =>
-                      mintz.toggleLike(
+                    onMessageUser={onMessageUser ?? onOpenProfile}
+                    onPrivateAppreciation={() =>
+                      mintz.registerPrivateAppreciation(
                         permissionContext,
                       )
                     }
-                    onToggleSave={() =>
-                      mintz.toggleSave(
-                        permissionContext,
-                      )
+                    onTogglePublicEndorsement={() =>
+                      mintz.togglePublicEndorsement(permissionContext)
                     }
-                    onToggleRepost={() =>
-                      mintz.toggleRepost(
+                    onTogglePin={() =>
+                      mintz.togglePin(
                         permissionContext,
                       )
                     }
@@ -408,6 +551,13 @@ export function MintFeedList({
                         body,
                       )
                     }
+                    onToggleCommentLike={(commentId) =>
+                      mintz.toggleCommentLike(permissionContext, commentId)
+                    }
+                    onToggleCommentRepost={(commentId) =>
+                      mintz.toggleCommentRepost(permissionContext, commentId)
+                    }
+                    onHideComment={mintz.hideComment}
                     onDeleteComment={(
                       commentId,
                     ) =>
@@ -461,6 +611,7 @@ export function MintFeedList({
                   />
                 </div>
               </div>
+              </Fragment>
             );
           })
         ) : (
@@ -474,6 +625,8 @@ export function MintFeedList({
             </p>
           </div>
         )}
+        {mints.length > 0 && generation?.refreshed && !hasOldPosts && <div className="px-5 py-9 text-center"><div aria-label="You're all caught up" className="text-sm font-black text-slate-700"><span aria-hidden="true">✓</span><span className="ml-2">You&apos;re all caught up</span></div></div>}
+        {mints.length > 0 && <div className="px-5 pb-24 pt-8 text-center" data-feed-end-state><p className="text-sm font-black text-slate-700">You&apos;re all caught up</p><p className="mt-1 text-xs text-slate-400">{pullDistance >= FEED_REFRESH_THRESHOLD_PX ? "Release to refresh" : pullDistance > 0 ? "Pull up to refresh" : "Pull up to refresh"}</p><button type="button" onClick={onRefresh} className="mt-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600">Refresh feed</button></div>}
       </div>
     </div>
   );

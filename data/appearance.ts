@@ -28,6 +28,19 @@ const sharedSemanticTokens = {
   success: "#047857",
 } as const;
 
+/** Campus Mint product chrome. Campus/team colors remain separate data tokens. */
+export const campusMintBrand = {
+  maroon: "#6f1d2c",
+  maroonStrong: "#511320",
+  maroonSoft: "#f0dfe3",
+  warmBackground: "#f8f3f2",
+  warmSurface: "#fffaf9",
+  warmRaised: "#f3e9e8",
+  ink: "#2a171b",
+  mutedInk: "#725d63",
+  border: "#dfced1",
+} as const;
+
 export const curatedTints: CuratedTint[] = [
   {
     id: "slate",
@@ -86,37 +99,26 @@ export const curatedTints: CuratedTint[] = [
   },
 ];
 
-const lightTokens: AppearanceTokens = {
-  background: "#f6f7fa", surface: "#ffffff", surfaceElevated: "#eef1f5",
-  textPrimary: "#0f172a", textSecondary: "#64748b", border: "#dce2ea",
-  accent: "#334155", accentSoft: "#e2e8f0", accentContrast: "#ffffff",
+export const campusMintLightTokens: AppearanceTokens = {
+  background: campusMintBrand.warmBackground, surface: campusMintBrand.warmSurface, surfaceElevated: campusMintBrand.warmRaised,
+  textPrimary: campusMintBrand.ink, textSecondary: campusMintBrand.mutedInk, border: campusMintBrand.border,
+  accent: campusMintBrand.maroon, accentSoft: campusMintBrand.maroonSoft, accentContrast: "#fffaf9",
   colorScheme: "light", ...sharedSemanticTokens,
 };
 
-const darkTokens: AppearanceTokens = {
-  background: "#0b0e14", surface: "#141922", surfaceElevated: "#1c2330",
-  textPrimary: "#f4f7fb", textSecondary: "#a4afbf", border: "#2b3443",
-  accent: "#b9c4d2", accentSoft: "#273242", accentContrast: "#10151d",
+export const campusMintDarkTokens: AppearanceTokens = {
+  background: "#160f11", surface: "#211719", surfaceElevated: "#2d2023",
+  textPrimary: "#fff8f6", textSecondary: "#cbb9bd", border: "#49363a",
+  accent: "#d37a8c", accentSoft: "#42242b", accentContrast: "#1c1114",
   colorScheme: "dark", danger: "#fb7185", success: "#34d399",
 };
 
 export function getAppearanceTokens(preferences: AppearancePreferences, university: UniversityTheme): AppearanceTokens {
-  if (preferences.mode === "light") return lightTokens;
-  if (preferences.mode === "dark") return darkTokens;
+  if (preferences.mode === "light") return campusMintLightTokens;
+  if (preferences.mode === "dark") return campusMintDarkTokens;
   if (preferences.mode === "curated") {
     return curatedTints.find((tint) => tint.id === preferences.tint)?.tokens ?? curatedTints[0].tokens;
   }
-  return {
-    background: `color-mix(in srgb, ${university.accent} 28%, #f6f7fa)`,
-    surface: "#ffffff",
-    surfaceElevated: `color-mix(in srgb, ${university.accent} 36%, #f3f5f8)`,
-    textPrimary: "#0f172a",
-    textSecondary: "#64748b",
-    border: `color-mix(in srgb, ${university.primary} 14%, #dce2ea)`,
-    accent: university.primary,
-    accentSoft: university.accent,
-    accentContrast: university.secondary,
-    colorScheme: "light",
-    ...sharedSemanticTokens,
-  };
+  void university;
+  return campusMintLightTokens;
 }

@@ -43,13 +43,22 @@ export type ContentLocation = {
   details: string | null;
 };
 
+export type MusicProvider = "development" | "licensed_provider" | "spotify" | "apple_music";
+
+/** Provider-neutral music reference shared by Mintz and Profile Notes. */
 export type MusicMetadata = {
-  provider: "development" | "licensed_provider";
+  id?: string;
+  provider: MusicProvider;
+  providerTrackId?: string | null;
+  providerUrl?: string | null;
+  externalUrl?: string | null;
   trackId: string;
   trackTitle: string;
   artist: string;
+  album?: string | null;
   artworkUrl: string | null;
   previewUrl: string | null;
+  durationMs?: number | null;
 };
 
 /** When eventId exists, canonical Event fields remain the source of truth. */

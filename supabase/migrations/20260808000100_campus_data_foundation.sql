@@ -14,7 +14,6 @@ create type public.data_confidence_level as enum (
 create type public.record_source_type as enum (
   'official_source',
   'community_submission',
-  'development_seed',
   'manual'
 );
 

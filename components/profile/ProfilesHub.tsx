@@ -12,6 +12,7 @@ import {
   developmentOrganizations,
   getOrganizationById,
 } from "@/data/organizations";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import type { UniversityTheme } from "@/data/universities";
 import type { ProfilesState } from "@/hooks/useProfiles";
 import type { MintzState } from "@/hooks/useMintz";
@@ -77,7 +78,7 @@ export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStorie
   const ledOrganizations =
     viewer.account.id === owner.account.id
       ? []
-      : developmentOrganizations.filter((organization) => {
+      : (areDevelopmentFixturesEnabled() ? developmentOrganizations : []).filter((organization) => {
           if (organization.recordStatus !== "active") return false;
 
           const viewerMembership =

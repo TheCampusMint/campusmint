@@ -7,6 +7,7 @@ import {
   developmentOrganizationRoles,
   developmentOrganizations,
 } from "@/data/organizations";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import { normalizeSubmissionDisplay } from "@/lib/campus-data/normalization";
 import {
   findOrganizationHandleConflict,
@@ -34,6 +35,9 @@ import type {
 } from "@/types/organization";
 
 function initialMembershipState(): OrganizationMembershipState {
+  if (!areDevelopmentFixturesEnabled()) {
+    return { memberships: [], conversations: [], conversationParticipants: [] };
+  }
   const conversations = developmentOrganizations.flatMap((organization) =>
     organization.organizationConversationId
       ? [{ id: organization.organizationConversationId, organizationId: organization.id, kind: "organization_group" as const, createdAt: organization.createdAt }]
@@ -183,7 +187,7 @@ export function useOrganizations(currentUserId: string) {
     const handle = normalizeOrganizationHandle(input.handle);
     if (!isValidOrganizationHandle(handle)) return { ok: false, reason: "invalid_handle" };
     const identityRecords: OrganizationIdentityRecord[] = [
-      ...developmentOrganizations.map((organization) => ({
+      ...(areDevelopmentFixturesEnabled() ? developmentOrganizations : []).map((organization) => ({
         id: organization.id,
         universityId: organization.universityId,
         name: organization.name,

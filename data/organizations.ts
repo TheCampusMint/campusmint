@@ -1,6 +1,7 @@
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
 import type { UniversityId } from "@/data/universities";
 import { normalizeOrganizationName, suggestOrganizationHandle } from "@/lib/organizationIdentity";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import type {
   Organization,
   OrganizationAnnouncement,
@@ -163,12 +164,12 @@ export const developmentOrganizationRecruitment: OrganizationRecruitment[] = [
 ];
 
 export function getOrganizationById(organizationId: string | null | undefined) {
-  if (!organizationId) return null;
+  if (!organizationId || !areDevelopmentFixturesEnabled()) return null;
   return developmentOrganizations.find((organization) => organization.id === organizationId) ?? null;
 }
 
 export function getOrganizationByHandle(handle: string | null | undefined) {
-  if (!handle) return null;
+  if (!handle || !areDevelopmentFixturesEnabled()) return null;
   return developmentOrganizations.find((organization) => organization.handle === handle) ?? null;
 }
 
@@ -177,5 +178,7 @@ export function getClubHref(organization: Pick<Organization, "handle">) {
 }
 
 export function getOrganizationsForUniversity(universityId: UniversityId) {
-  return developmentOrganizations.filter((organization) => organization.universityId === universityId);
+  return areDevelopmentFixturesEnabled()
+    ? developmentOrganizations.filter((organization) => organization.universityId === universityId)
+    : [];
 }

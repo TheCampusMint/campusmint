@@ -11,6 +11,12 @@ import {
   secondaryNavigation,
 } from "../components/shell/navigation.ts";
 import { SectionMemory } from "../lib/navigation/sectionMemory.ts";
+import { readFileSync } from "node:fs";
+
+const headerSource = readFileSync(
+  new URL("../components/shell/TopUtilityBar.tsx", import.meta.url),
+  "utf8",
+);
 
 const primaryIds = [...dailyNavigation, ...secondaryNavigation].map(
   (item) => item.id,
@@ -61,10 +67,22 @@ test("Search, discovery categories, and Create Mint are not primary sections", (
   ]);
 });
 
+test("header groups Search with profile and notifications with settings", () => {
+  assert.match(headerSource, /data-header-group="profile-search"/);
+  assert.match(headerSource, /data-header-group="settings-notifications"/);
+});
+
 test("Sports participates in the primary navigation sequence", () => {
   assert.equal(primaryIds.includes("sports"), true);
   assert.equal(getPrimaryNavigationIndex("sports"), 2);
   assert.equal(getBottomNavigationSlotIndex("sports") >= 0, true);
+});
+
+test("the primary navigation order has finite Messages and Groups boundaries", () => {
+  assert.equal(primaryIds.at(0), "messages");
+  assert.equal(primaryIds.at(-1), "groups");
+  assert.equal(primaryIds[getPrimaryNavigationIndex("messages") - 1], undefined);
+  assert.equal(primaryIds[getPrimaryNavigationIndex("groups") + 1], undefined);
 });
 
 test("the compact primary sequence still uses two-section memory", () => {

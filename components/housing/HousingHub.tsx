@@ -7,6 +7,7 @@ import { HousingDetail } from "@/components/housing/HousingDetail";
 import { housingEntities } from "@/data/discovery/housing";
 import type { UniversityId, UniversityTheme } from "@/data/universities";
 import { housingReviewCategories, type HousingEntity } from "@/types/discovery";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 
 type HousingTab = "on_campus" | "off_campus" | "roommates" | "reviews";
 
@@ -38,7 +39,7 @@ export function HousingHub({ universityId, accessibleCampuses, theme }: HousingH
   const [selected, setSelected] = useState<HousingEntity | null>(null);
 
   const available = useMemo(() => housingEntities.filter((housing) => {
-    if (housing.source.isDevelopment && process.env.NODE_ENV !== "development") return false;
+    if (housing.source.isDevelopment && !areDevelopmentFixturesEnabled()) return false;
     if (housing.scope === "on_campus") return housing.universityId === universityId;
     return housing.accessibleUniversityIds.some((id) => accessibleCampuses.includes(id));
   }), [accessibleCampuses, universityId]);

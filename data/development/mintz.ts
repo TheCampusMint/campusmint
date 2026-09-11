@@ -1,7 +1,7 @@
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
 import { createExpiresAt, EVENT_CONTENT_DURATION_HOURS } from "@/lib/content/expiration";
 import type { UniversityId } from "@/data/universities";
-import type { Mint } from "@/types/mint";
+import type { Mint, MintComment } from "@/types/mint";
 
 export const DEVELOPMENT_MINT_REFERENCE_TIME = 1_786_381_200_000;
 
@@ -33,6 +33,7 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
     hoursAgo,
     caption,
     hashtags,
+    developmentFeedGeneration,
   }: {
     id: string;
     mediaId: string;
@@ -41,6 +42,7 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
     hoursAgo: number;
     caption: string;
     hashtags: string[];
+    developmentFeedGeneration?: number;
   }): Mint => {
     const timestamp = createdAt(hoursAgo);
 
@@ -80,11 +82,13 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
       status: "active",
       privacy: "public",
       likeCount: Math.max(0, Math.round(14 - hoursAgo)),
+      viewCount: Math.max(0, Math.round(3_200 - hoursAgo * 110)),
       commentCount: Math.max(0, Math.round(5 - hoursAgo / 2)),
       saveCount: Math.max(0, Math.round(4 - hoursAgo / 3)),
       shareCount: Math.max(0, Math.round(3 - hoursAgo / 4)),
       archivedAt: null,
       isDevelopment: true,
+      developmentFeedGeneration,
     };
   };
 
@@ -117,6 +121,7 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
       status: "active",
       privacy: "account",
       likeCount: 0,
+      viewCount: 12_400,
       commentCount: 0,
       saveCount: 0,
       shareCount: 0,
@@ -147,6 +152,7 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
       status: "active",
       privacy: "account",
       likeCount: 0,
+      viewCount: 94,
       commentCount: 0,
       saveCount: 0,
       shareCount: 0,
@@ -177,6 +183,7 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
       status: "active",
       privacy: "public",
       likeCount: 0,
+      viewCount: 680,
       commentCount: 0,
       saveCount: 0,
       shareCount: 0,
@@ -210,11 +217,13 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
       status: "active",
       privacy: "public",
       likeCount: 0,
+      viewCount: 1_280,
       commentCount: 0,
       saveCount: 0,
       shareCount: 0,
       archivedAt: null,
       isDevelopment: true,
+      developmentFeedGeneration: 1,
     },
     {
       id: "dev-mint-tamu-event-soon",
@@ -249,11 +258,32 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
       status: "active",
       privacy: "public",
       likeCount: 0,
+      viewCount: 910,
       commentCount: 0,
       saveCount: 0,
       shareCount: 0,
       archivedAt: null,
       isDevelopment: true,
+    },
+    {
+      id: "dev-mint-campus-system-open-mic",
+      publishFormat: "mint",
+      authorId: "campus-mint-system",
+      universityId: "tamu",
+      campusNetworkId: networkId("tamu"),
+      contentType: "image",
+      postType: "event",
+      media: [{ id: "dev-media-system-open-mic", type: "image", url: null, thumbnailUrl: null, width: null, height: null, durationSeconds: null, order: 0, isDevelopmentPlaceholder: true }],
+      caption: "Source-backed development event fixture surfaced by Campus Mint when no organic event Mint exists.",
+      hashtags: ["event", "openmic"], mentions: [], taggedUserIds: [],
+      location: { source: "event", entityId: "campus-mint-open-mic-development", label: "MSC Courtyard", details: null },
+      music: null, createdAt: createdAt(0.2), updatedAt: createdAt(0.2),
+      expiresAt: createExpiresAt(createdAt(0.2), EVENT_CONTENT_DURATION_HOURS, EVENT_CONTENT_DURATION_HOURS),
+      commentsEnabled: true, likesVisible: false,
+      eventData: { eventId: "campus-mint-open-mic-development", title: null, eventStartAt: null, eventEndAt: null, timeZone: "America/Chicago", location: null, locationDetails: null, description: null },
+      status: "active", privacy: "public", likeCount: 0, viewCount: 214,
+      commentCount: 0, saveCount: 0, shareCount: 0, archivedAt: null,
+      isDevelopment: true, developmentFeedGeneration: 1,
     },
     {
       id: "dev-mint-blinn-coding-official",
@@ -282,6 +312,7 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
       status: "active",
       privacy: "public",
       likeCount: 0,
+      viewCount: 86,
       commentCount: 0,
       saveCount: 0,
       shareCount: 0,
@@ -296,6 +327,7 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
       hoursAgo: 1.25,
       caption: "Development video Mint using a CC0 flower clip to verify Texas A&M viewer behavior.",
       hashtags: ["development", "campusvideo"],
+      developmentFeedGeneration: 1,
     }),
     videoMint({
       id: "dev-mint-texas-video-campus",
@@ -324,6 +356,85 @@ export function createDevelopmentMintz(referenceTime: number): Mint[] {
       caption: "Fictional Alabama development video used only to verify deterministic ranking.",
       hashtags: ["development", "media"],
     }),
+  ];
+}
+
+export function createDevelopmentMintComments(
+  referenceTime: number,
+): MintComment[] {
+  const createdAt = (minutesAgo: number) =>
+    new Date(referenceTime - minutesAgo * 60 * 1000).toISOString();
+  const targetId = "dev-mint-tamu-video-campus";
+
+  return [
+    {
+      id: "dev-comment-tamu-video-1",
+      targetType: "mint",
+      targetId,
+      authorId: "demo-tamu-noah",
+      body: "The campus video framing is clean.",
+      attachment: null,
+      fontStyle: "normal",
+      likeCount: 6,
+      repostCount: 1,
+      mentions: [],
+      parentCommentId: null,
+      status: "active",
+      createdAt: createdAt(18),
+      updatedAt: createdAt(18),
+    },
+    {
+      id: "dev-comment-tamu-video-2",
+      targetType: "mint",
+      targetId,
+      authorId: "demo-seller-tamu",
+      body: "🌿 🎉",
+      attachment: null,
+      fontStyle: "normal",
+      likeCount: 4,
+      repostCount: 0,
+      mentions: [],
+      parentCommentId: null,
+      status: "active",
+      createdAt: createdAt(14),
+      updatedAt: createdAt(14),
+    },
+    {
+      id: "dev-comment-tamu-video-3",
+      targetType: "mint",
+      targetId,
+      authorId: "demo-tamu-officer",
+      body: "Saving this as a visual reference.",
+      attachment: null,
+      fontStyle: "serif",
+      likeCount: 2,
+      repostCount: 0,
+      mentions: [],
+      parentCommentId: null,
+      status: "active",
+      createdAt: createdAt(9),
+      updatedAt: createdAt(9),
+    },
+    {
+      id: "dev-comment-tamu-video-4",
+      targetType: "mint",
+      targetId,
+      authorId: "demo-tamu-townhall",
+      body: "",
+      attachment: {
+        type: "sticker",
+        stickerId: "campus-cheer",
+        label: "Campus cheer",
+      },
+      fontStyle: "normal",
+      likeCount: 1,
+      repostCount: 0,
+      mentions: [],
+      parentCommentId: null,
+      status: "active",
+      createdAt: createdAt(4),
+      updatedAt: createdAt(4),
+    },
   ];
 }
 

@@ -1,9 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
-import { createDevelopmentMintz } from "@/data/development/mintz";
+import {
+  createDevelopmentMintComments,
+  createDevelopmentMintz,
+} from "@/data/development/mintz";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import { resolveContentStatus } from "@/lib/content/expiration";
+import { validateCommentAttachment } from "@/lib/content/commentMedia";
+import { canRepostComment } from "@/lib/social/commentRanking";
+import {
+  migrateMintInteractionState,
+  registerPrivateAppreciation as registerPrivateAppreciationRecord,
+  togglePublicEndorsement as togglePublicEndorsementRecord,
+  type StoredMintInteractionState,
+} from "@/lib/social/mintInteractions";
 import {
   canCommentOnMint,
   canLikeMint,
@@ -15,38 +27,149 @@ import {
   type EditableMintPatch,
 } from "@/lib/social/mintUpdates";
 import {
-  nextRepostCount,
-  toggleRepostRecords,
-} from "@/lib/social/repostState";
+  accumulateMeaningfulDwell,
+  migrateSavedMintzToPins,
+} from "@/lib/social/feedGeneration";
 import type {
   ContentReport,
   PendingContentNotification,
 } from "@/types/content";
 import type {
   CreateMintInput,
+  CreateMintCommentInput,
   Mint,
   MintComment,
-  MintLike,
-  MintRepost,
+  MintPrivateAppreciation,
+  MintDwellRecord,
+  MintPin,
+  MintPublicEndorsement,
   MintSave,
   MintShare,
+  SocialCommentLike,
+  SocialCommentRepost,
 } from "@/types/mint";
 
 function localId(prefix: string) {
   return `${prefix}-${globalThis.crypto.randomUUID()}`;
 }
 
-export function useMintz() {
+const DEVELOPMENT_PUBLIC_ENDORSEMENTS: MintPublicEndorsement[] = [
+  {
+    id: "dev-public-endorsement-noah-maya",
+    mintId: "dev-mint-maya-campus",
+    userId: "demo-tamu-noah",
+    createdAt: "2026-08-10T17:30:00.000Z",
+  },
+];
+const FIXTURES_ENABLED = areDevelopmentFixturesEnabled();
+
+function interactionStorageKey(userId: string) {
+  return `campusmint:mint-interactions:${userId}:v2`;
+}
+
+function feedStorageKey(userId: string) {
+  return `campusmint:mint-feed:${userId}:v1`;
+}
+
+export function useMintz(currentUserId: string) {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
-  const [, setRefreshGeneration] = useState(0);
-  const [storedMintz, setStoredMintz] = useState<Mint[]>(() => createDevelopmentMintz(currentTime));
-  const [likes, setLikes] = useState<MintLike[]>([]);
-  const [comments, setComments] = useState<MintComment[]>([]);
-  const [saves, setSaves] = useState<MintSave[]>([]);
-  const [reposts, setReposts] = useState<MintRepost[]>([]);
+  const [refreshGeneration, setRefreshGeneration] = useState(0);
+  const [storedMintz, setStoredMintz] = useState<Mint[]>(() =>
+    FIXTURES_ENABLED ? createDevelopmentMintz(currentTime) : [],
+  );
+  const [privateAppreciations, setPrivateAppreciations] = useState<
+    MintPrivateAppreciation[]
+  >([]);
+  const [publicEndorsements, setPublicEndorsements] = useState<
+    MintPublicEndorsement[]
+  >(FIXTURES_ENABLED ? DEVELOPMENT_PUBLIC_ENDORSEMENTS : []);
+  const [interactionsHydrated, setInteractionsHydrated] = useState(false);
+  const [comments, setComments] = useState<MintComment[]>(() =>
+    FIXTURES_ENABLED ? createDevelopmentMintComments(currentTime) : [],
+  );
+  const [commentLikes, setCommentLikes] = useState<SocialCommentLike[]>([]);
+  const [commentReposts, setCommentReposts] = useState<SocialCommentRepost[]>([]);
+  const [hiddenCommentIds, setHiddenCommentIds] = useState<string[]>([]);
+  const [pins, setPins] = useState<MintPin[]>([]);
+  const [dwellRecords, setDwellRecords] = useState<MintDwellRecord[]>([]);
+  const [feedStateHydrated, setFeedStateHydrated] = useState(false);
   const [shares, setShares] = useState<MintShare[]>([]);
   const [reports, setReports] = useState<ContentReport[]>([]);
   const [pendingNotifications, setPendingNotifications] = useState<PendingContentNotification[]>([]);
+
+  useLayoutEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(
+        interactionStorageKey(currentUserId),
+      );
+      if (stored) {
+        const migrated = migrateMintInteractionState(JSON.parse(stored));
+        // Local storage is the client-only hydration boundary for this prototype.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setPrivateAppreciations(migrated.privateAppreciations);
+        setPublicEndorsements((current) => [
+          ...current.filter(
+            (seed) =>
+              !migrated.publicEndorsements.some(
+                (storedEndorsement) =>
+                  storedEndorsement.mintId === seed.mintId &&
+                  storedEndorsement.userId === seed.userId,
+              ),
+          ),
+          ...migrated.publicEndorsements,
+        ]);
+      }
+    } catch {
+      // Corrupt development interaction state is ignored without clearing keys.
+    } finally {
+      setInteractionsHydrated(true);
+    }
+  }, [currentUserId]);
+
+  useEffect(() => {
+    if (!interactionsHydrated) return;
+    const state: StoredMintInteractionState = {
+      version: 2,
+      privateAppreciations,
+      publicEndorsements,
+    };
+    window.localStorage.setItem(
+      interactionStorageKey(currentUserId),
+      JSON.stringify(state),
+    );
+  }, [
+    currentUserId,
+    interactionsHydrated,
+    privateAppreciations,
+    publicEndorsements,
+  ]);
+
+  useLayoutEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(feedStorageKey(currentUserId));
+      if (raw) {
+        const parsed = JSON.parse(raw) as { pins?: MintPin[]; dwellRecords?: MintDwellRecord[]; saves?: MintSave[]; savedMintIds?: string[] };
+        const migratedPins = Array.isArray(parsed.pins)
+          ? parsed.pins
+          : migrateSavedMintzToPins({ saves: parsed.saves, savedMintIds: parsed.savedMintIds, userId: currentUserId, fallbackPinnedAt: "2026-08-10T12:00:00.000Z" });
+        // Local storage is the client-only hydration boundary for this prototype.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setPins(migratedPins);
+        setDwellRecords(Array.isArray(parsed.dwellRecords) ? parsed.dwellRecords : []);
+      } else if (FIXTURES_ENABLED && currentUserId === "current-demo-student") {
+        setPins([{ id: "development-pin-maya", mintId: "dev-mint-maya-campus", userId: currentUserId, pinnedAt: "2026-09-09T18:00:00.000Z" }]);
+      }
+    } catch {
+      // Invalid local feed state is ignored without clearing unrelated storage.
+    } finally {
+      setFeedStateHydrated(true);
+    }
+  }, [currentUserId]);
+
+  useEffect(() => {
+    if (!feedStateHydrated) return;
+    window.localStorage.setItem(feedStorageKey(currentUserId), JSON.stringify({ version: 1, pins, dwellRecords }));
+  }, [currentUserId, dwellRecords, feedStateHydrated, pins]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 60_000);
@@ -58,10 +181,12 @@ export function useMintz() {
     setRefreshGeneration((current) => current + 1);
   }
 
-  const mintz = useMemo(() => storedMintz.map((mint) => ({
-    ...mint,
-    status: resolveContentStatus(mint.status, mint.expiresAt, currentTime),
-  })), [currentTime, storedMintz]);
+  const mintz = useMemo(() => storedMintz
+    .filter((mint) => (mint.developmentFeedGeneration ?? 0) <= refreshGeneration)
+    .map((mint) => ({
+      ...mint,
+      status: resolveContentStatus(mint.status, mint.expiresAt, currentTime),
+    })), [currentTime, refreshGeneration, storedMintz]);
 
   function createMint(input: CreateMintInput) {
     const now = new Date().toISOString();
@@ -71,6 +196,7 @@ export function useMintz() {
       createdAt: now,
       updatedAt: now,
       likeCount: 0,
+      viewCount: 0,
       commentCount: 0,
       saveCount: 0,
       shareCount: 0,
@@ -95,23 +221,69 @@ export function useMintz() {
     return mint;
   }
 
-  function toggleLike(context: MintPermissionContext) {
+  function registerPrivateAppreciation(
+    context: MintPermissionContext,
+    source: MintPrivateAppreciation["source"] = "double_tap",
+  ) {
     const viewerId = context.viewer?.account.id;
     if (!viewerId || !canLikeMint(context)) return false;
-    const exists = likes.some((like) => like.mintId === context.mint.id && like.userId === viewerId);
-    setLikes((current) => exists
-      ? current.filter((like) => !(like.mintId === context.mint.id && like.userId === viewerId))
-      : [...current, { id: localId("mint-like"), mintId: context.mint.id, userId: viewerId, createdAt: new Date().toISOString() }]);
-    setStoredMintz((current) => current.map((mint) => mint.id === context.mint.id
-      ? { ...mint, likeCount: Math.max(0, mint.likeCount + (exists ? -1 : 1)), updatedAt: new Date().toISOString() }
-      : mint));
-    return true;
+    let added = false;
+    setPrivateAppreciations((current) => {
+      const result = registerPrivateAppreciationRecord(current, {
+        id: localId("private-appreciation"),
+        mintId: context.mint.id,
+        userId: viewerId,
+        createdAt: new Date().toISOString(),
+        source,
+      });
+      added = result.added;
+      return result.records;
+    });
+    return added;
   }
 
-  function addComment(context: MintPermissionContext, body: string, mentions: MintComment["mentions"] = []) {
+  function togglePublicEndorsement(context: MintPermissionContext) {
     const viewerId = context.viewer?.account.id;
-    const trimmedBody = body.trim();
-    if (!viewerId || !trimmedBody || !canCommentOnMint(context)) return false;
+    if (!viewerId || !canLikeMint(context)) return false;
+    let endorsed = false;
+    setPublicEndorsements((current) => {
+      const result = togglePublicEndorsementRecord(current, {
+        id: localId("public-endorsement"),
+        mintId: context.mint.id,
+        userId: viewerId,
+        createdAt: new Date().toISOString(),
+      });
+      endorsed = result.endorsed;
+      return result.records;
+    });
+    return endorsed;
+  }
+
+  function addComment(
+    context: MintPermissionContext,
+    input: string | CreateMintCommentInput,
+    legacyMentions: MintComment["mentions"] = [],
+  ) {
+    const viewerId = context.viewer?.account.id;
+    const structured =
+      typeof input === "string"
+        ? {
+            body: input,
+            attachment: null,
+            fontStyle: "normal" as const,
+            mentions: legacyMentions,
+          }
+        : input;
+    const trimmedBody = structured.body.trim();
+    const attachmentResult = validateCommentAttachment(structured.attachment);
+    if (
+      !viewerId ||
+      (!trimmedBody && !structured.attachment) ||
+      !attachmentResult.valid ||
+      !canCommentOnMint(context)
+    ) {
+      return false;
+    }
     const now = new Date().toISOString();
     setComments((current) => [...current, {
       id: localId("mint-comment"),
@@ -119,7 +291,11 @@ export function useMintz() {
       targetId: context.mint.id,
       authorId: viewerId,
       body: trimmedBody,
-      mentions,
+      attachment: structured.attachment,
+      fontStyle: structured.fontStyle,
+      likeCount: 0,
+      repostCount: 0,
+      mentions: structured.mentions ?? [],
       parentCommentId: null,
       status: "active",
       createdAt: now,
@@ -129,6 +305,96 @@ export function useMintz() {
       ? { ...mint, commentCount: mint.commentCount + 1, updatedAt: now }
       : mint));
     return true;
+  }
+
+  function toggleCommentLike(
+    context: MintPermissionContext,
+    commentId: string,
+  ) {
+    const viewerId = context.viewer?.account.id;
+    const comment = comments.find(
+      (candidate) => candidate.id === commentId && candidate.status === "active",
+    );
+    if (!viewerId || !comment || !canViewMint(context)) return false;
+    const exists = commentLikes.some(
+      (like) => like.commentId === commentId && like.userId === viewerId,
+    );
+    setCommentLikes((current) =>
+      exists
+        ? current.filter(
+            (like) => !(like.commentId === commentId && like.userId === viewerId),
+          )
+        : [
+            ...current,
+            { commentId, userId: viewerId, createdAt: new Date().toISOString() },
+          ],
+    );
+    setComments((current) =>
+      current.map((candidate) =>
+        candidate.id === commentId
+          ? {
+              ...candidate,
+              likeCount: Math.max(
+                0,
+                (candidate.likeCount ?? 0) + (exists ? -1 : 1),
+              ),
+            }
+          : candidate,
+      ),
+    );
+    return true;
+  }
+
+  function toggleCommentRepost(
+    context: MintPermissionContext,
+    commentId: string,
+  ) {
+    const viewerId = context.viewer?.account.id;
+    const comment = comments.find(
+      (candidate) => candidate.id === commentId && candidate.status === "active",
+    );
+    if (
+      !viewerId ||
+      !comment ||
+      !canRepostComment(comment, viewerId) ||
+      !canViewMint(context)
+    ) {
+      return false;
+    }
+    const exists = commentReposts.some(
+      (repost) => repost.commentId === commentId && repost.userId === viewerId,
+    );
+    setCommentReposts((current) =>
+      exists
+        ? current.filter(
+            (repost) =>
+              !(repost.commentId === commentId && repost.userId === viewerId),
+          )
+        : [
+            ...current,
+            { commentId, userId: viewerId, createdAt: new Date().toISOString() },
+          ],
+    );
+    setComments((current) =>
+      current.map((candidate) =>
+        candidate.id === commentId
+          ? {
+              ...candidate,
+              repostCount: Math.max(
+                0,
+                (candidate.repostCount ?? 0) + (exists ? -1 : 1),
+              ),
+            }
+          : candidate,
+      ),
+    );
+    return true;
+  }
+
+  function hideComment(commentId: string) {
+    setHiddenCommentIds((current) =>
+      current.includes(commentId) ? current : [...current, commentId],
+    );
   }
 
   function deleteOwnComment(commentId: string, userId: string) {
@@ -143,49 +409,24 @@ export function useMintz() {
     return true;
   }
 
-  function toggleSave(context: MintPermissionContext) {
+  function togglePin(context: MintPermissionContext) {
     const viewerId = context.viewer?.account.id;
     if (!viewerId || !canViewMint(context)) return false;
-    const exists = saves.some((save) => save.mintId === context.mint.id && save.userId === viewerId);
-    setSaves((current) => exists
-      ? current.filter((save) => !(save.mintId === context.mint.id && save.userId === viewerId))
-      : [...current, { id: localId("mint-save"), mintId: context.mint.id, userId: viewerId, createdAt: new Date().toISOString() }]);
-    setStoredMintz((current) => current.map((mint) => mint.id === context.mint.id
-      ? { ...mint, saveCount: Math.max(0, mint.saveCount + (exists ? -1 : 1)) }
-      : mint));
+    const exists = pins.some((pin) => pin.mintId === context.mint.id && pin.userId === viewerId);
+    setPins((current) => exists
+      ? current.filter((pin) => !(pin.mintId === context.mint.id && pin.userId === viewerId))
+      : [...current, { id: localId("mint-pin"), mintId: context.mint.id, userId: viewerId, pinnedAt: new Date().toISOString() }]);
     return true;
   }
 
-  function toggleRepost(context: MintPermissionContext) {
-    const viewerId = context.viewer?.account.id;
-    if (!viewerId || !canViewMint(context)) return false;
-
+  function recordMeaningfulDwell(mintId: string, elapsedMs: number, activeSurface = true) {
     const now = new Date().toISOString();
-    const next = toggleRepostRecords(reposts, {
-      mintId: context.mint.id,
-      userId: viewerId,
-      repostId: localId("mint-repost"),
-      createdAt: now,
+    setDwellRecords((current) => {
+      const existing = current.find((item) => item.mintId === mintId && item.userId === currentUserId) ?? null;
+      const next = accumulateMeaningfulDwell(existing, { mintId, userId: currentUserId, elapsedMs, meaningfulVisible: true, documentVisible: document.visibilityState === "visible", activeSurface, now });
+      if (!next) return current;
+      return [...current.filter((item) => !(item.mintId === mintId && item.userId === currentUserId)), next];
     });
-
-    setReposts(next.reposts);
-
-    setStoredMintz((current) =>
-      current.map((mint) =>
-        mint.id === context.mint.id
-          ? {
-              ...mint,
-              repostCount: nextRepostCount(
-                mint.repostCount ?? 0,
-                next.reposted,
-              ),
-              updatedAt: now,
-            }
-          : mint,
-      ),
-    );
-
-    return true;
   }
 
   function recordShare(context: MintPermissionContext, channel: MintShare["channel"]) {
@@ -254,20 +495,31 @@ export function useMintz() {
   return {
     mintz,
     currentTime,
-    likes,
+    privateAppreciations,
+    publicEndorsements,
+    /** Privacy-safe compatibility alias for legacy call sites during migration. */
+    likes: privateAppreciations,
     comments,
-    saves,
-    reposts,
+    commentLikes,
+    commentReposts,
+    hiddenCommentIds,
+    pins,
+    dwellRecords,
+    refreshGeneration,
     shares,
     reports,
     pendingNotifications,
     refreshMintz,
     createMint,
-    toggleLike,
+    registerPrivateAppreciation,
+    togglePublicEndorsement,
     addComment,
+    toggleCommentLike,
+    toggleCommentRepost,
+    hideComment,
     deleteOwnComment,
-    toggleSave,
-    toggleRepost,
+    togglePin,
+    recordMeaningfulDwell,
     recordShare,
     updateOwnMint,
     toggleArchive,

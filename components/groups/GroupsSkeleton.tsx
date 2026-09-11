@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+
+import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
+import { SearchIcon } from "@/components/icons/CampusIcons";
 
 import { developmentCampusGroups } from "@/data/development/groups";
 import { developmentOrganizations } from "@/data/organizations";
@@ -22,16 +25,15 @@ import {
   canJoinOrganization,
   canViewOrganization,
 } from "@/lib/organizationPermissions";
-import {
-  campusGroupCategories,
-  type CampusGroup,
-  type CampusGroupCategory,
-} from "@/types/group";
+import type { CampusGroup } from "@/types/group";
 import type { Organization } from "@/types/organization";
 import type { TemporaryUser } from "@/types/user";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
+
+const fixtureCampusGroups = areDevelopmentFixturesEnabled() ? developmentCampusGroups : [];
+const fixtureOrganizations = areDevelopmentFixturesEnabled() ? developmentOrganizations : [];
 
 type GroupView = "mine" | "discover";
-type GroupFilter = "All" | CampusGroupCategory;
 
 function accessLabel(group: CampusGroup) {
   if (group.access === "open") return "Open";
@@ -44,11 +46,13 @@ function GroupCard({
   theme,
   status,
   onAction,
+  onOpen,
 }: {
   group: CampusGroup;
   theme: UniversityTheme;
   status: "none" | "member" | "requested";
   onAction: () => void;
+  onOpen: () => void;
 }) {
   const displayedMembers =
     group.memberCount === null
@@ -79,9 +83,7 @@ function GroupCard({
           {group.courseCode}
         </p>
       )}
-      <h3 className={`${group.courseCode ? "mt-1" : "mt-4"} text-lg font-black leading-6 text-slate-950`}>
-        {group.name}
-      </h3>
+      <button type="button" onClick={onOpen} className={`${group.courseCode ? "mt-1" : "mt-4"} text-left text-lg font-black leading-6 text-slate-950 hover:underline`}>{group.name}</button>
       <p className="mt-1 text-xs font-bold text-slate-500">
         {universities[group.universityId].shortName} · {accessLabel(group)}
       </p>
@@ -94,7 +96,7 @@ function GroupCard({
             ? "Member count unavailable"
             : `${displayedMembers.toLocaleString("en-US")} seeded members`}
         </p>
-        <button
+        <div className="flex shrink-0 items-center gap-1"><button type="button" onClick={onOpen} className="rounded-full px-3 py-2 text-xs font-black text-slate-500">Open</button><button
           type="button"
           disabled={status === "requested" || group.access === "restricted"}
           onClick={onAction}
@@ -121,7 +123,7 @@ function GroupCard({
                     ? "Request"
                     : "Restricted"}
           </span>
-        </button>
+        </button></div>
       </div>
     </article>
   );
@@ -133,12 +135,14 @@ function OrganizationGroupCard({
   status,
   memberCount,
   onAction,
+  onOpen,
 }: {
   organization: Organization;
   theme: UniversityTheme;
   status: ReturnType<OrganizationsState["getMembershipStatus"]>;
   memberCount: number;
   onAction: () => void;
+  onOpen: () => void;
 }) {
   const joined = ["member", "officer", "leader"].includes(status);
   const disabled =
@@ -170,9 +174,7 @@ function OrganizationGroupCard({
           </span>
         </div>
       </div>
-      <h3 className="mt-4 text-lg font-black leading-6 text-slate-950">
-        {organization.name}
-      </h3>
+      <button type="button" onClick={onOpen} className="mt-4 text-left text-lg font-black leading-6 text-slate-950 hover:underline">{organization.name}</button>
       <p className="mt-1 text-xs font-bold text-slate-500">
         {universities[organization.universityId].shortName} · {organization.membershipType === "open" ? "Open membership" : "Membership approval"}
       </p>
@@ -185,7 +187,7 @@ function OrganizationGroupCard({
             ? `${memberCount.toLocaleString("en-US")} local members`
             : "No local member count yet"}
         </p>
-        <button
+        <div className="flex shrink-0 items-center gap-1"><button type="button" onClick={onOpen} className="rounded-full px-3 py-2 text-xs font-black text-slate-500">Open</button><button
           type="button"
           disabled={disabled && !joined}
           onClick={onAction}
@@ -210,7 +212,7 @@ function OrganizationGroupCard({
                     ? "Request"
                     : "Restricted"}
           </span>
-        </button>
+        </button></div>
       </div>
     </article>
   );
@@ -223,6 +225,9 @@ export function GroupsSkeleton({
   theme,
   organizations,
   onOrganizationMembershipAction,
+  requestedOrganizationId = null,
+  onRequestedOrganizationHandled,
+  onBackToNotifications,
 }: {
   currentUserId: string;
   user: TemporaryUser;
@@ -230,10 +235,19 @@ export function GroupsSkeleton({
   theme: UniversityTheme;
   organizations: OrganizationsState;
   onOrganizationMembershipAction: (organization: Organization) => void;
+  requestedOrganizationId?: string | null;
+  onRequestedOrganizationHandled?: () => void;
+  onBackToNotifications?: () => void;
 }) {
   const [view, setView] = useState<GroupView>("mine");
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<GroupFilter>("All");
+  const [selected, setSelected] = useState<
+    { kind: "campus" | "organization"; id: string } | null
+  >(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatMessages, setChatMessages] = useState<string[]>([]);
+  const handledOrganizationRequestRef = useRef<string | null>(null);
   const campusGroups = useCampusGroups(currentUserId);
   const access = useMemo(
     () => ({ configuredUniversityId, userId: currentUserId }),
@@ -243,30 +257,27 @@ export function GroupsSkeleton({
     ? { ...user, universityId: configuredUniversityId }
     : null;
 
-  const visibleDevelopmentGroups = useMemo(
+  const discoverableDevelopmentGroups = useMemo(
     () =>
-      filterCampusGroupDiscovery(developmentCampusGroups, access, {
+      filterCampusGroupDiscovery(fixtureCampusGroups, access, {
         query,
-        category,
       }),
-    [access, category, query],
+    [access, query],
   );
 
   const myDevelopmentGroups = useMemo(() => {
     const joined = getMyCampusGroups(
-      developmentCampusGroups,
+      fixtureCampusGroups,
       campusGroups.memberships,
       access,
     );
-    const visibleIds = new Set(visibleDevelopmentGroups.map((group) => group.id));
-    return joined.filter((group) => visibleIds.has(group.id));
+    return joined;
   }, [
     campusGroups.memberships,
     access,
-    visibleDevelopmentGroups,
   ]);
 
-  const visibleOrganizationGroups = developmentOrganizations.filter(
+  const visibleOrganizationGroups = fixtureOrganizations.filter(
     (organization) => {
       if (!configuredUser || !organization.organizationConversationId) {
         return false;
@@ -275,21 +286,7 @@ export function GroupsSkeleton({
         return false;
       }
       if (!canViewOrganization(configuredUser, organization)) return false;
-      if (category !== "All" && category !== "Clubs") return false;
-
-      const normalizedQuery = query.trim().toLocaleLowerCase();
-      return (
-        !normalizedQuery ||
-        [
-          organization.name,
-          organization.shortDescription,
-          organization.category,
-          ...organization.keywords,
-        ]
-          .join(" ")
-          .toLocaleLowerCase()
-          .includes(normalizedQuery)
-      );
+      return true;
     },
   );
 
@@ -318,25 +315,29 @@ export function GroupsSkeleton({
       if (!configuredUser || myOrganizationGroups.includes(organization)) {
         return false;
       }
-      return canDiscoverOrganizationCommunity({
+      const discoverable = canDiscoverOrganizationCommunity({
         membershipType: organization.membershipType,
         membershipStatus: organizations.getMembershipStatus(organization.id),
         membershipAllowed: canJoinOrganization(configuredUser, organization),
       });
+      const normalizedQuery = query.trim().toLocaleLowerCase();
+      return (
+        discoverable &&
+        (!normalizedQuery ||
+          [
+            organization.name,
+            organization.shortDescription,
+            organization.category,
+            ...organization.keywords,
+          ]
+            .join(" ")
+            .toLocaleLowerCase()
+            .includes(normalizedQuery))
+      );
     },
   );
 
-  const availableCategories: GroupFilter[] = [
-    "All",
-    ...campusGroupCategories.filter((candidate) => {
-      if (candidate === "Clubs") return visibleOrganizationGroups.length > 0;
-      return filterCampusGroupDiscovery(developmentCampusGroups, access, {
-        category: candidate,
-      }).length > 0;
-    }),
-  ];
-
-  const discoverDevelopmentGroups = visibleDevelopmentGroups.filter(
+  const discoverDevelopmentGroups = discoverableDevelopmentGroups.filter(
     (group) => campusGroups.getStatus(group.id) !== "member",
   );
   const hasMyGroups =
@@ -344,22 +345,105 @@ export function GroupsSkeleton({
   const hasDiscoverGroups =
     discoverDevelopmentGroups.length + discoverOrganizationGroups.length > 0;
 
+  useEffect(() => {
+    if (!requestedOrganizationId || handledOrganizationRequestRef.current === requestedOrganizationId) return;
+    handledOrganizationRequestRef.current = requestedOrganizationId;
+    const organization = fixtureOrganizations.find(
+      (candidate) => candidate.id === requestedOrganizationId,
+    );
+    if (!organization || !theme.accessibleCampuses.includes(organization.universityId)) {
+      onRequestedOrganizationHandled?.();
+      return;
+    }
+    // Notification navigation selects a nested detail without mutating membership.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelected({ kind: "organization", id: requestedOrganizationId });
+  }, [onRequestedOrganizationHandled, requestedOrganizationId, theme.accessibleCampuses]);
+
+  const selectedCampusGroup = selected?.kind === "campus"
+    ? fixtureCampusGroups.find((group) => group.id === selected.id) ?? null
+    : null;
+  const selectedOrganization = selected?.kind === "organization"
+    ? fixtureOrganizations.find((organization) => organization.id === selected.id) ?? null
+    : null;
+
+  function closeDetail() {
+    setChatOpen(false);
+    setSelected(null);
+    onRequestedOrganizationHandled?.();
+    if (onBackToNotifications) onBackToNotifications();
+  }
+
+  function submitChat(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const body = chatDraft.trim();
+    if (!body) return;
+    setChatMessages((current) => [...current, body]);
+    setChatDraft("");
+  }
+
+  if (selectedCampusGroup || selectedOrganization) {
+    const organizationStatus = selectedOrganization
+      ? organizations.getMembershipStatus(selectedOrganization.id)
+      : "none";
+    const joinedOrganization = ["member", "officer", "leader"].includes(organizationStatus);
+    const organizationActor = configuredUniversityId
+      ? { id: currentUserId, universityId: configuredUniversityId }
+      : null;
+    const canChat = selectedCampusGroup
+      ? campusGroups.getStatus(selectedCampusGroup.id) === "member"
+      : Boolean(
+          selectedOrganization &&
+          organizationActor &&
+          selectedOrganization.organizationConversationId &&
+          canAccessOrganizationChat(
+            organizationActor,
+            selectedOrganization,
+            organizations.memberships,
+          ) &&
+          organizations.isConversationParticipant(
+            selectedOrganization.organizationConversationId,
+          ),
+        );
+    const title = selectedCampusGroup?.name ?? selectedOrganization?.name ?? "Group";
+    const description = selectedCampusGroup?.description ?? selectedOrganization?.fullDescription ?? "";
+    const memberCount = selectedCampusGroup?.memberCount ?? selectedOrganization?.memberCount ?? null;
+
+    return (
+      <section className="cm-content-swap space-y-4" data-group-detail>
+        <header className="flex items-center gap-3">
+          <MintLeafBackButton onClick={closeDetail} label="Back" aria-label="Back" tone="minimal" className="text-slate-800" />
+          <div className="min-w-0"><p className="cm-eyebrow" style={{ color: theme.primary }}>Group</p><h1 className="truncate text-xl font-black text-slate-950">{title}</h1></div>
+        </header>
+        <div className="cm-surface-card p-5 sm:p-6">
+          <p className="text-sm leading-6 text-slate-600">{description}</p>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <p className="text-xs font-semibold text-slate-500">{typeof memberCount === "number" ? `${memberCount.toLocaleString("en-US")} members` : "Member count unavailable"}</p>
+            {selectedOrganization && !joinedOrganization && (
+              <button type="button" onClick={() => onOrganizationMembershipAction(selectedOrganization)} className="rounded-full px-4 py-2 text-xs font-black" style={{ backgroundColor: theme.primary, color: theme.secondary }}>{organizationStatus === "requested" ? "Requested" : "Join / Request"}</button>
+            )}
+          </div>
+        </div>
+
+        <div className="cm-surface-card p-5">
+          <div className="flex items-center justify-between gap-3"><div><h2 className="font-black text-slate-900">Group chat</h2><p className="mt-1 text-xs text-slate-500">Local prototype conversation</p></div><button type="button" disabled={!canChat} onClick={() => setChatOpen((current) => !current)} className="rounded-full px-3 py-2 text-xs font-black disabled:bg-slate-100 disabled:text-slate-400" style={canChat ? { backgroundColor: theme.primary, color: theme.secondary } : undefined}>{canChat ? (chatOpen ? "Close chat" : "Open chat") : "Members only"}</button></div>
+          {!canChat && <p className="mt-3 text-xs leading-5 text-slate-500">Join and become an official conversation participant to access this group chat.</p>}
+          {chatOpen && canChat && (
+            <div className="cm-content-swap mt-4">
+              <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl bg-slate-50 p-3">{chatMessages.length ? chatMessages.map((message, index) => <p key={`${index}:${message}`} className="ml-auto w-fit max-w-[82%] rounded-2xl px-3 py-2 text-sm text-white" style={{ backgroundColor: theme.primary }}>{message}</p>) : <p className="py-6 text-center text-sm text-slate-400">No local messages yet</p>}</div>
+              <form onSubmit={submitChat} className="mt-2 flex gap-2"><input value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} placeholder="Message group" className="min-w-0 flex-1 rounded-full border border-slate-200 px-4 py-2.5 text-sm" /><button type="submit" disabled={!chatDraft.trim()} className="rounded-full px-4 py-2 text-xs font-black text-white disabled:opacity-40" style={{ backgroundColor: theme.primary }}>Send</button></form>
+              <p className="mt-2 text-[10px] text-slate-400">Saved only for this browser session. Real-time group delivery is not connected.</p>
+            </div>
+          )}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <div className="space-y-5">
-      <label className="relative block">
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-slate-400" aria-hidden="true">
-          ⌕
-        </span>
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search group name, course, subject, or club…"
-          className="w-full rounded-3xl border border-white/80 bg-white/95 py-4 pl-12 pr-4 text-sm shadow-sm outline-none focus:ring-2"
-          style={{ caretColor: theme.primary }}
-        />
-      </label>
-
-      <div className="flex rounded-2xl border border-white/80 bg-white/90 p-1 shadow-sm" role="tablist" aria-label="Group views">
+      <div className="flex justify-center">
+      <div className="inline-flex rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm" role="tablist" aria-label="Group views">
         {([
           { id: "mine", label: "My Groups" },
           { id: "discover", label: "Discover" },
@@ -372,7 +456,7 @@ export function GroupsSkeleton({
               role="tab"
               aria-selected={selected}
               onClick={() => setView(option.id)}
-              className="flex-1 rounded-xl px-4 py-3 text-sm font-black transition"
+              className="rounded-full px-4 py-2 text-xs font-black transition"
               style={
                 selected
                   ? { backgroundColor: theme.primary, color: theme.secondary }
@@ -384,40 +468,22 @@ export function GroupsSkeleton({
           );
         })}
       </div>
+      </div>
 
-      {availableCategories.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Group category filters">
-          {availableCategories.map((option) => {
-            const selected = category === option;
-            return (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => setCategory(option)}
-                className="shrink-0 rounded-full border px-3.5 py-2 text-xs font-black"
-                style={
-                  selected
-                    ? {
-                        borderColor: theme.primary,
-                        backgroundColor: theme.accent,
-                        color: theme.primary,
-                      }
-                    : {
-                        borderColor: "#e2e8f0",
-                        backgroundColor: "white",
-                        color: "#64748b",
-                      }
-                }
-              >
-                {option}
-              </button>
-            );
-          })}
-        </div>
+      {view === "discover" && (
+        <label className="relative block">
+          <span className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden="true"><SearchIcon /></span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search groups"
+            className="w-full rounded-full border border-white/80 bg-white/95 py-3 pl-12 pr-4 text-sm shadow-sm outline-none focus:ring-2"
+            style={{ caretColor: theme.primary }}
+          />
+        </label>
       )}
 
-      <div key={`${view}:${category}`} className="cm-content-swap">
+      <div key={view} className="cm-content-swap">
       {!configuredUniversityId ? (
         <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-9 text-center">
           <h2 className="font-black text-slate-900">Groups are not configured yet</h2>
@@ -436,6 +502,7 @@ export function GroupsSkeleton({
                 theme={theme}
                 status="member"
                 onAction={() => campusGroups.leave(group)}
+                onOpen={() => setSelected({ kind: "campus", id: group.id })}
               />
             ))}
             {myOrganizationGroups.map((organization) => (
@@ -446,16 +513,13 @@ export function GroupsSkeleton({
                 status={organizations.getMembershipStatus(organization.id)}
                 memberCount={organizations.getMemberCount(organization.id)}
                 onAction={() => onOrganizationMembershipAction(organization)}
+                onOpen={() => setSelected({ kind: "organization", id: organization.id })}
               />
             ))}
           </div>
         ) : (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-9 text-center">
-            <h2 className="font-black text-slate-900">No matching groups yet</h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Join an open development group or an eligible club community from
-              Discover.
-            </p>
+            <h2 className="font-black text-slate-900">No groups yet</h2>
             <button
               type="button"
               onClick={() => setView("discover")}
@@ -475,6 +539,7 @@ export function GroupsSkeleton({
               theme={theme}
               status={campusGroups.getStatus(group.id)}
               onAction={() => campusGroups.joinOrRequest(group)}
+              onOpen={() => setSelected({ kind: "campus", id: group.id })}
             />
           ))}
           {discoverOrganizationGroups.map((organization) => (
@@ -485,6 +550,7 @@ export function GroupsSkeleton({
               status={organizations.getMembershipStatus(organization.id)}
               memberCount={organizations.getMemberCount(organization.id)}
               onAction={() => onOrganizationMembershipAction(organization)}
+              onOpen={() => setSelected({ kind: "organization", id: organization.id })}
             />
           ))}
         </div>
@@ -492,21 +558,12 @@ export function GroupsSkeleton({
         <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-9 text-center">
           <h2 className="font-black text-slate-900">No groups match this view</h2>
           <p className="mt-2 text-sm text-slate-500">
-            Clear the search or choose another available category.
+            Clear the search to see available groups.
           </p>
         </div>
       )}
       </div>
 
-      <section className="rounded-3xl bg-slate-950 p-5 text-white">
-        <p className="cm-eyebrow text-amber-300">
-          Local development only
-        </p>
-        <p className="mt-2 text-sm leading-6 text-slate-300">
-          These sample communities and join states live on this device. No shared
-          backend chat or live university membership is implied.
-        </p>
-      </section>
     </div>
   );
 }

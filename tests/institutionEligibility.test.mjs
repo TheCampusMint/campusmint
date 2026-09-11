@@ -161,7 +161,7 @@ test("a provisional identity receives the neutral theme and no campus inventory"
     knownUniversityId: resolved.identity.knownUniversityId,
   });
 
-  assert.equal(theme.primary, "#0f172a");
+  assert.equal(theme.primary, "#6f1d2c");
   assert.deepEqual(theme.accessibleCampuses, []);
   assert.equal(theme.campusNetworkId, "universal");
 });

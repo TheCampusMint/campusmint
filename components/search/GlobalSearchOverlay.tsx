@@ -17,6 +17,7 @@ type GlobalSearchOverlayProps = {
   theme: UniversityTheme;
   historyDepth: number;
   initialScrollY: number;
+  onRequestBack: () => void;
   onRequestClose: () => void;
   onScrollYChange: (scrollY: number) => void;
   children: ReactNode;
@@ -26,6 +27,7 @@ export function GlobalSearchOverlay({
   theme,
   historyDepth,
   initialScrollY,
+  onRequestBack,
   onRequestClose,
   onScrollYChange,
   children,
@@ -36,7 +38,7 @@ export function GlobalSearchOverlay({
 
   const requestClose = useCallback(() => {
     if (historyDepth > 0) {
-      onRequestClose();
+      onRequestBack();
       return;
     }
 
@@ -46,7 +48,7 @@ export function GlobalSearchOverlay({
       onRequestClose,
       motion.duration.fast,
     );
-  }, [closing, historyDepth, onRequestClose]);
+  }, [closing, historyDepth, onRequestBack, onRequestClose]);
 
   useModalLayer(scrollContainerRef, requestClose);
 
@@ -70,6 +72,7 @@ export function GlobalSearchOverlay({
       ref={scrollContainerRef}
       data-search-overlay
       data-search-scroll-container
+      data-search-history-depth={historyDepth}
       role="dialog"
       aria-modal="true"
       aria-label="Campus Mint Search"

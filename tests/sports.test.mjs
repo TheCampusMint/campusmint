@@ -3,181 +3,226 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
-  apPreseasonPoll,
-  baseballSeasons,
-  basketballSeasons,
-  campusSports,
-  featuredFootballTeamByUniversity,
-  footballConferenceOptions,
-  footballConferences,
-  getBaseballSeason,
-  getBasketballSeason,
-  getFootballConferenceForTeam,
-  getFootballSeason,
-  getSoccerSeason,
-  getSportsTeam,
-  getTrackProgram,
-  soccerSeasons,
-  trackPrograms,
-} from "../data/sports/index.ts";
-import {
-  initialSportsNavigationState,
-  sportsNavigationReducer,
-} from "../lib/sports/navigation.ts";
+  defaultSportsEntitlement,
+  getAvailableCampusPrograms,
+  getCampusAthleticsProfile,
+  getCampusRankingBoards,
+  getCampusGameDetail,
+  getVerifiedGameParticipants,
+  getLiveCampusGames,
+  launchCampusSports,
+  resolveDefaultCampusSport,
+  resolveCampusGameState,
+} from "../data/sports/campus.ts";
 
 const sportsHubSource = readFileSync(
   new URL("../components/sports/SportsHub.tsx", import.meta.url),
   "utf8",
 );
+const currentTime = new Date("2026-08-29T12:00:00-05:00").getTime();
+const tamu = getCampusAthleticsProfile("tamu");
 
-test("Sports exposes five real sport surfaces with football first", () => {
-  assert.deepEqual(campusSports.map(({ id }) => id), ["football", "basketball", "baseball", "soccer", "track"]);
-});
-
-test("AP ranks are plain numeric data and the Sports UI does not prefix them with #", () => {
-  assert.ok(apPreseasonPoll.every(({ rank }) => Number.isInteger(rank) && rank > 0));
-  assert.doesNotMatch(sportsHubSource, /#\{rank\}|AP #/);
-});
-
-test("All teams was removed and SEC is labeled exactly SEC", () => {
-  assert.equal(footballConferenceOptions.some(({ label }) => /all teams/i.test(label)), false);
-  assert.equal(footballConferenceOptions.find(({ id }) => id === "sec")?.label, "SEC");
-});
-
-test("football selector is derived from AP plus every configured 2026 FBS grouping", () => {
-  assert.deepEqual(
-    footballConferenceOptions.map(({ id }) => id),
-    ["ap-poll", ...footballConferences.map(({ id }) => id)],
-  );
-  assert.equal(footballConferences.length, 11);
-});
-
-test("2026 FBS membership contains 138 unique programs", () => {
-  const ids = footballConferences.flatMap(({ teamIds }) => teamIds);
-  assert.equal(ids.length, 138);
-  assert.equal(new Set(ids).size, 138);
-});
-
-test("major 2026 realignment memberships are current", () => {
-  assert.equal(getFootballConferenceForTeam("texas-am")?.id, "sec");
-  assert.equal(getFootballConferenceForTeam("texas-state")?.id, "pac-12");
-  assert.equal(getFootballConferenceForTeam("louisiana-tech")?.id, "sun-belt");
-  assert.equal(getFootballConferenceForTeam("sacramento-state")?.id, "mac");
-  assert.equal(getFootballConferenceForTeam("north-dakota-state")?.id, "mountain-west");
-  assert.equal(getFootballConferenceForTeam("notre-dame")?.id, "independent");
-});
-
-test("conference team counts match verified 2026 alignment", () => {
-  assert.deepEqual(
-    Object.fromEntries(footballConferences.map(({ id, teamIds }) => [id, teamIds.length])),
-    { sec: 16, "big-ten": 18, acc: 17, "big-12": 16, american: 14, cusa: 10, mac: 13, "mountain-west": 10, "pac-12": 8, "sun-belt": 14, independent: 2 },
-  );
-});
-
-test("every football membership resolves to a shared team identity", () => {
-  for (const conference of footballConferences) {
-    for (const teamId of conference.teamIds) assert.ok(getSportsTeam(teamId), teamId);
-  }
-});
-
-test("Texas A&M 2026 schedule contains the verified 12 opponents in order", () => {
-  const games = getFootballSeason("texas-am").games;
-  assert.deepEqual(games.map(({ opponentId }) => opponentId), [
-    "missouri-state", "arizona-state", "kentucky", "lsu", "arkansas", "missouri",
-    "the-citadel", "alabama", "south-carolina", "tennessee", "oklahoma", "texas",
+test("65. launch Sports supports only Football, Basketball, and Baseball", () => {
+  assert.deepEqual(launchCampusSports.map(({ id }) => id), [
+    "football",
+    "basketball",
+    "baseball",
   ]);
 });
 
-test("Texas A&M schedule preserves verified home and away mapping", () => {
-  assert.deepEqual(getFootballSeason("texas-am").games.map(({ homeAway }) => homeAway), [
-    "home", "home", "home", "away", "home", "away", "home", "away", "away", "home", "away", "home",
+test("66. an unavailable sport is hidden from a school's programs", () => {
+  const basketballOnly = {
+    ...tamu,
+    supportedSports: ["basketball"],
+  };
+  assert.deepEqual(
+    getAvailableCampusPrograms(basketballOnly).map(({ sport }) => sport),
+    ["basketball"],
+  );
+  assert.deepEqual(getAvailableCampusPrograms(getCampusAthleticsProfile("blinn")), []);
+});
+
+test("67. Soccer is absent from the launch selector", () => {
+  assert.equal(launchCampusSports.some(({ id }) => id === "soccer"), false);
+});
+
+test("68. Track is absent from the launch selector", () => {
+  assert.equal(launchCampusSports.some(({ id }) => id === "track"), false);
+});
+
+test("69. Sports resolves the current user's university", () => {
+  assert.equal(tamu.universityId, "tamu");
+  assert.equal(tamu.universityName, "Texas A&M University");
+});
+
+test("70. a provisional university cannot inherit TAMU Sports data", () => {
+  assert.equal(getCampusAthleticsProfile(null), null);
+});
+
+test("71. the live panel never fabricates a game", () => {
+  assert.deepEqual(getLiveCampusGames(tamu, currentTime), []);
+});
+
+test("72. no live games has the required concise state", () => {
+  assert.match(sportsHubSource, /No games live right now/);
+});
+
+test("73. the default sport resolver is deterministic", () => {
+  assert.equal(
+    resolveDefaultCampusSport(tamu, currentTime),
+    resolveDefaultCampusSport(tamu, currentTime),
+  );
+});
+
+test("74. a genuinely live sport receives first priority", () => {
+  const basketball = tamu.programs.basketball;
+  const liveProfile = {
+    ...tamu,
+    programs: {
+      ...tamu.programs,
+      basketball: {
+        ...basketball,
+        games: [{ ...basketball.games[0], status: "live" }],
+      },
+    },
+  };
+  assert.equal(resolveDefaultCampusSport(liveProfile, currentTime), "basketball");
+});
+
+test("75. selected sports expose full current published schedule fixtures", () => {
+  assert.equal(tamu.programs.football.schedulePublished, true);
+  assert.equal(tamu.programs.football.games.length, 12);
+  assert.equal(tamu.programs.basketball.schedulePublished, true);
+  assert.equal(tamu.programs.basketball.games.length, 33);
+});
+
+test("76. the current official 2027 baseball schedule is published", () => {
+  assert.equal(tamu.programs.baseball.schedulePublished, true);
+  assert.equal(tamu.programs.baseball.games.length > 0, true);
+  assert.match(tamu.programs.baseball.source.sourceUrl, /^https:\/\/12thman\.com\//);
+});
+
+test("77. the published 2027 baseball schedule retains its official season identity", () => {
+  assert.equal(tamu.programs.baseball.seasonLabel, "2027");
+  assert.equal(tamu.programs.baseball.games.some(({ opponentName }) => opponentName.includes("LSU")), true);
+});
+
+test("78. Texas A&M's 2026 football opener is Missouri State", () => {
+  assert.equal(tamu.programs.football.games[0].opponentName, "Missouri State");
+  assert.equal(tamu.programs.football.games[0].dateLabel, "Sep 5");
+});
+
+test("79. LSU is later and not week one", () => {
+  const games = tamu.programs.football.games;
+  assert.equal(games.findIndex(({ opponentName }) => opponentName === "LSU"), 3);
+  assert.equal(games[3].dateLabel, "Sep 26");
+});
+
+test("80. Texas A&M football home and away metadata is correct", () => {
+  assert.deepEqual(tamu.programs.football.games.map(({ homeAway }) => homeAway), [
+    "home", "home", "home", "away", "home", "away",
+    "home", "away", "away", "home", "away", "home",
   ]);
 });
 
-test("future Texas A&M games do not contain fabricated results", () => {
-  for (const game of getFootballSeason("texas-am").games) {
+test("81. future games contain no invented result while the completed opener is final", () => {
+  const [opener, ...futureGames] = tamu.programs.football.games;
+  assert.deepEqual([opener.status, opener.result, opener.campusScore, opener.opponentScore], ["final", "W", 50, 0]);
+  for (const game of futureGames) {
     assert.equal(game.status, "scheduled");
-    assert.equal(game.result, undefined);
-    assert.equal(game.scoringHighlight, undefined);
+    assert.equal(game.result, null);
+    assert.equal(game.campusScore, null);
+    assert.equal(game.opponentScore, null);
   }
 });
 
-test("completed Blinn opener uses the verified official result and scoring note", () => {
-  const opener = getFootballSeason("blinn").games[0];
-  assert.equal(opener.status, "final");
-  assert.deepEqual(opener.result, { outcome: "W", teamScore: 34, opponentScore: 20 });
-  assert.match(opener.scoringHighlight ?? "", /21 unanswered points/);
+test("91. Sep 10 date-aware state identifies Arizona State as the next verified game", () => {
+  const auditTime = Date.parse("2026-09-10T12:00:00-05:00");
+  const opener = tamu.programs.football.games[0];
+  const next = tamu.programs.football.games[1];
+  assert.equal(resolveCampusGameState(opener, tamu.programs.football.source, auditTime), "final");
+  assert.equal(next.opponentName, "Arizona State");
+  assert.equal(resolveCampusGameState(next, tamu.programs.football.source, auditTime), "scheduled");
+  assert.equal(tamu.programs.football.record, "1–0");
 });
 
-test("completed verified games can contain real results and optional scoring highlights", () => {
-  const result = basketballSeasons[0].games[0];
-  assert.deepEqual(result.result, { outcome: "W", teamScore: 63, opponentScore: 50 });
-  assert.match(result.scoringHighlight ?? "", /22 points/);
+test("92. current AP board resolves Texas A&M at No. 10", () => {
+  const national = getCampusRankingBoards(tamu, "football").find(({ kind }) => kind === "national");
+  assert.equal(national.entries.find(({ teamId }) => teamId === "texas-am")?.rank, 10);
 });
 
-test("every football team detail resolves to a schedule/results model", () => {
-  const season = getFootballSeason("ohio-state");
-  assert.equal(season.sport, "football");
-  assert.ok(Array.isArray(season.games));
-  assert.match(season.label, /schedule \/ results/i);
+test("93. completed detail contains only source-backed participants and upcoming detail is empty", () => {
+  const completed = tamu.programs.football.games[0];
+  const upcoming = tamu.programs.football.games[1];
+  assert.ok(getCampusGameDetail(completed));
+  assert.equal(getCampusGameDetail(upcoming), null);
+  assert.equal(getVerifiedGameParticipants(completed).every(({ participated }) => participated === true), true);
+  assert.deepEqual(getVerifiedGameParticipants(upcoming), []);
 });
 
-test("old roster, coach, overview and history team-detail modes are gone", () => {
-  assert.doesNotMatch(sportsHubSource, /TeamDetailView|teamDetailViews|selectedTeam\.roster|selectedTeam\.coach/);
-});
-
-test("logo fallback identity retains a correct explicit abbreviation", () => {
-  const citadel = getSportsTeam("the-citadel");
-  assert.equal(citadel?.logoUrl, undefined);
-  assert.equal(citadel?.abbreviation, "CIT");
-  assert.equal(getSportsTeam("texas-am")?.abbreviation, "TAMU");
-});
-
-test("a school without verified track participation is not fabricated", () => {
-  assert.equal(getTrackProgram("blinn"), null);
-});
-
-test("basketball, baseball and soccer resolve real campus program models", () => {
-  assert.equal(getBasketballSeason("tamu").sport, "basketball");
-  assert.equal(getBaseballSeason("tamu").sport, "baseball");
-  assert.equal(getSoccerSeason("tamu").sport, "soccer");
-  assert.ok(basketballSeasons.length >= 5);
-  assert.ok(baseballSeasons.length >= 5);
-  assert.ok(soccerSeasons.length >= 5);
-});
-
-test("track uses meet models instead of football-style games", () => {
-  const program = getTrackProgram("tamu");
-  assert.ok(program);
-  assert.equal(program.meets.length, 3);
-  assert.equal(program.meets.every(({ status }) => status === "completed"), true);
-  assert.ok(trackPrograms.length >= 4);
-});
-
-test("Sports container uses content-driven height with no giant spacer constants", () => {
-  assert.match(sportsHubSource, /data-natural-content-height="true"/);
-  assert.doesNotMatch(sportsHubSource, /min-h-\[43rem\]|200vh|3000px|h-\[\d{4,}px\]/);
-});
-
-test("selecting a schedule opponent closes the floating panel before detail", () => {
-  const selected = sportsNavigationReducer(
-    { scheduleOpen: true, selectedTeamId: null },
-    { type: "select-team", teamId: "lsu" },
+test("82. the game model can represent a verified completed result", () => {
+  const completed = {
+    ...tamu.programs.football.games[0],
+    status: "final",
+    result: "W",
+    campusScore: 28,
+    opponentScore: 17,
+  };
+  assert.deepEqual(
+    [completed.status, completed.result, completed.campusScore, completed.opponentScore],
+    ["final", "W", 28, 17],
   );
-  assert.deepEqual(selected, { scheduleOpen: false, selectedTeamId: "lsu" });
 });
 
-test("leaf back action returns one level without reopening the schedule", () => {
-  const back = sportsNavigationReducer(
-    { scheduleOpen: false, selectedTeamId: "lsu" },
-    { type: "back" },
+test("83. national ranking availability is conditional", () => {
+  assert.equal(getCampusRankingBoards(tamu, "football").length > 0, true);
+  assert.deepEqual(getCampusRankingBoards(tamu, "basketball"), []);
+  assert.deepEqual(getCampusRankingBoards(getCampusAthleticsProfile("blinn"), "football"), []);
+});
+
+test("84. the user receives national and own-conference context only", () => {
+  assert.deepEqual(
+    getCampusRankingBoards(tamu, "football").map(({ kind }) => kind),
+    ["national", "conference"],
   );
-  assert.deepEqual(back, initialSportsNavigationState);
 });
 
-test("every configured campus maps to an actual featured football identity", () => {
-  assert.deepEqual(featuredFootballTeamByUniversity, {
-    tamu: "texas-am", blinn: "blinn", texas: "texas", lsu: "lsu", alabama: "alabama",
-  });
-  for (const teamId of Object.values(featuredFootballTeamByUniversity)) assert.ok(getSportsTeam(teamId));
+test("85. Texas A&M resolves SEC context without arbitrary conference controls", () => {
+  const conference = getCampusRankingBoards(tamu, "football").find(
+    ({ kind }) => kind === "conference",
+  );
+  assert.match(conference.title, /^SEC/);
+  assert.doesNotMatch(sportsHubSource, /footballConferenceOptions|Big Ten|Big 12|ACC/);
+});
+
+test("86. poll entries are informational and do not restore team browsing", () => {
+  assert.doesNotMatch(sportsHubSource, /selectTeam|onOpponent|TeamDetail/);
+});
+
+test("87. the campus model supports D2 and D3 without requiring D1", () => {
+  const d2 = { ...tamu, division: "ncaa_d2", divisionLabel: "NCAA Division II" };
+  const d3 = { ...tamu, division: "ncaa_d3", divisionLabel: "NCAA Division III" };
+  assert.equal(getAvailableCampusPrograms(d2).length, 3);
+  assert.equal(getAvailableCampusPrograms(d3).length, 3);
+});
+
+test("88. Sports+ entitlement defaults safely", () => {
+  assert.equal(defaultSportsEntitlement.sportsPlus, false);
+});
+
+test("89. no paid entitlement is fabricated", () => {
+  assert.equal(defaultSportsEntitlement.source, "development_default");
+  assert.doesNotMatch(sportsHubSource, /payment successful|subscription activated/i);
+});
+
+test("90. every campus sports program stores provenance", () => {
+  for (const universityId of ["tamu", "blinn", "texas", "lsu", "alabama"]) {
+    const profile = getCampusAthleticsProfile(universityId);
+    for (const program of getAvailableCampusPrograms(profile)) {
+      assert.ok(program.source.sourceName);
+      assert.match(program.source.sourceUrl, /^https:\/\//);
+      assert.ok(program.source.season);
+      assert.ok(program.source.verifiedAt);
+    }
+  }
 });

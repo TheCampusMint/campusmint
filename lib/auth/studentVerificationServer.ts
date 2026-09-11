@@ -19,7 +19,8 @@ const serverGlobal =
 
 function createServerStudentVerificationService() {
   const development =
-    process.env.NODE_ENV === "development";
+    process.env.NODE_ENV === "development" &&
+    process.env.CAMPUS_MINT_EXPOSE_DEVELOPMENT_OTP === "true";
 
   return new StudentVerificationService({
     store:
@@ -33,10 +34,7 @@ function createServerStudentVerificationService() {
     hashSecret:
       process.env.STUDENT_VERIFICATION_HASH_SECRET ??
       randomBytes(32).toString("hex"),
-    exposeDevelopmentCode:
-      development &&
-      process.env.CAMPUS_MINT_EXPOSE_DEVELOPMENT_OTP !==
-        "false",
+    exposeDevelopmentCode: development,
   });
 }
 

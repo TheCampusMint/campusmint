@@ -169,6 +169,7 @@ export function ProfileView({
                       Verified
                     </span>
                   )}
+                  {owner.account.isSystemAccount && <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">Campus Mint</span>}
                 </div>
 
                 <p className="mt-1 truncate text-sm font-semibold text-slate-500">
@@ -258,6 +259,8 @@ export function ProfileView({
                   Log out
                 </button>
               </>
+            ) : owner.account.isSystemAccount ? (
+              <p className="text-xs font-semibold text-slate-500">First-party event discovery account</p>
             ) : (
               <>
                 <button

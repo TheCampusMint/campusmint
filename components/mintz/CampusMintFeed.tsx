@@ -4,15 +4,16 @@ import { useCallback, useMemo, useState } from "react";
 
 import { FullscreenVideoViewer } from "@/components/mintz/FullscreenVideoViewer";
 import { MintFeedList } from "@/components/mintz/MintFeedList";
-import { sampleEvents } from "@/data/events";
 import { developmentOrganizations } from "@/data/organizations";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import type { UniversityTheme } from "@/data/universities";
 import type { EventMomentsState } from "@/hooks/useEventMoments";
+import type { DirectMintState } from "@/hooks/useDirectMint";
 import type { MintzState } from "@/hooks/useMintz";
 import type { OrganizationsState } from "@/hooks/useOrganizations";
 import type { ProfilesState } from "@/hooks/useProfiles";
 import { rankNormalMintFeed } from "@/lib/social/mintFeedRanking";
-import { rankVideoMintz } from "@/lib/social/videoFeedRanking";
+import { applyCurrentPinsToGeneration, createFeedGeneration, flattenFeedGeneration } from "@/lib/social/feedGeneration";
 import {
   createMintVideoViewerState,
   getMintVideoViewerReturnScrollY,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/social/videoViewerState";
 import type { CampusMintUser } from "@/types/profile";
 import type { Story } from "@/types/story";
+import type { Event } from "@/types/event";
 
 type CampusMintFeedProps = {
   viewer: CampusMintUser;
@@ -28,8 +30,11 @@ type CampusMintFeedProps = {
   mintz: MintzState;
   organizations: OrganizationsState;
   eventMoments: EventMomentsState;
+  events: Event[];
+  directMint: DirectMintState;
   onCreateStory: (story: Story) => void;
   onOpenProfile: (userId: string) => void;
+  onMessageUser: (userId: string) => void;
   onRequestOrganization: (
     organizationId: string,
   ) => void;
@@ -37,6 +42,7 @@ type CampusMintFeedProps = {
   onRefresh?: () => void;
   reducedMotion?: boolean;
   autoplayVideo?: boolean;
+  surfaceActive?: boolean;
 };
 
 export function CampusMintFeed({
@@ -46,13 +52,17 @@ export function CampusMintFeed({
   mintz,
   organizations,
   eventMoments,
+  events,
+  directMint,
   onCreateStory,
   onOpenProfile,
+  onMessageUser,
   onRequestOrganization,
   onFeedChromeChange,
   onRefresh,
   reducedMotion,
   autoplayVideo,
+  surfaceActive = true,
 }: CampusMintFeedProps) {
   const [notice, setNotice] =
     useState<string | null>(null);
@@ -81,8 +91,8 @@ export function CampusMintFeed({
       followedOrganizationIds:
         organizations.followedOrganizationIds,
       organizationDirectory:
-        developmentOrganizations,
-      eventDirectory: sampleEvents,
+        areDevelopmentFixturesEnabled() ? developmentOrganizations : [],
+      eventDirectory: events,
       attendingEventIds: eventMoments.rsvps
         .filter(
           (rsvp) =>
@@ -94,6 +104,7 @@ export function CampusMintFeed({
     [
       mintz.currentTime,
       eventMoments.rsvps,
+      events,
       organizations.followedOrganizationIds,
       organizations.memberships,
       profiles.blocks,
@@ -103,14 +114,69 @@ export function CampusMintFeed({
       viewer,
     ],
   );
+  const messageAffinityByUserId = Object.fromEntries(
+    profiles.users.map((user) => [user.account.id, directMint.messagesFor(user.account.id).length]),
+  );
 
   const visibleMintz = useMemo(() => {
     return rankNormalMintFeed(allMintz, feedState);
   }, [allMintz, feedState]);
 
+  const [feedGeneration, setFeedGeneration] = useState(() => createFeedGeneration({
+    eligibleMintz: visibleMintz,
+    previousEligibleMintIds: null,
+    pins: mintz.pins,
+    viewerId: viewer.account.id,
+    dwell: mintz.dwellRecords,
+    privateAppreciations: mintz.privateAppreciations,
+    publicEndorsements: mintz.publicEndorsements,
+    generationId: 0,
+    now: new Date(mintz.currentTime).toISOString(),
+  }));
+  const feedScope = `${viewer.account.id}:${viewer.account.universityIdentityId ?? viewer.account.universityId}`;
+  const [generationCursor, setGenerationCursor] = useState(() => ({
+    feedScope,
+    refreshGeneration: mintz.refreshGeneration,
+  }));
+  if (
+    generationCursor.feedScope !== feedScope ||
+    generationCursor.refreshGeneration !== mintz.refreshGeneration
+  ) {
+    const sameViewerScope = generationCursor.feedScope === feedScope;
+    setGenerationCursor({ feedScope, refreshGeneration: mintz.refreshGeneration });
+    setFeedGeneration(createFeedGeneration({
+      eligibleMintz: visibleMintz,
+      previousEligibleMintIds: sameViewerScope ? feedGeneration.eligibleMintIds : null,
+      pins: mintz.pins,
+      viewerId: viewer.account.id,
+      dwell: mintz.dwellRecords,
+      privateAppreciations: mintz.privateAppreciations,
+      publicEndorsements: mintz.publicEndorsements,
+      generationId: sameViewerScope ? feedGeneration.id + 1 : 0,
+      now: new Date().toISOString(),
+    }));
+  }
+
+  const renderedGeneration = useMemo(
+    () => applyCurrentPinsToGeneration(feedGeneration, mintz.pins, viewer.account.id),
+    [feedGeneration, mintz.pins, viewer.account.id],
+  );
+  const generatedMintz = useMemo(() => {
+    const byId = new Map(visibleMintz.map((mint) => [mint.id, mint]));
+    return flattenFeedGeneration(renderedGeneration).flatMap((id) => {
+      const mint = byId.get(id);
+      return mint ? [mint] : [];
+    });
+  }, [renderedGeneration, visibleMintz]);
+
+  const refreshFeedGeneration = useCallback(() => {
+    if (onRefresh) onRefresh();
+    else mintz.refreshMintz();
+  }, [mintz, onRefresh]);
+
   const rankedVideoMintz = useMemo(
-    () => rankVideoMintz(allMintz, feedState),
-    [allMintz, feedState],
+    () => generatedMintz.filter((mint) => mint.media.some((media) => media.type === "video")),
+    [generatedMintz],
   );
 
   const viewerMintz = useMemo(() => {
@@ -157,14 +223,18 @@ export function CampusMintFeed({
       )}
 
       <MintFeedList
-        mints={visibleMintz}
+        mints={generatedMintz}
+        generation={renderedGeneration}
         viewer={viewer}
         theme={theme}
         profiles={profiles}
         mintz={mintz}
+        eventMoments={eventMoments}
+        messageAffinityByUserId={messageAffinityByUserId}
         organizations={organizations}
         feedState={feedState}
         onOpenProfile={onOpenProfile}
+        onMessageUser={onMessageUser}
         onRequestOrganization={
           onRequestOrganization
         }
@@ -172,9 +242,10 @@ export function CampusMintFeed({
         onFeedChromeChange={
           onFeedChromeChange
         }
-        onRefresh={onRefresh}
+        onRefresh={refreshFeedGeneration}
         reducedMotion={reducedMotion}
         autoplayVideo={autoplayVideo}
+        surfaceActive={surfaceActive}
         onOpenVideo={(mintId, mediaId) =>
           setVideoViewer(createMintVideoViewerState({
             mintId,
@@ -192,9 +263,15 @@ export function CampusMintFeed({
           initialMediaId={videoViewer.mediaId}
           feedState={feedState}
           mintz={mintz}
+          eventMoments={eventMoments}
+          messageAffinityByUserId={messageAffinityByUserId}
+          onOpenProfile={onOpenProfile}
+          onMessageUser={onMessageUser}
           autoplayVideo={autoplayVideo}
           reducedMotion={reducedMotion}
+          suspended={!surfaceActive}
           onClose={closeVideoViewer}
+          onRefresh={refreshFeedGeneration}
         />
       )}
     </div>

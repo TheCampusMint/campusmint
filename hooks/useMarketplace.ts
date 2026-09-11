@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { developmentMarketplaceListings } from "@/data/marketplace";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import type { UniversityId } from "@/data/universities";
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
 import type {
@@ -15,14 +16,18 @@ import type {
   NewMarketplaceListingInput,
 } from "@/types/marketplace";
 
-const currentDemoSellerId = "current-demo-student";
+const currentSessionSellerId = areDevelopmentFixturesEnabled()
+  ? "current-demo-student"
+  : "authenticated-user";
 
 function sessionId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function useMarketplace() {
-  const [listings, setListings] = useState<MarketplaceListing[]>(developmentMarketplaceListings);
+  const [listings, setListings] = useState<MarketplaceListing[]>(
+    areDevelopmentFixturesEnabled() ? developmentMarketplaceListings : [],
+  );
   const [savedListingIds, setSavedListingIds] = useState<string[]>([]);
   const [offers, setOffers] = useState<MarketplaceOffer[]>([]);
   const [messages, setMessages] = useState<MarketplaceMessage[]>([]);
@@ -38,12 +43,12 @@ export function useMarketplace() {
     const listing: MarketplaceListing = {
       ...listingInput,
       id,
-      sellerId: currentDemoSellerId,
+      sellerId: currentSessionSellerId,
       seller: {
-        id: currentDemoSellerId,
-        firstName: "Demo Student",
+        id: currentSessionSellerId,
+        firstName: "Student",
         universityId,
-        verificationStatus: "development_placeholder",
+        verificationStatus: areDevelopmentFixturesEnabled() ? "development_placeholder" : "verified_student",
         reputationRating: null,
         completedSales: 0,
         joinedAt: null,
@@ -62,7 +67,7 @@ export function useMarketplace() {
       viewCount: 0,
       favoriteCount: 0,
       offerCount: 0,
-      isDevelopment: true,
+      isDevelopment: areDevelopmentFixturesEnabled(),
     };
     setListings((current) => [listing, ...current]);
     return listing;
@@ -78,7 +83,7 @@ export function useMarketplace() {
 
   function sendOffer(listingId: string, amount: number, note: string | null = null) {
     const now = new Date().toISOString();
-    const offer: MarketplaceOffer = { id: sessionId("offer"), listingId, buyerId: currentDemoSellerId, amount, note, status: "offer_sent", createdAt: now, updatedAt: now };
+    const offer: MarketplaceOffer = { id: sessionId("offer"), listingId, buyerId: currentSessionSellerId, amount, note, status: "offer_sent", createdAt: now, updatedAt: now };
     setOffers((current) => [...current, offer]);
     setListings((current) => current.map((listing) => listing.id === listingId ? { ...listing, offerCount: listing.offerCount + 1 } : listing));
     return offer;
@@ -92,13 +97,13 @@ export function useMarketplace() {
   }
 
   function sendMessage(listingId: string, body: string) {
-    const message: MarketplaceMessage = { id: sessionId("message"), listingId, senderId: currentDemoSellerId, body, createdAt: new Date().toISOString() };
+    const message: MarketplaceMessage = { id: sessionId("message"), listingId, senderId: currentSessionSellerId, body, createdAt: new Date().toISOString() };
     setMessages((current) => [...current, message]);
     return message;
   }
 
   function reportListing(listingId: string, reason: MarketplaceReportReason, details: string) {
-    const report: MarketplaceReport = { id: sessionId("report"), listingId, reporterId: currentDemoSellerId, reason, details, createdAt: new Date().toISOString() };
+    const report: MarketplaceReport = { id: sessionId("report"), listingId, reporterId: currentSessionSellerId, reason, details, createdAt: new Date().toISOString() };
     setReports((current) => [...current, report]);
     return report;
   }
@@ -114,7 +119,7 @@ export function useMarketplace() {
   }
 
   return {
-    currentUserId: currentDemoSellerId,
+    currentUserId: currentSessionSellerId,
     listings,
     savedListingIds,
     offers,

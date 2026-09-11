@@ -8,6 +8,7 @@ import { ProviderPlaceCard } from "@/components/dining/ProviderPlaceCard";
 import { diningLocations } from "@/data/discovery/dining";
 import type { UniversityId, UniversityTheme } from "@/data/universities";
 import type { PlaceProviderResult } from "@/lib/providers/places/types";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import type { DiningCategory, DiningLocation } from "@/types/discovery";
 
 const categories: Array<"All" | DiningCategory> = ["All", "Dining hall", "Restaurant", "Coffee shop", "Fast food", "On-campus dining"];
@@ -40,7 +41,7 @@ export function DiningHub({ universityId, accessibleCampuses, theme }: DiningHub
 
   const available = useMemo(() => diningLocations.filter((location) =>
     location.accessibleUniversityIds.some((id) => accessibleCampuses.includes(id))
-    && (!location.source.isDevelopment || process.env.NODE_ENV === "development")
+    && (!location.source.isDevelopment || areDevelopmentFixturesEnabled())
   ), [accessibleCampuses]);
 
   const campuses = useMemo(() => Array.from(new Map(available.map((item) => [item.campusId, item.area])).entries()), [available]);

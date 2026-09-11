@@ -1,7 +1,7 @@
 import type { Mint } from "../../types/mint.ts";
 
 export type EditableMintPatch = Partial<
-  Pick<Mint, "caption" | "likesVisible" | "commentsEnabled">
+  Pick<Mint, "caption" | "commentsEnabled">
 >;
 
 export function applyEditableMintPatch(
@@ -15,9 +15,6 @@ export function applyEditableMintPatch(
     next.caption = patch.caption;
   }
 
-  if (typeof patch.likesVisible === "boolean") {
-    next.likesVisible = patch.likesVisible;
-  }
 
   if (typeof patch.commentsEnabled === "boolean") {
     next.commentsEnabled = patch.commentsEnabled;

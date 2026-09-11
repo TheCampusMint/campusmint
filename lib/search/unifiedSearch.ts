@@ -1,8 +1,5 @@
 export const unifiedSearchCategories = [
-  "people",
   "food",
-  "tutoring",
-  "clubs",
   "events",
   "marketplace",
 ] as const;
@@ -10,14 +7,10 @@ export const unifiedSearchCategories = [
 export type UnifiedSearchCategory =
   (typeof unifiedSearchCategories)[number];
 
-export type UnifiedSearchResultCategory = Exclude<
-  UnifiedSearchCategory,
-  "tutoring"
->;
+export type UnifiedSearchResultCategory = UnifiedSearchCategory;
 
 export type UnifiedSearchDetail =
   | { kind: "food"; id: string }
-  | { kind: "club"; id: string }
   | { kind: "event"; id: string }
   | { kind: "event_moment"; id: string; eventId: string }
   | {
@@ -28,7 +21,8 @@ export type UnifiedSearchDetail =
   | { kind: "profile"; id: string };
 
 export type UnifiedSearchCategoryFilters = {
-  tutoringSubject: string | null;
+  /** Reserved for additive, category-scoped filters without changing history. */
+  none: null;
 };
 
 export type UnifiedSearchState = {
@@ -39,23 +33,22 @@ export type UnifiedSearchState = {
 };
 
 export const initialUnifiedSearchState: UnifiedSearchState = {
-  category: "people",
+  category: "food",
   query: "",
-  categoryFilters: { tutoringSubject: null },
+  categoryFilters: { none: null },
   history: [],
 };
 
 export function migrateUnifiedSearchCategory(
   value: unknown,
 ): UnifiedSearchCategory {
-  if (value === "all" || value === "housing") return "people";
+  if (["all", "housing", "people", "tutoring", "clubs"].includes(String(value))) return "food";
 
   return unifiedSearchCategories.find((category) => category === value) ??
-    "people";
+    "food";
 }
 
 export type UnifiedSearchScope =
-  | { kind: "global_person"; userId: string }
   | { kind: "campus"; campusId: string }
   | { kind: "universities"; universityIds: readonly string[] }
   | { kind: "campus_network"; campusNetworkId: string };
@@ -70,8 +63,6 @@ export type UnifiedSearchCandidate = {
   scope: UnifiedSearchScope;
   profileId?: string;
   detail?: UnifiedSearchDetail;
-  tutoring?: boolean;
-  tutoringSubjects?: readonly string[];
 };
 
 export type UnifiedSearchAccess = {
@@ -90,10 +81,6 @@ export function isUnifiedSearchCandidateVisible(
   candidate: UnifiedSearchCandidate,
   access: UnifiedSearchAccess,
 ) {
-  if (candidate.scope.kind === "global_person") {
-    return !access.blockedUserIds.includes(candidate.scope.userId);
-  }
-
   if (!access.configuredUniversityId) return false;
 
   if (candidate.scope.kind === "campus") {
@@ -120,29 +107,11 @@ export function filterUnifiedSearchCandidates(
   access: UnifiedSearchAccess,
 ) {
   const normalizedQuery = normalizedSearch(state.query);
-  const normalizedTutoringSubject = normalizedSearch(
-    state.categoryFilters?.tutoringSubject ?? "",
-  );
-
   return candidates.filter((candidate) => {
     if (!isUnifiedSearchCandidateVisible(candidate, access)) return false;
 
-    const inCategory =
-      state.category === "tutoring"
-        ? candidate.category === "people" && candidate.tutoring === true
-        : candidate.category === state.category;
-
-    const inTutoringSubject =
-      state.category !== "tutoring" ||
-      !normalizedTutoringSubject ||
-      candidate.tutoringSubjects?.some(
-        (subject) =>
-          normalizedSearch(subject) === normalizedTutoringSubject,
-      );
-
     return (
-      inCategory &&
-      inTutoringSubject &&
+      candidate.category === state.category &&
       (!normalizedQuery || candidate.searchText.includes(normalizedQuery))
     );
   });

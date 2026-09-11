@@ -17,17 +17,19 @@ import {
   type SwipeSection,
 } from "@/components/shell/navigation";
 import { motion } from "@/lib/motion/interaction";
+import { getNotchDotAvailability, type NotchPresentation } from "@/lib/motion/interaction";
 
 type BottomBubbleNavProps = {
   activeSection: PrimarySection;
   navigationSection: SwipeSection;
-  collapsed: boolean;
+  presentation: NotchPresentation;
   swipeProgress: number;
   swipeSettling: boolean;
   reducedMotion: boolean;
   onSelect: (section: SwipeSection) => void;
   onMintTap: () => void;
   onCreateMint: () => void;
+  onExpand: () => void;
 };
 
 type DragState = {
@@ -44,20 +46,17 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function mod(value: number, length: number) {
-  return ((value % length) + length) % length;
-}
-
 export function BottomBubbleNav({
   activeSection,
   navigationSection,
-  collapsed,
+  presentation,
   swipeProgress,
   swipeSettling,
   reducedMotion,
   onSelect,
   onMintTap,
   onCreateMint,
+  onExpand,
 }: BottomBubbleNavProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -78,10 +77,13 @@ export function BottomBubbleNav({
     getBottomNavigationSlotIndex(navigationSection),
   );
   const pageSwipeActive = Math.abs(swipeProgress) > 0.001;
-  const targetNavigationIndex =
+  const targetNavigationIndex = clamp(
     swipeProgress < 0
-      ? mod(activeNavigationIndex + 1, primaryNavigation.length)
-      : mod(activeNavigationIndex - 1, primaryNavigation.length);
+      ? activeNavigationIndex + 1
+      : activeNavigationIndex - 1,
+    0,
+    primaryNavigation.length - 1,
+  );
   const targetSection = primaryNavigation[targetNavigationIndex]?.id;
   const targetSlot = targetSection
     ? getBottomNavigationSlotIndex(targetSection)
@@ -91,10 +93,12 @@ export function BottomBubbleNav({
       (targetSlot - activeSlot) * clamp(Math.abs(swipeProgress), 0, 1)
     : activeSlot;
   const selectorPosition = dragPosition ?? pageSelectorPosition;
-  const notchHeight = collapsed ? 42 : 56;
-  const notchInset = collapsed ? 2.5 : 4;
-  const notchScaleX = collapsed ? 0.9 : 1;
+  const dots = presentation === "dots";
+  const compact = presentation === "compact";
+  const notchHeight = dots ? 30 : compact ? 42 : 56;
+  const notchInset = dots ? 2 : compact ? 2.5 : 4;
   const sportsContrast = activeSection === "sports";
+  const dotAvailability = getNotchDotAvailability(activeNavigationIndex, primaryNavigation.length);
 
   function clearSuppressClickTimer() {
     if (suppressClickTimerRef.current === null) return;
@@ -253,23 +257,27 @@ export function BottomBubbleNav({
   return (
     <nav
       data-bottom-bubble-nav
-      data-collapsed={collapsed ? "true" : "false"}
+      data-active-section={activeSection}
+      data-navigation-section={navigationSection}
+      data-collapsed={presentation !== "expanded" ? "true" : "false"}
+      data-notch-presentation={presentation}
       data-contrast={sportsContrast ? "sports" : "default"}
       aria-label="Campus Mint primary navigation"
-      className="pointer-events-none fixed bottom-[max(0.5rem,env(safe-area-inset-bottom))] left-1/2 z-50 w-[min(calc(100vw-1rem),30rem)] origin-bottom"
+      className="pointer-events-none fixed bottom-[max(0.6rem,env(safe-area-inset-bottom))] left-1/2 z-50 origin-bottom"
       style={{
-        transform: `translateX(-50%) scaleX(${notchScaleX})`,
+        width: dots ? "4.25rem" : compact ? "min(calc(100vw - 4rem), 19rem)" : "min(calc(100vw - 3rem), 21.75rem)",
+        transform: "translateX(-50%)",
         transition: reducedMotion
           ? "none"
-          : `transform ${motion.duration.standard}ms ${motion.easing.settle}`,
+          : `width ${motion.duration.standard}ms ${motion.easing.settle}, transform ${motion.duration.standard}ms ${motion.easing.settle}`,
       }}
     >
       <div
         ref={trackRef}
-        onPointerDown={beginScrub}
-        onPointerMove={updateScrub}
-        onPointerUp={finishScrub}
-        onPointerCancel={cancelScrub}
+        onPointerDown={dots ? undefined : beginScrub}
+        onPointerMove={dots ? undefined : updateScrub}
+        onPointerUp={dots ? undefined : finishScrub}
+        onPointerCancel={dots ? undefined : cancelScrub}
         className="pointer-events-auto relative isolate select-none overflow-hidden rounded-full border"
         style={{
           height: notchHeight,
@@ -315,6 +323,7 @@ export function BottomBubbleNav({
           aria-hidden="true"
           className="pointer-events-none absolute z-[1] transform-gpu will-change-transform"
           style={{
+            opacity: dots ? 0 : 1,
             top: notchInset,
             bottom: notchInset,
             left: notchInset,
@@ -323,7 +332,7 @@ export function BottomBubbleNav({
             transition:
               scrubbing || (pageSwipeActive && !swipeSettling)
                 ? "none"
-                : reducedMotion
+              : reducedMotion
                   ? "none"
                   : swipeSettling
                     ? `transform ${PAGE_SWIPE_SETTLE_MS}ms cubic-bezier(.22,1,.36,1)`
@@ -365,6 +374,10 @@ export function BottomBubbleNav({
           className="relative z-10 grid h-full"
           style={{
             gridTemplateColumns: `repeat(${SLOT_COUNT}, minmax(0, 1fr))`,
+            opacity: dots ? 0 : 1,
+            transform: dots ? "scale(.72)" : "scale(1)",
+            pointerEvents: dots ? "none" : "auto",
+            transition: reducedMotion ? "none" : `opacity ${motion.duration.fast}ms ease, transform ${motion.duration.standard}ms ${motion.easing.settle}`,
           }}
         >
           {bottomNavigationSlots.map((slot) => {
@@ -424,8 +437,8 @@ export function BottomBubbleNav({
                 <span
                   className="max-w-full truncate transition-[font-size,opacity]"
                   style={{
-                    fontSize: collapsed ? "0.63rem" : undefined,
-                    opacity: collapsed ? 0.86 : 1,
+                    fontSize: compact ? "0.63rem" : undefined,
+                    opacity: compact ? 0.86 : 1,
                     transitionDuration: reducedMotion
                       ? "0ms"
                       : `${motion.duration.fast}ms`,
@@ -437,6 +450,11 @@ export function BottomBubbleNav({
             );
           })}
         </div>
+        <button type="button" onClick={onExpand} aria-label="Expand navigation" className="absolute inset-0 z-20 flex items-center justify-center gap-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]" style={{ opacity: dots ? 1 : 0, pointerEvents: dots ? "auto" : "none", transition: reducedMotion ? "none" : `opacity ${motion.duration.fast}ms ease` }}>
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-700 transition-opacity" style={{ opacity: dotAvailability.hasPrevious ? (swipeProgress > 0.08 ? 0.95 : 0.55) : 0.18 }} aria-hidden="true" />
+          <span className="h-2 w-2 rounded-full shadow-sm" style={{ backgroundColor: "var(--app-accent)" }} aria-hidden="true" />
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-700 transition-opacity" style={{ opacity: dotAvailability.hasNext ? (swipeProgress < -0.08 ? 0.95 : 0.55) : 0.18 }} aria-hidden="true" />
+        </button>
       </div>
     </nav>
   );

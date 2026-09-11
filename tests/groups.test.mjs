@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -55,6 +56,21 @@ const groups = [
 ];
 
 const tamuAccess = { configuredUniversityId: "tamu", userId: "user-1" };
+const groupsSource = readFileSync(
+  new URL("../components/groups/GroupsSkeleton.tsx", import.meta.url),
+  "utf8",
+);
+
+test("Groups exposes only the My Groups and Discover primary modes", () => {
+  assert.match(groupsSource, /label:\s*"My Groups"/);
+  assert.match(groupsSource, /label:\s*"Discover"/);
+  assert.doesNotMatch(groupsSource, /categoryOptions|Group category filters/);
+});
+
+test("Discover retains its group Search without category bubbles", () => {
+  assert.match(groupsSource, /placeholder="Search groups"/);
+  assert.doesNotMatch(groupsSource, /setSelectedCategory|selectedCategory/);
+});
 
 test("an open campus group can be joined and immediately appears in My Groups", () => {
   const memberships = updateCampusGroupMembership(

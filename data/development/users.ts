@@ -53,6 +53,8 @@ type DevelopmentUserInput = {
   privacy?: Partial<ProfilePrivacySettings>;
   accountType?: SocialAccountType;
   discoveryScope?: SocialDiscoveryScope;
+  faceTimeContact?: CampusMintUser["account"]["faceTimeContact"];
+  isSystemAccount?: boolean;
 };
 
 function developmentUser(input: DevelopmentUserInput): CampusMintUser {
@@ -63,6 +65,8 @@ function developmentUser(input: DevelopmentUserInput): CampusMintUser {
       role: input.role ?? "student",
       verifiedStudent: false,
       verifiedAlumni: false,
+      faceTimeContact: input.faceTimeContact ?? null,
+      isSystemAccount: input.isSystemAccount ?? false,
       isDevelopment: true,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -208,6 +212,12 @@ export const developmentUsers: CampusMintUser[] = [
     graduationYear: 2024,
     clubIds: ["dev-tamu-robotics"],
     interests: ["Mentoring", "Robotics"],
+    faceTimeContact: {
+      kind: "email",
+      value: "noah.facetime-demo@campusmint.example",
+      visibility: "connections",
+      verified: true,
+    },
   }),
   developmentUser({
     id: "demo-tamu-townhall",
@@ -319,6 +329,22 @@ export const developmentUsers: CampusMintUser[] = [
     graduationYear: 2029,
     interests: ["Media", "Volleyball", "Design"],
     discoveryScope: "community",
+  }),
+  developmentUser({
+    id: "campus-mint-system",
+    universityId: "tamu",
+    role: "university-admin",
+    firstName: "Campus",
+    lastName: "Mint",
+    displayName: "Campus Mint",
+    username: "campusmint.events",
+    initials: "CM",
+    bio: "First-party Campus Mint account for source-backed public event discovery.",
+    major: null,
+    graduationYear: null,
+    interests: ["Campus events", "Student life"],
+    discoveryScope: "community",
+    isSystemAccount: true,
   }),
 ];
 

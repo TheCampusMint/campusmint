@@ -17,14 +17,26 @@ import type {
   EventMomentPrivacy,
 } from "@/types/eventMoment";
 import type { CampusMintUser } from "@/types/profile";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 
 export const EVENT_MOMENTS_STORAGE_KEY =
   "campusmint:development-event-moments:v1";
 
+const DEVELOPMENT_ATTENDING_RSVPS: EventMomentDevelopmentStore["rsvps"] = [
+  { eventId: "aggie-kickoff-tailgate", userId: "demo-tamu-noah", status: "attending", respondedAt: "2026-09-01T12:00:00.000Z" },
+  { eventId: "aggie-kickoff-tailgate", userId: "demo-seller-tamu", status: "attending", respondedAt: "2026-09-01T12:01:00.000Z" },
+  { eventId: "aggie-kickoff-tailgate", userId: "demo-tamu-jordan", status: "attending", respondedAt: "2026-09-01T12:02:00.000Z" },
+  { eventId: "aggie-kickoff-tailgate", userId: "demo-tamu-officer", status: "attending", respondedAt: "2026-09-01T12:03:00.000Z" },
+  { eventId: "campus-mint-open-mic-development", userId: "demo-tamu-noah", status: "attending", respondedAt: "2026-09-09T12:00:00.000Z" },
+  { eventId: "campus-mint-open-mic-development", userId: "demo-seller-tamu", status: "attending", respondedAt: "2026-09-09T12:01:00.000Z" },
+  { eventId: "campus-mint-open-mic-development", userId: "demo-tamu-jordan", status: "attending", respondedAt: "2026-09-09T12:02:00.000Z" },
+  { eventId: "campus-mint-open-mic-development", userId: "demo-tamu-officer", status: "attending", respondedAt: "2026-09-09T12:03:00.000Z" },
+];
+
 function emptyStore(): EventMomentDevelopmentStore {
   return {
     version: 1,
-    rsvps: [],
+    rsvps: areDevelopmentFixturesEnabled() ? DEVELOPMENT_ATTENDING_RSVPS : [],
     attendanceEvidence: [],
     prompts: [],
     moments: [],
@@ -54,9 +66,10 @@ export function useEventMoments() {
       if (stored) {
         const parsed = JSON.parse(stored) as EventMomentDevelopmentStore;
         if (parsed?.version === 1) {
+          const storedRsvpKeys = new Set(parsed.rsvps.map((rsvp) => `${rsvp.eventId}:${rsvp.userId}`));
           // This layout effect intentionally hydrates client-only prototype state.
           // eslint-disable-next-line react-hooks/set-state-in-effect
-          setStore(parsed);
+          setStore({ ...parsed, rsvps: [...parsed.rsvps, ...(areDevelopmentFixturesEnabled() ? DEVELOPMENT_ATTENDING_RSVPS : []).filter((rsvp) => !storedRsvpKeys.has(`${rsvp.eventId}:${rsvp.userId}`))] });
         }
       }
     } catch {

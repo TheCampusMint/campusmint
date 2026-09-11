@@ -3,17 +3,21 @@ import { FBS_STRUCTURE_SOURCE, getFootballConferenceForTeam } from "./conference
 import type { SportsDataSource, SportsGame, SportsSeason } from "@/data/sports/types";
 
 export const AP_POLL_SOURCE: SportsDataSource = {
-  sourceName: "Associated Press 2026 preseason Top 25",
-  sourceUrl: "https://apnews.com/article/ap-top-25-preseason-poll-bd5dd1c058fab6047510f09e18b035f1",
-  season: "2026 preseason",
-  verifiedAt: "2026-08-24",
+  sourceName: "Associated Press Top 25 · September 8, 2026",
+  sourceUrl: "https://apnews.com/article/ap-top-25-rankings-11b750c72b3fd709a9eaa008f4b570eb",
+  season: "2026 week 2",
+  verifiedAt: "2026-09-08",
+  lastFetchedAt: "2026-09-10T12:00:00-05:00",
+  staleAfter: "2026-09-15T23:59:59-05:00",
 };
 
 export const TEXAS_AM_FOOTBALL_SOURCE: SportsDataSource = {
   sourceName: "Texas A&M Athletics 2026 football schedule",
   sourceUrl: "https://12thman.com/sports/football/schedule",
   season: "2026",
-  verifiedAt: "2026-08-24",
+  verifiedAt: "2026-09-10",
+  lastFetchedAt: "2026-09-10T12:00:00-05:00",
+  staleAfter: "2026-09-12T14:00:00-05:00",
 };
 
 export const BLINN_FOOTBALL_SOURCE: SportsDataSource = {
@@ -32,21 +36,24 @@ const BLINN_KILGORE_RESULT_SOURCE: SportsDataSource = {
 
 export type ApPollEntry = { rank: number; teamId: string };
 
-export const apPreseasonPoll: readonly ApPollEntry[] = [
-  { rank: 1, teamId: "ohio-state" }, { rank: 2, teamId: "oregon" },
-  { rank: 3, teamId: "georgia" }, { rank: 4, teamId: "notre-dame" },
-  { rank: 5, teamId: "texas" }, { rank: 6, teamId: "indiana" },
-  { rank: 7, teamId: "miami" }, { rank: 8, teamId: "texas-am" },
-  { rank: 9, teamId: "ole-miss" }, { rank: 10, teamId: "oklahoma" },
-  { rank: 11, teamId: "lsu" }, { rank: 12, teamId: "texas-tech" },
-  { rank: 13, teamId: "alabama" }, { rank: 14, teamId: "byu" },
-  { rank: 14, teamId: "usc" }, { rank: 16, teamId: "michigan" },
-  { rank: 17, teamId: "washington" }, { rank: 18, teamId: "penn-state" },
-  { rank: 19, teamId: "smu" }, { rank: 20, teamId: "tennessee" },
-  { rank: 21, teamId: "utah" }, { rank: 22, teamId: "iowa" },
-  { rank: 23, teamId: "houston" }, { rank: 24, teamId: "louisville" },
-  { rank: 25, teamId: "missouri" },
+export const apCurrentPoll: readonly ApPollEntry[] = [
+  { rank: 1, teamId: "ohio-state" }, { rank: 2, teamId: "georgia" },
+  { rank: 3, teamId: "notre-dame" }, { rank: 4, teamId: "texas" },
+  { rank: 5, teamId: "indiana" }, { rank: 6, teamId: "oregon" },
+  { rank: 7, teamId: "miami" }, { rank: 8, teamId: "lsu" },
+  { rank: 9, teamId: "ole-miss" }, { rank: 10, teamId: "texas-am" },
+  { rank: 11, teamId: "oklahoma" }, { rank: 12, teamId: "alabama" },
+  { rank: 13, teamId: "texas-tech" }, { rank: 14, teamId: "usc" },
+  { rank: 15, teamId: "byu" }, { rank: 16, teamId: "penn-state" },
+  { rank: 17, teamId: "smu" }, { rank: 18, teamId: "tennessee" },
+  { rank: 19, teamId: "washington" }, { rank: 20, teamId: "utah" },
+  { rank: 21, teamId: "iowa" }, { rank: 22, teamId: "houston" },
+  { rank: 23, teamId: "missouri" }, { rank: 24, teamId: "louisville" },
+  { rank: 25, teamId: "virginia" },
 ] as const;
+
+/** Compatibility export for older consumers; the value is the current weekly poll. */
+export const apPreseasonPoll = apCurrentPoll;
 
 const tamuGame = (game: Omit<SportsGame, "status" | "source">): SportsGame => ({
   ...game,
@@ -55,7 +62,7 @@ const tamuGame = (game: Omit<SportsGame, "status" | "source">): SportsGame => ({
 });
 
 const texasAmSchedule: readonly SportsGame[] = [
-  tamuGame({ id: "tamu-missouri-state", opponentId: "missouri-state", date: "2026-09-05T18:00:00-05:00", dateLabel: "Sep 5, 2026", timeLabel: "6:00 PM CT", homeAway: "home", venue: "Kyle Field", network: "ESPN" }),
+  { id: "tamu-missouri-state", opponentId: "missouri-state", date: "2026-09-05T18:00:00-05:00", dateLabel: "Sep 5, 2026", timeLabel: "6:00 PM CT", homeAway: "home", venue: "Kyle Field", network: "ESPN", status: "final", result: { outcome: "W", teamScore: 50, opponentScore: 0 }, source: { ...TEXAS_AM_FOOTBALL_SOURCE, sourceName: "Texas A&M Athletics · A&M 50, Missouri State 0", sourceUrl: "https://12thman.com/news/2026/09/5/aggies-vs-missouri-state" } },
   tamuGame({ id: "tamu-arizona-state", opponentId: "arizona-state", date: "2026-09-12T11:00:00-05:00", dateLabel: "Sep 12, 2026", timeLabel: "11:00 AM CT", homeAway: "home", venue: "Kyle Field", network: "ABC" }),
   tamuGame({ id: "tamu-kentucky", opponentId: "kentucky", date: "2026-09-19T14:30:00-05:00", dateLabel: "Sep 19, 2026", timeLabel: "2:30 PM CT", homeAway: "home", venue: "Kyle Field", network: "ESPN / ESPN2" }),
   tamuGame({ id: "tamu-lsu", opponentId: "lsu", date: "2026-09-26", dateLabel: "Sep 26, 2026", timeLabel: "TBA", homeAway: "away", venue: "Tiger Stadium" }),

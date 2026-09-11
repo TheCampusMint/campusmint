@@ -1,6 +1,7 @@
 import type { UniversityId } from "@/data/universities";
 import type { UserRole } from "@/data/userRoles";
 import type { FriendshipStatus } from "@/types/social";
+import type { CampusMintAccountType } from "@/lib/auth/accountTypes";
 
 export const profileVisibilityOptions = [
   { id: "everyone", label: "Everyone" },
@@ -39,6 +40,7 @@ export type ProfilePhoto = {
 /** Account identity is intentionally separate from user-editable public profile data. */
 export type CampusMintAccount = {
   id: string;
+  accountType?: CampusMintAccountType;
 
   /** Legacy configured-campus ID used while existing campus features migrate. */
   universityId: UniversityId;
@@ -63,6 +65,13 @@ export type CampusMintAccount = {
   personalEmail?: string | null;
   primaryEmail?: string | null;
   phoneNumber?: string | null;
+  /** Explicit opt-in handoff identity; never rendered as profile copy. */
+  faceTimeContact?: {
+    kind: "email" | "phone";
+    value: string;
+    visibility: "friends" | "connections" | "private";
+    verified: boolean;
+  } | null;
 
   studentEmailDomain?: string | null;
   studentEmailVerifiedAt?: string | null;
@@ -74,6 +83,7 @@ export type CampusMintAccount = {
   onboardingCompletedAt?: string | null;
 
   isDevelopment: boolean;
+  isSystemAccount?: boolean;
   createdAt: string;
   updatedAt: string;
 };

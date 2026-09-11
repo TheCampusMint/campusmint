@@ -18,6 +18,7 @@ let bodyOverflowBeforeLayers = "";
 export function useModalLayer(
   containerRef: RefObject<HTMLElement | null>,
   onRequestClose: () => void,
+  active = true,
 ) {
   const onRequestCloseRef = useRef(onRequestClose);
 
@@ -26,6 +27,7 @@ export function useModalLayer(
   }, [onRequestClose]);
 
   useEffect(() => {
+    if (!active) return;
     const layer = Symbol("campus-mint-layer");
     const previouslyFocused =
       document.activeElement instanceof HTMLElement
@@ -97,5 +99,5 @@ export function useModalLayer(
 
       previouslyFocused?.focus({ preventScroll: true });
     };
-  }, [containerRef]);
+  }, [active, containerRef]);
 }

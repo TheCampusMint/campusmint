@@ -14,6 +14,10 @@ import {
   getVisibleTaggedMintz,
 } from "@/lib/social/mintFeeds";
 import { canViewPrivateAccountContent } from "@/lib/social/mintPermissions";
+import {
+  getCreatorAppreciationMetrics,
+  getPublicEndorsementContext,
+} from "@/lib/social/mintInteractions";
 import type { CampusMintUser } from "@/types/profile";
 
 type ProfileMintzProps = {
@@ -50,7 +54,26 @@ export function ProfileMintz({ viewer, owner, theme, profiles, mintz, organizati
         if (!author) return null;
         const permissionContext = createMintPermissionContext(item, author, feedState);
         const organization = getOrganizationById(item.organizationId);
-        return <MintCard key={item.id} mint={item} author={author} viewer={viewer} users={users} theme={theme} currentTime={mintz.currentTime} permissionContext={permissionContext} liked={mintz.likes.some((like) => like.mintId === item.id && like.userId === viewer.account.id)} saved={mintz.saves.some((save) => save.mintId === item.id && save.userId === viewer.account.id)} reposted={mintz.reposts.some((repost) => repost.mintId === item.id && repost.userId === viewer.account.id)} comments={mintz.comments.filter((comment) => comment.targetId === item.id)} organizationMembershipStatus={organization ? organizations.getMembershipStatus(organization.id) : undefined} onOpenProfile={onOpenProfile} onToggleLike={() => mintz.toggleLike(permissionContext)} onToggleSave={() => mintz.toggleSave(permissionContext)} onToggleRepost={() => mintz.toggleRepost(permissionContext)} onShare={(channel) => mintz.recordShare(permissionContext, channel)} onComment={(body) => mintz.addComment(permissionContext, body)} onDeleteComment={(commentId) => mintz.deleteOwnComment(commentId, viewer.account.id)} onReportComment={(commentId) => mintz.reportComment(permissionContext, commentId)} onUpdate={(patch) => mintz.updateOwnMint(item.id, viewer.account.id, patch)} onArchive={() => mintz.toggleArchive(item.id, viewer.account.id)} onDelete={() => mintz.deleteOwnMint(item.id, viewer.account.id)} onReport={(reason) => mintz.reportMint(permissionContext, reason, null)} />;
+        const endorsementContext = getPublicEndorsementContext({
+          mintId: item.id,
+          viewerId: viewer.account.id,
+          endorsements: mintz.publicEndorsements,
+          friendships: profiles.friendships,
+          follows: profiles.follows,
+          blocks: profiles.blocks,
+          eligibleUserIds: users.map((user) => user.account.id),
+        });
+        const creatorMetrics = getCreatorAppreciationMetrics({
+          mintId: item.id,
+          authorId: item.authorId,
+          viewerId: viewer.account.id,
+          privateAppreciations: mintz.privateAppreciations,
+          publicEndorsements: mintz.publicEndorsements,
+          legacyAggregate: item.likeCount,
+          viewCount: item.viewCount,
+          commentCount: item.commentCount,
+        });
+        return <MintCard key={item.id} mint={item} author={author} viewer={viewer} users={users} theme={theme} currentTime={mintz.currentTime} permissionContext={permissionContext} privateAppreciated={mintz.privateAppreciations.some((appreciation) => appreciation.mintId === item.id && appreciation.userId === viewer.account.id)} publiclyEndorsed={mintz.publicEndorsements.some((endorsement) => endorsement.mintId === item.id && endorsement.userId === viewer.account.id)} friendEndorsementUsers={endorsementContext.userIds.flatMap((userId) => { const user = users.find((candidate) => candidate.account.id === userId); return user ? [user] : []; })} additionalFriendEndorsementCount={endorsementContext.additionalCount} creatorAppreciationCount={creatorMetrics?.appreciationCount ?? null} pinned={mintz.pins.some((pin) => pin.mintId === item.id && pin.userId === viewer.account.id)} comments={mintz.comments.filter((comment) => comment.targetId === item.id)} blockedCommentAuthorIds={profiles.blocks.flatMap((block) => block.blockerId === viewer.account.id ? [block.blockedId] : block.blockedId === viewer.account.id ? [block.blockerId] : [])} organizationMembershipStatus={organization ? organizations.getMembershipStatus(organization.id) : undefined} onOpenProfile={onOpenProfile} onPrivateAppreciation={() => mintz.registerPrivateAppreciation(permissionContext)} onTogglePublicEndorsement={() => mintz.togglePublicEndorsement(permissionContext)} onTogglePin={() => mintz.togglePin(permissionContext)} onShare={(channel) => mintz.recordShare(permissionContext, channel)} onComment={(body) => mintz.addComment(permissionContext, body)} onDeleteComment={(commentId) => mintz.deleteOwnComment(commentId, viewer.account.id)} onReportComment={(commentId) => mintz.reportComment(permissionContext, commentId)} onUpdate={(patch) => mintz.updateOwnMint(item.id, viewer.account.id, patch)} onArchive={() => mintz.toggleArchive(item.id, viewer.account.id)} onDelete={() => mintz.deleteOwnMint(item.id, viewer.account.id)} onReport={(reason) => mintz.reportMint(permissionContext, reason, null)} />;
       })}</div> : <p className="py-8 text-center text-sm text-slate-500">No active {tab === "mintz" ? "Mintz" : "tagged Mintz"} are visible.</p>}
     </div>
   );

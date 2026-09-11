@@ -11,6 +11,9 @@ export type UniversityTheme = {
   secondary: string;
   accent: string;
   timeZone: string;
+  campusLatitude: number;
+  campusLongitude: number;
+  eventDiscoveryRadiusMiles: number;
   accessibleCampuses: string[];
   campusNetworkId: CampusNetworkId;
   marketplace: {
@@ -30,6 +33,9 @@ export const universities = {
     secondary: "#ffffff",
     accent: "#D6D3C4",
     timeZone: "America/Chicago",
+    campusLatitude: 30.6187,
+    campusLongitude: -96.3365,
+    eventDiscoveryRadiusMiles: 10,
     accessibleCampuses: ["tamu"],
     campusNetworkId: "bryan-college-station",
     marketplace: {
@@ -47,6 +53,9 @@ export const universities = {
     secondary: "#ffffff",
     accent: "#EAF2F8",
     timeZone: "America/Chicago",
+    campusLatitude: 30.6601,
+    campusLongitude: -96.3908,
+    eventDiscoveryRadiusMiles: 10,
     accessibleCampuses: ["blinn", "tamu"],
     campusNetworkId: "bryan-college-station",
     marketplace: {
@@ -64,6 +73,9 @@ export const universities = {
     secondary: "#ffffff",
     accent: "#F2EDE7",
     timeZone: "America/Chicago",
+    campusLatitude: 30.2849,
+    campusLongitude: -97.7341,
+    eventDiscoveryRadiusMiles: 10,
     accessibleCampuses: ["texas"],
     campusNetworkId: "austin",
     marketplace: {
@@ -79,6 +91,9 @@ export const universities = {
     secondary: "#F4D35E",
     accent: "#EEE9F4",
     timeZone: "America/Chicago",
+    campusLatitude: 30.412,
+    campusLongitude: -91.1838,
+    eventDiscoveryRadiusMiles: 10,
     accessibleCampuses: ["lsu"],
     campusNetworkId: "baton-rouge",
     marketplace: {
@@ -94,6 +109,9 @@ export const universities = {
     secondary: "#F8F8F8",
     accent: "#EFE7E9",
     timeZone: "America/Chicago",
+    campusLatitude: 33.214,
+    campusLongitude: -87.5391,
+    eventDiscoveryRadiusMiles: 10,
     accessibleCampuses: ["alabama"],
     campusNetworkId: "tuscaloosa",
     marketplace: {
@@ -215,10 +233,13 @@ export function getAccountUniversityDisplayTheme(
   return {
     name,
     shortName,
-    primary: "#0f172a",
-    secondary: "#ffffff",
-    accent: "#e2e8f0",
+    primary: "#6f1d2c",
+    secondary: "#fffaf9",
+    accent: "#f0dfe3",
     timeZone: "UTC",
+    campusLatitude: 0,
+    campusLongitude: 0,
+    eventDiscoveryRadiusMiles: 10,
     accessibleCampuses: [],
     campusNetworkId: "universal",
     marketplace: {

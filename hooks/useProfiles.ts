@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   CURRENT_DEVELOPMENT_USER_ID,
   developmentUsers,
 } from "@/data/development/users";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import {
   getFriendshipStatus as findFriendshipStatus,
   getNextFriendshipStatus,
@@ -31,65 +32,135 @@ type EditableProfilePatch = Partial<Omit<CampusMintProfile, "id" | "accountId" |
 const DEVELOPMENT_PROFILE_STORAGE_KEY =
   "campusmint:development-current-user:v1";
 
+const FIXTURES_ENABLED = areDevelopmentFixturesEnabled();
+const EMPTY_SESSION_USER: CampusMintUser = {
+  account: {
+    id: "anonymous-session",
+    universityId: "tamu",
+    role: "student",
+    verifiedStudent: false,
+    verifiedAlumni: false,
+    onboardingCompletedAt: null,
+    isDevelopment: false,
+    createdAt: "1970-01-01T00:00:00.000Z",
+    updatedAt: "1970-01-01T00:00:00.000Z",
+  },
+  profile: {
+    id: "anonymous-session",
+    accountId: "anonymous-session",
+    username: "new.student",
+    usernameNormalized: "new.student",
+    firstName: "",
+    lastName: "",
+    displayName: "New student",
+    photo: { kind: "initials", placeholderId: null, storagePath: null },
+    bio: null,
+    major: null,
+    graduationYear: null,
+    classIds: [], clubIds: [], interests: [], hometown: null,
+    instagram: null, linkedin: null, portfolioUrl: null, personalWebsite: null,
+    createdAt: "1970-01-01T00:00:00.000Z",
+    updatedAt: "1970-01-01T00:00:00.000Z",
+  },
+  privacy: {
+    bio: "everyone", major: "students_only", graduationYear: "students_only",
+    classes: "friends_only", clubs: "students_only", interests: "everyone",
+    roommate: "private", tutoring: "students_only", hometown: "private",
+    instagram: "friends_only", linkedin: "everyone", portfolioUrl: "everyone",
+    personalWebsite: "everyone",
+  },
+  socialSettings: { accountType: "private", discoveryScope: "university" },
+};
+
 function localId(prefix: string) {
   return `${prefix}-${globalThis.crypto.randomUUID()}`;
 }
 
 export function useProfiles() {
-  const [users, setUsers] = useState<CampusMintUser[]>(developmentUsers);
+  const [users, setUsers] = useState<CampusMintUser[]>(
+    FIXTURES_ENABLED ? developmentUsers : [EMPTY_SESSION_USER],
+  );
   const [developmentProfileHydrated, setDevelopmentProfileHydrated] =
-    useState(false);
+    useState(!FIXTURES_ENABLED);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
-  const [follows, setFollows] = useState<Follow[]>([]);
+  const [follows, setFollows] = useState<Follow[]>(FIXTURES_ENABLED ? [
+    {
+      id: "dev-follow-current-noah",
+      followerId: CURRENT_DEVELOPMENT_USER_ID,
+      followingId: "demo-tamu-noah",
+      createdAt: "2026-08-10T17:00:00.000Z",
+    },
+    { id: "dev-follow-current-maya", followerId: CURRENT_DEVELOPMENT_USER_ID, followingId: "demo-seller-tamu", createdAt: "2026-08-11T17:00:00.000Z" },
+    { id: "dev-follow-maya-current", followerId: "demo-seller-tamu", followingId: CURRENT_DEVELOPMENT_USER_ID, createdAt: "2026-08-11T17:01:00.000Z" },
+    { id: "dev-follow-current-jordan", followerId: CURRENT_DEVELOPMENT_USER_ID, followingId: "demo-tamu-jordan", createdAt: "2026-08-12T17:00:00.000Z" },
+    { id: "dev-follow-current-officer", followerId: CURRENT_DEVELOPMENT_USER_ID, followingId: "demo-tamu-officer", createdAt: "2026-08-13T17:00:00.000Z" },
+  ] : []);
   const [blocks, setBlocks] = useState<UserBlock[]>([]);
   const [reports, setReports] = useState<UserReport[]>([]);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
 
   const currentUser = useMemo(
-    () => users.find((user) => user.account.id === CURRENT_DEVELOPMENT_USER_ID) ?? users[0],
-    [users],
+    () => users.find((user) => user.account.id === sessionUserId) ?? users.find((user) => user.account.id === CURRENT_DEVELOPMENT_USER_ID) ?? users[0] ?? EMPTY_SESSION_USER,
+    [sessionUserId, users],
   );
 
-  useLayoutEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(
-        DEVELOPMENT_PROFILE_STORAGE_KEY,
-      );
+  const hydrateAuthenticatedUser = useCallback((authenticatedUser: CampusMintUser) => {
+    setSessionUserId(authenticatedUser.account.id);
+    setUsers((current) => {
+      const withoutPlaceholder = current.filter((candidate) => candidate.account.id !== EMPTY_SESSION_USER.account.id && candidate.account.id !== authenticatedUser.account.id);
+      return [authenticatedUser, ...withoutPlaceholder];
+    });
+  }, []);
 
-      if (stored) {
-        const parsed = JSON.parse(stored) as CampusMintUser;
-
-        if (
-          parsed?.account?.id ===
-          CURRENT_DEVELOPMENT_USER_ID
-        ) {
-          // This layout effect intentionally hydrates client-only profile storage.
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setUsers((currentUsers) =>
-            currentUsers.map((user) =>
-              user.account.id ===
-              CURRENT_DEVELOPMENT_USER_ID
-                ? parsed
-                : user,
-            ),
-          );
-        }
-      }
-    } catch {
-      window.localStorage.removeItem(
-        DEVELOPMENT_PROFILE_STORAGE_KEY,
-      );
-    } finally {
-      setDevelopmentProfileHydrated(true);
-    }
+  const clearAuthenticatedUser = useCallback(() => {
+    setSessionUserId(null);
+    if (!FIXTURES_ENABLED) setUsers([EMPTY_SESSION_USER]);
   }, []);
 
   useEffect(() => {
-    if (!developmentProfileHydrated) return;
+    if (!FIXTURES_ENABLED) return;
+    const timer = window.setTimeout(() => {
+      try {
+        const stored = window.localStorage.getItem(
+          DEVELOPMENT_PROFILE_STORAGE_KEY,
+        );
+
+        if (stored) {
+          const parsed = JSON.parse(stored) as CampusMintUser;
+
+          if (
+            parsed?.account?.id ===
+            CURRENT_DEVELOPMENT_USER_ID
+          ) {
+            setUsers((currentUsers) =>
+              currentUsers.map((user) =>
+                user.account.id ===
+                CURRENT_DEVELOPMENT_USER_ID
+                  ? parsed
+                  : user,
+              ),
+            );
+          }
+        }
+      } catch {
+        window.localStorage.removeItem(
+          DEVELOPMENT_PROFILE_STORAGE_KEY,
+        );
+      } finally {
+        setDevelopmentProfileHydrated(true);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!developmentProfileHydrated || !FIXTURES_ENABLED) return;
 
     const current = users.find(
       (user) =>
         user.account.id ===
-        CURRENT_DEVELOPMENT_USER_ID,
+        currentUser.account.id,
     );
 
     if (!current) return;
@@ -98,7 +169,7 @@ export function useProfiles() {
       DEVELOPMENT_PROFILE_STORAGE_KEY,
       JSON.stringify(current),
     );
-  }, [developmentProfileHydrated, users]);
+  }, [currentUser.account.id, developmentProfileHydrated, users]);
 
   function getUserById(userId: string) {
     return users.find((user) => user.account.id === userId) ?? null;
@@ -114,8 +185,7 @@ export function useProfiles() {
   ) {
     setUsers((currentUsers) =>
       currentUsers.map((user) =>
-        user.account.id ===
-        CURRENT_DEVELOPMENT_USER_ID
+        user.account.id === currentUser.account.id
           ? {
               ...user,
               account: {
@@ -132,13 +202,13 @@ export function useProfiles() {
 
 
   function updateCurrentProfile(patch: EditableProfilePatch) {
-    const currentProfile = users.find((candidate) => candidate.account.id === CURRENT_DEVELOPMENT_USER_ID);
+    const currentProfile = users.find((candidate) => candidate.account.id === currentUser.account.id);
     const username = patch.username ?? currentProfile?.profile.username ?? "";
-    const usernameResult = isUsernameAvailable(username, users, CURRENT_DEVELOPMENT_USER_ID);
+    const usernameResult = isUsernameAvailable(username, users, currentUser.account.id);
     if (!usernameResult.valid) return { ok: false, error: usernameResult.error } as const;
 
     setUsers((currentUsers) => currentUsers.map((user) =>
-      user.account.id === CURRENT_DEVELOPMENT_USER_ID
+      user.account.id === currentUser.account.id
         ? {
             ...user,
             profile: {
@@ -155,21 +225,21 @@ export function useProfiles() {
 
   function updateCurrentPrivacy(patch: Partial<ProfilePrivacySettings>) {
     setUsers((currentUsers) => currentUsers.map((user) =>
-      user.account.id === CURRENT_DEVELOPMENT_USER_ID
+      user.account.id === currentUser.account.id
         ? { ...user, privacy: { ...user.privacy, ...patch } }
         : user));
   }
 
   function updateCurrentSocialSettings(patch: Partial<ProfileSocialSettings>) {
     setUsers((currentUsers) => currentUsers.map((user) =>
-      user.account.id === CURRENT_DEVELOPMENT_USER_ID
+      user.account.id === currentUser.account.id
         ? { ...user, socialSettings: { ...user.socialSettings, ...patch } }
         : user));
   }
 
   function getFriendshipStatus(targetUserId: string) {
     if (isBlocked(targetUserId)) return "blocked" as const;
-    return findFriendshipStatus(friendships, CURRENT_DEVELOPMENT_USER_ID, targetUserId);
+    return findFriendshipStatus(friendships, currentUser.account.id, targetUserId);
   }
 
   function cycleFriendship(targetUserId: string) {
@@ -177,20 +247,20 @@ export function useProfiles() {
     setFriendships((currentFriendships) => {
       const currentStatus = findFriendshipStatus(
         currentFriendships,
-        CURRENT_DEVELOPMENT_USER_ID,
+        currentUser.account.id,
         targetUserId,
       );
       const nextStatus = getNextFriendshipStatus(currentStatus);
       const withoutRelationship = currentFriendships.filter((friendship) => !(
-        (friendship.requesterId === CURRENT_DEVELOPMENT_USER_ID && friendship.addresseeId === targetUserId) ||
-        (friendship.requesterId === targetUserId && friendship.addresseeId === CURRENT_DEVELOPMENT_USER_ID)
+        (friendship.requesterId === currentUser.account.id && friendship.addresseeId === targetUserId) ||
+        (friendship.requesterId === targetUserId && friendship.addresseeId === currentUser.account.id)
       ));
 
       if (nextStatus === "none") return withoutRelationship;
       const now = new Date().toISOString();
       return [...withoutRelationship, {
         id: localId("friendship"),
-        requesterId: CURRENT_DEVELOPMENT_USER_ID,
+        requesterId: currentUser.account.id,
         addresseeId: targetUserId,
         status: nextStatus,
         createdAt: now,
@@ -201,26 +271,26 @@ export function useProfiles() {
 
   function isFollowing(targetUserId: string) {
     return follows.some((follow) =>
-      follow.followerId === CURRENT_DEVELOPMENT_USER_ID && follow.followingId === targetUserId);
+      follow.followerId === currentUser.account.id && follow.followingId === targetUserId);
   }
 
   function isFollowedBy(targetUserId: string) {
     return follows.some((follow) =>
-      follow.followerId === targetUserId && follow.followingId === CURRENT_DEVELOPMENT_USER_ID);
+      follow.followerId === targetUserId && follow.followingId === currentUser.account.id);
   }
 
   function toggleFollow(targetUserId: string) {
     if (isBlocked(targetUserId)) return;
     setFollows((currentFollows) => {
       const exists = currentFollows.some((follow) =>
-        follow.followerId === CURRENT_DEVELOPMENT_USER_ID && follow.followingId === targetUserId);
+        follow.followerId === currentUser.account.id && follow.followingId === targetUserId);
       if (exists) {
         return currentFollows.filter((follow) => !(
-          follow.followerId === CURRENT_DEVELOPMENT_USER_ID && follow.followingId === targetUserId));
+          follow.followerId === currentUser.account.id && follow.followingId === targetUserId));
       }
       return [...currentFollows, {
         id: localId("follow"),
-        followerId: CURRENT_DEVELOPMENT_USER_ID,
+        followerId: currentUser.account.id,
         followingId: targetUserId,
         createdAt: new Date().toISOString(),
       }];
@@ -229,14 +299,14 @@ export function useProfiles() {
 
   function isBlocked(targetUserId: string) {
     return blocks.some((block) =>
-      block.blockerId === CURRENT_DEVELOPMENT_USER_ID && block.blockedId === targetUserId);
+      block.blockerId === currentUser.account.id && block.blockedId === targetUserId);
   }
 
   function blockUser(targetUserId: string) {
     if (isBlocked(targetUserId)) return;
     setBlocks((currentBlocks) => [...currentBlocks, {
       id: localId("block"),
-      blockerId: CURRENT_DEVELOPMENT_USER_ID,
+      blockerId: currentUser.account.id,
       blockedId: targetUserId,
       createdAt: new Date().toISOString(),
     }]);
@@ -248,13 +318,13 @@ export function useProfiles() {
 
   function unblockUser(targetUserId: string) {
     setBlocks((currentBlocks) => currentBlocks.filter((block) => !(
-      block.blockerId === CURRENT_DEVELOPMENT_USER_ID && block.blockedId === targetUserId)));
+      block.blockerId === currentUser.account.id && block.blockedId === targetUserId)));
   }
 
   function reportUser(targetUserId: string, reason: UserReportReason, details: string | null) {
     setReports((currentReports) => [...currentReports, {
       id: localId("report"),
-      reporterId: CURRENT_DEVELOPMENT_USER_ID,
+      reporterId: currentUser.account.id,
       reportedId: targetUserId,
       reason,
       details,
@@ -270,7 +340,7 @@ export function useProfiles() {
 
     setUsers((currentUsers) =>
       currentUsers.map((user) =>
-        user.account.id === CURRENT_DEVELOPMENT_USER_ID
+        user.account.id === currentUser.account.id
           ? {
               ...user,
               account: {
@@ -306,6 +376,8 @@ export function useProfiles() {
     blockUser,
     unblockUser,
     reportUser,
+    hydrateAuthenticatedUser,
+    clearAuthenticatedUser,
   };
 }
 

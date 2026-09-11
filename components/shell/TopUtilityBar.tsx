@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { MintLeafIcon } from "@/components/icons/MintLeafIcon";
+import { BellIcon, SearchIcon } from "@/components/icons/CampusIcons";
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import type { UniversityTheme } from "@/data/universities";
 import type { CampusMintUser } from "@/types/profile";
@@ -15,6 +16,7 @@ type TopUtilityBarProps = {
   onOpenSearch: () => void;
   onOpenNotifications: () => void;
   onOpenProfile: () => void;
+  unreadNotificationCount?: number;
 };
 
 export function TopUtilityBar({
@@ -27,6 +29,7 @@ export function TopUtilityBar({
   onOpenSearch,
   onOpenNotifications,
   onOpenProfile,
+  unreadNotificationCount = 0,
 }: TopUtilityBarProps) {
   return (
     <header
@@ -57,24 +60,42 @@ export function TopUtilityBar({
           compact ? "min-h-12" : "min-h-14"
         }`}
       >
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          aria-label="Open settings"
-          title="Settings"
-          className="interactive-pop flex h-10 w-10 items-center justify-center border-0 bg-transparent p-0 text-slate-700 shadow-none focus-visible:outline-2 focus-visible:outline-offset-2"
-          style={{
-            outlineColor: "var(--app-accent)",
-            background: "transparent",
-            perspective: "180px",
-          }}
-        >
-          <span className="flex h-6 w-6 items-center justify-center [&>svg]:h-6 [&>svg]:w-6">
-            <MintLeafIcon />
-          </span>
-        </button>
+        <div className="flex items-center gap-1" data-header-group="settings-notifications">
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            aria-label="Open settings"
+            title="Settings"
+            className="interactive-pop flex h-10 w-10 items-center justify-center border-0 bg-transparent p-0 text-slate-700 shadow-none focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{
+              outlineColor: "var(--app-accent)",
+              background: "transparent",
+              perspective: "180px",
+            }}
+          >
+            <span className="flex h-6 w-6 items-center justify-center [&>svg]:h-6 [&>svg]:w-6">
+              <MintLeafIcon />
+            </span>
+          </button>
 
-        <div className="pointer-events-none absolute left-[42%] -translate-x-1/2 text-center sm:left-1/2">
+          <button
+            type="button"
+            aria-label="Open notifications"
+            title="Notifications"
+            onClick={onOpenNotifications}
+            className="cm-icon-control interactive-pop relative flex items-center justify-center border border-slate-200 bg-white text-slate-700 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{ outlineColor: "var(--app-accent)" }}
+          >
+            <span className="h-[19px] w-[19px]" aria-hidden="true"><BellIcon /></span>
+            {unreadNotificationCount > 0 && (
+              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[8px] font-black leading-none text-white" aria-label={`${unreadNotificationCount} unread notifications`}>
+                {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-center">
           <p
             className={`cm-eyebrow hidden overflow-hidden text-slate-400 transition-[max-height,opacity,transform] duration-200 min-[430px]:block ${
               compact
@@ -95,7 +116,7 @@ export function TopUtilityBar({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1" data-header-group="profile-search">
           <button
             type="button"
             aria-label="Open Search"
@@ -106,43 +127,7 @@ export function TopUtilityBar({
               outlineColor: "var(--app-accent)",
             }}
           >
-            <svg
-              viewBox="0 0 32 32"
-              className="h-[18px] w-[18px]"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <circle cx="14" cy="14" r="7.2" />
-              <path d="m19.3 19.3 6.1 6.1" />
-            </svg>
-          </button>
-
-          <button
-            type="button"
-            aria-label="Open notifications"
-            title="Notifications"
-            onClick={onOpenNotifications}
-            className="cm-icon-control interactive-pop flex items-center justify-center border border-slate-200 bg-white text-slate-700 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-            style={{
-              outlineColor: "var(--app-accent)",
-            }}
-          >
-            <svg
-              viewBox="0 0 32 32"
-              className="h-[19px] w-[19px]"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M9 13.5c0-4.2 2.7-7 7-7s7 2.8 7 7v5.2l2.2 3.3H6.8L9 18.7v-5.2Z" />
-              <path d="M13.2 25c.7 1.2 1.6 1.8 2.8 1.8s2.1-.6 2.8-1.8" />
-            </svg>
+            <span className="h-[18px] w-[18px]" aria-hidden="true"><SearchIcon /></span>
           </button>
 
           <button

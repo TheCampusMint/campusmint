@@ -8,6 +8,7 @@ import type { OrganizationsState } from "@/hooks/useOrganizations";
 import { canJoinOrganization } from "@/lib/organizationPermissions";
 import type { Organization } from "@/types/organization";
 import type { TemporaryUser } from "@/types/user";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 
 type ClubsDiscoveryProps = {
   user: TemporaryUser;
@@ -31,7 +32,7 @@ export function ClubsDiscovery({
   onMembershipAction,
 }: ClubsDiscoveryProps) {
   const visible = configuredUniversityId
-    ? developmentOrganizations.filter(
+    ? (areDevelopmentFixturesEnabled() ? developmentOrganizations : []).filter(
         (organization) =>
           theme.accessibleCampuses.includes(
             organization.universityId,
@@ -87,4 +88,3 @@ export function ClubsDiscovery({
     </div>
   );
 }
-

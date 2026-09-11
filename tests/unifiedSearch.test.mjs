@@ -14,57 +14,24 @@ import {
 
 const candidates = [
   {
-    id: "person-global",
-    title: "Global Person",
-    subtitle: "Another university",
-    category: "people",
-    typeLabel: "Person",
-    searchText: "global person biology",
-    scope: { kind: "global_person", userId: "person-global" },
-    profileId: "person-global",
-    tutoring: false,
-  },
-  {
-    id: "person-blocked",
-    title: "Blocked Person",
-    subtitle: "Another university",
-    category: "people",
-    typeLabel: "Person",
-    searchText: "blocked person physics tutor",
-    scope: { kind: "global_person", userId: "person-blocked" },
-    profileId: "person-blocked",
-    tutoring: true,
-  },
-  {
-    id: "tutor-visible",
-    title: "Visible Tutor",
-    subtitle: "Math and Engineering",
-    category: "people",
-    typeLabel: "Person",
-    searchText: "visible tutor calculus engineering",
-    scope: { kind: "global_person", userId: "tutor-visible" },
-    profileId: "tutor-visible",
-    tutoring: true,
-  },
-  {
-    id: "club-tamu",
-    title: "TAMU Club",
+    id: "event-tamu",
+    title: "TAMU Event",
     subtitle: "College Station",
-    category: "clubs",
-    typeLabel: "Club",
-    searchText: "tamu robotics club",
+    category: "events",
+    typeLabel: "Event",
+    searchText: "tamu kickoff event",
     scope: { kind: "campus", campusId: "tamu" },
-    detail: { kind: "club", id: "club-tamu" },
+    detail: { kind: "event", id: "event-tamu" },
   },
   {
-    id: "club-lsu",
-    title: "LSU Club",
+    id: "event-lsu",
+    title: "LSU Event",
     subtitle: "Baton Rouge",
-    category: "clubs",
-    typeLabel: "Club",
-    searchText: "lsu service club",
+    category: "events",
+    typeLabel: "Event",
+    searchText: "lsu service event",
     scope: { kind: "campus", campusId: "lsu" },
-    detail: { kind: "club", id: "club-lsu" },
+    detail: { kind: "event", id: "event-lsu" },
   },
   {
     id: "market-bcs",
@@ -86,21 +53,17 @@ const tamuAccess = {
   marketplaceAllowed: true,
 };
 
-test("People discovery is global while blocked users are excluded", () => {
+test("retired People discovery category returns no Search results", () => {
   const people = filterUnifiedSearchCandidates(
     candidates,
     { category: "people", query: "" },
     tamuAccess,
   );
-
-  assert.deepEqual(
-    people.map((candidate) => candidate.id),
-    ["person-global", "tutor-visible"],
-  );
+  assert.deepEqual(people, []);
 });
 
 test("campus and network results stay inside their allowed category scopes", () => {
-  const ids = ["clubs", "marketplace"].flatMap((category) =>
+  const ids = ["events", "marketplace"].flatMap((category) =>
     filterUnifiedSearchCandidates(
       candidates,
       { category, query: "" },
@@ -108,12 +71,12 @@ test("campus and network results stay inside their allowed category scopes", () 
     ).map((candidate) => candidate.id),
   );
 
-  assert.equal(ids.includes("club-tamu"), true);
-  assert.equal(ids.includes("club-lsu"), false);
+  assert.equal(ids.includes("event-tamu"), true);
+  assert.equal(ids.includes("event-lsu"), false);
   assert.equal(ids.includes("market-bcs"), true);
 });
 
-test("provisional universities receive only global People results", () => {
+test("provisional universities do not inherit configured campus discovery", () => {
   const access = {
     configuredUniversityId: null,
     accessibleCampusIds: [],
@@ -131,60 +94,47 @@ test("provisional universities receive only global People results", () => {
     ),
   );
 
-  assert.deepEqual(
-    [...visibleIds],
-    ["person-global", "tutor-visible"],
-  );
+  assert.deepEqual([...visibleIds], []);
 });
 
-test("Search exposes six categories and retired state migrates to People", () => {
+test("Search exposes only Food, Events, and Sell while retired state migrates safely", () => {
   assert.deepEqual(unifiedSearchCategories, [
-    "people",
     "food",
-    "tutoring",
-    "clubs",
     "events",
     "marketplace",
   ]);
   assert.equal(unifiedSearchCategories.includes("all"), false);
   assert.equal(unifiedSearchCategories.includes("housing"), false);
-  assert.equal(migrateUnifiedSearchCategory("all"), "people");
-  assert.equal(migrateUnifiedSearchCategory("housing"), "people");
+  assert.equal(migrateUnifiedSearchCategory("all"), "food");
+  assert.equal(migrateUnifiedSearchCategory("housing"), "food");
+  assert.equal(migrateUnifiedSearchCategory("people"), "food");
+  assert.equal(migrateUnifiedSearchCategory("tutoring"), "food");
+  assert.equal(migrateUnifiedSearchCategory("clubs"), "food");
   assert.equal(migrateUnifiedSearchCategory("events"), "events");
-  assert.equal(migrateUnifiedSearchCategory("unknown"), "people");
-});
-
-test("Tutoring includes only visible profiles marked as eligible tutors", () => {
-  const tutors = filterUnifiedSearchCandidates(
-    candidates,
-    { category: "tutoring", query: "engineering" },
-    tamuAccess,
-  );
-
-  assert.deepEqual(tutors.map((candidate) => candidate.id), ["tutor-visible"]);
+  assert.equal(migrateUnifiedSearchCategory("unknown"), "food");
 });
 
 test("selected category and query both constrain Search results", () => {
-  const clubs = filterUnifiedSearchCandidates(
+  const events = filterUnifiedSearchCandidates(
     candidates,
-    { category: "clubs", query: "robotics" },
+    { category: "events", query: "kickoff" },
     tamuAccess,
   );
   const wrongCategory = filterUnifiedSearchCandidates(
     candidates,
-    { category: "marketplace", query: "robotics" },
+    { category: "marketplace", query: "kickoff" },
     tamuAccess,
   );
 
-  assert.deepEqual(clubs.map((candidate) => candidate.id), ["club-tamu"]);
+  assert.deepEqual(events.map((candidate) => candidate.id), ["event-tamu"]);
   assert.equal(wrongCategory.length, 0);
 });
 
 test("category switching stays inside Search state and preserves its viewport anchor", () => {
   const state = {
-    category: "people",
+    category: "food",
     query: "maya",
-    categoryFilters: { tutoringSubject: null },
+    categoryFilters: { none: null },
     history: [],
   };
 
@@ -205,7 +155,7 @@ test("internal Search detail state preserves query and category outside primary 
   const state = {
     category: "events",
     query: "kickoff",
-    categoryFilters: { tutoringSubject: null },
+    categoryFilters: { none: null },
     history: [],
   };
 
@@ -227,7 +177,7 @@ test("internal Search history pushes and pops one scene at a time", () => {
   const state = {
     category: "marketplace",
     query: "desk",
-    categoryFilters: { tutoringSubject: null },
+    categoryFilters: { none: null },
     history: [],
   };
   const listing = openUnifiedSearchDetail(state, {
@@ -248,7 +198,7 @@ test("Search overlay dismissal pops one detail layer before closing", () => {
   const base = {
     category: "events",
     query: "kickoff",
-    categoryFilters: { tutoringSubject: null },
+    categoryFilters: { none: null },
     history: [],
   };
   const event = openUnifiedSearchDetail(base, {

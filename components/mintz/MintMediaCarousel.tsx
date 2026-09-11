@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import type { UniversityTheme } from "@/data/universities";
+import type { ScreenPoint } from "@/components/mintz/PrivateAppreciationBurst";
 import type { MintMedia } from "@/types/mint";
 
 type MintMediaCarouselProps = {
@@ -20,7 +21,7 @@ type MintMediaCarouselProps = {
   fallbackDetail?: string | null;
   children?: ReactNode;
   autoplayVideo?: boolean;
-  onDoubleTap?: () => void;
+  onDoubleTap?: (point: ScreenPoint) => void;
   onOpenVideo?: (mediaId: string) => void;
 };
 
@@ -127,7 +128,7 @@ function ZoomableMedia({
 }: {
   active: boolean;
   children: ReactNode;
-  onDoubleTap?: () => void;
+  onDoubleTap?: (point: ScreenPoint) => void;
 }) {
   const containerRef =
     useRef<HTMLDivElement>(null);
@@ -375,7 +376,10 @@ function ZoomableMedia({
 
       if (now - lastTapTimeRef.current <= 320) {
         lastTapTimeRef.current = 0;
-        onDoubleTap?.();
+        onDoubleTap?.({
+          clientX: tapRef.current.x,
+          clientY: tapRef.current.y,
+        });
       } else {
         lastTapTimeRef.current = now;
       }
@@ -405,9 +409,13 @@ function ZoomableMedia({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
-      onDoubleClick={() => {
+      onDoubleClick={(event) => {
         if (viewRef.current.scale <= 1.02) {
-          onDoubleTap?.();
+          event.preventDefault();
+          onDoubleTap?.({
+            clientX: event.clientX,
+            clientY: event.clientY,
+          });
         }
       }}
     >

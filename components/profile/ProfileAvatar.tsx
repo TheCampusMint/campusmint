@@ -2,12 +2,13 @@ import type { CampusMintUser } from "@/types/profile";
 
 type ProfileAvatarProps = {
   user: CampusMintUser;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   primaryColor: string;
   accentColor: string;
 };
 
 const sizes = {
+  xs: "h-6 w-6 border-2 text-[8px]",
   sm: "h-10 w-10 text-sm",
   md: "h-14 w-14 text-base",
   lg: "h-24 w-24 text-2xl sm:h-28 sm:w-28 sm:text-3xl",

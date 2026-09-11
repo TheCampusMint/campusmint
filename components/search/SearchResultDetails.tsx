@@ -3,7 +3,6 @@
 import { createPortal } from "react-dom";
 import { useRef } from "react";
 
-import { OrganizationDetailModal } from "@/components/clubs/OrganizationDetailModal";
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 import { DiningLocationDetail } from "@/components/dining/DiningLocationDetail";
 import { EventMomentEventDetail } from "@/components/events/EventMomentEventDetail";
@@ -11,12 +10,6 @@ import { MarketplaceDetailModal } from "@/components/marketplace/MarketplaceDeta
 import { ProfilesHub } from "@/components/profile/ProfilesHub";
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
 import { diningLocations } from "@/data/discovery/dining";
-import { sampleEvents } from "@/data/events";
-import {
-  developmentOrganizationAnnouncements,
-  developmentOrganizationOfficers,
-  getOrganizationById,
-} from "@/data/organizations";
 import type { UniversityId, UniversityTheme } from "@/data/universities";
 import type { EventMomentsState } from "@/hooks/useEventMoments";
 import type { useMarketplace } from "@/hooks/useMarketplace";
@@ -26,13 +19,6 @@ import type { MintzState } from "@/hooks/useMintz";
 import { useModalLayer } from "@/hooks/useModalLayer";
 import type { MarketplacePermissionMode } from "@/lib/marketplacePermissions";
 import { canViewMarketplace } from "@/lib/marketplacePermissions";
-import {
-  canAccessOrganizationChat,
-  canJoinOrganization,
-  canModerateOrganizationMemberships,
-  canViewOrganization,
-} from "@/lib/organizationPermissions";
-import { rankEventContent } from "@/lib/content/eventRanking";
 import {
   closeUnifiedSearchDetail,
   currentUnifiedSearchDetail,
@@ -47,6 +33,7 @@ import {
 import type { CampusMintUser } from "@/types/profile";
 import type { Story } from "@/types/story";
 import type { TemporaryUser } from "@/types/user";
+import type { Event } from "@/types/event";
 
 type MarketplaceState = ReturnType<typeof useMarketplace>;
 
@@ -60,15 +47,13 @@ type SearchResultDetailsProps = {
   profiles: ProfilesState;
   mintz: MintzState;
   eventMoments: EventMomentsState;
+  events: Event[];
   marketplace: MarketplaceState;
   marketplacePermissionMode: MarketplacePermissionMode;
   organizations: OrganizationsState;
   stories: Story[];
   onOpenDirectMint: (userId: string) => void;
   onLogout: () => void;
-  onOrganizationMembershipAction: (
-    organization: NonNullable<ReturnType<typeof getOrganizationById>>,
-  ) => void;
 };
 
 function DiscoveryDetailOverlay({
@@ -128,13 +113,13 @@ export function SearchResultDetails({
   profiles,
   mintz,
   eventMoments,
+  events,
   marketplace,
   marketplacePermissionMode,
   organizations,
   stories,
   onOpenDirectMint,
   onLogout,
-  onOrganizationMembershipAction,
 }: SearchResultDetailsProps) {
   const detail = currentUnifiedSearchDetail(state);
   if (!detail) return null;
@@ -173,7 +158,7 @@ export function SearchResultDetails({
   }
 
   if (detail.kind === "event") {
-    const event = sampleEvents.find(
+    const event = events.find(
       (candidate) => candidate.id === detail.id,
     );
 
@@ -202,7 +187,7 @@ export function SearchResultDetails({
   }
 
   if (detail.kind === "event_moment") {
-    const event = sampleEvents.find(
+    const event = events.find(
       (candidate) => candidate.id === detail.eventId,
     );
     const visibleMoment = getVisibleEventMoments(
@@ -359,84 +344,5 @@ export function SearchResultDetails({
     );
   }
 
-  const organization = getOrganizationById(detail.id);
-  if (
-    !organization ||
-    !configuredUniversityId ||
-    !theme.accessibleCampuses.includes(organization.universityId) ||
-    !canViewOrganization(user, organization)
-  ) {
-    return null;
-  }
-
-  const configuredUser = { ...user, universityId: configuredUniversityId };
-  const actor = {
-    id: viewer.account.id,
-    universityId: configuredUniversityId,
-  };
-
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
-    <OrganizationDetailModal
-      organization={organization}
-      events={rankEventContent(sampleEvents).filter(
-        (event) => event.organizationId === organization.id,
-      )}
-      stories={stories.filter(
-        (story) => story.organizationId === organization.id,
-      )}
-      announcements={developmentOrganizationAnnouncements.filter(
-        (announcement) => announcement.organizationId === organization.id,
-      )}
-      officers={developmentOrganizationOfficers.filter(
-        (officer) => officer.organizationId === organization.id,
-      )}
-      membershipStatus={organizations.getMembershipStatus(organization.id)}
-      membershipAllowed={canJoinOrganization(configuredUser, organization)}
-      theme={theme}
-      onClose={close}
-      closeLabel={closeLabel}
-      onMembershipAction={onOrganizationMembershipAction}
-      onViewEvents={() =>
-        onStateChange({ ...state, category: "events", query: "", history: [] })
-      }
-      viewer={viewer}
-      profiles={profiles}
-      pendingRequests={organizations.getPendingRequests(organization.id)}
-      canModerateRequests={canModerateOrganizationMemberships(
-        actor,
-        organization,
-        organizations.memberships,
-        organizations.roles,
-      )}
-      canAccessChat={canAccessOrganizationChat(
-        actor,
-        organization,
-        organizations.memberships,
-      )}
-      isChatParticipant={Boolean(
-        organization.organizationConversationId &&
-          organizations.isConversationParticipant(
-            organization.organizationConversationId,
-          ),
-      )}
-      memberCount={organizations.getMemberCount(organization.id)}
-      isFollowing={organizations.followedOrganizationIds.includes(
-        organization.id,
-      )}
-      onToggleFollow={() => organizations.toggleFollowOrganization(organization.id)}
-      onAcceptRequest={(userId) =>
-        organizations.acceptMembership(organization, userId)
-      }
-      onRejectRequest={(userId) =>
-        organizations.rejectMembership(organization.id, userId)
-      }
-      onMessageOrganization={() =>
-        Boolean(organizations.messageOrganization(organization).conversation)
-      }
-      onOpenProfile={(userId) => push({ kind: "profile", id: userId })}
-    />,
-    document.body,
-  );
+  return null;
 }

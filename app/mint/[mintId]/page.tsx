@@ -20,13 +20,18 @@ import { canViewMint } from "@/lib/social/mintPermissions";
 import { formatEventDateTimeRange } from "@/lib/content/eventTiming";
 import { canViewOrganizationContent } from "@/lib/organizationPermissions";
 import { membershipStatusFor } from "@/lib/organizationMembership";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 
 export function generateStaticParams() {
-  return createDevelopmentMintz(DEVELOPMENT_MINT_REFERENCE_TIME).map((mint) => ({ mintId: mint.id }));
+  return (areDevelopmentFixturesEnabled()
+    ? createDevelopmentMintz(DEVELOPMENT_MINT_REFERENCE_TIME)
+    : []
+  ).map((mint) => ({ mintId: mint.id }));
 }
 
 export default async function MintRoute({ params }: { params: Promise<{ mintId: string }> }) {
   const { mintId } = await params;
+  if (!areDevelopmentFixturesEnabled()) notFound();
   const currentTime = DEVELOPMENT_MINT_REFERENCE_TIME;
   const mint = getDevelopmentMintById(mintId, currentTime);
   if (!mint) notFound();

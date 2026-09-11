@@ -44,15 +44,17 @@ export function resolveGestureAxis(
   return "pending";
 }
 
+export type NotchPresentation = "expanded" | "compact" | "dots";
+
 export type NotchScrollState = {
-  collapsed: boolean;
+  presentation: NotchPresentation;
   lastY: number;
   direction: "up" | "down" | null;
   travel: number;
 };
 
 export const initialNotchScrollState: NotchScrollState = {
-  collapsed: false,
+  presentation: "expanded",
   lastY: 0,
   direction: null,
   travel: 0,
@@ -62,6 +64,8 @@ export type NotchScrollOptions = {
   topZone?: number;
   collapseStart?: number;
   collapseTravel?: number;
+  dotsStart?: number;
+  dotsTravel?: number;
   expandTravel?: number;
   jitter?: number;
 };
@@ -79,6 +83,8 @@ export function updateNotchScrollState(
   const topZone = options.topZone ?? 24;
   const collapseStart = options.collapseStart ?? 72;
   const collapseTravel = options.collapseTravel ?? 52;
+  const dotsStart = options.dotsStart ?? 150;
+  const dotsTravel = options.dotsTravel ?? 64;
   const expandTravel = options.expandTravel ?? 34;
   const jitter = options.jitter ?? 2;
   const nextY = Math.max(0, rawScrollY);
@@ -86,7 +92,7 @@ export function updateNotchScrollState(
 
   if (nextY <= topZone) {
     return {
-      collapsed: false,
+      presentation: "expanded",
       lastY: nextY,
       direction: null,
       travel: 0,
@@ -104,19 +110,35 @@ export function updateNotchScrollState(
       : Math.abs(delta);
 
   if (
-    !state.collapsed &&
+    state.presentation === "expanded" &&
     direction === "down" &&
     nextY >= collapseStart &&
     travel >= collapseTravel
   ) {
-    return { collapsed: true, lastY: nextY, direction, travel: 0 };
+    return { presentation: "compact", lastY: nextY, direction, travel: 0 };
   }
 
-  if (state.collapsed && direction === "up" && travel >= expandTravel) {
-    return { collapsed: false, lastY: nextY, direction, travel: 0 };
+  if (state.presentation === "compact" && direction === "down" && nextY >= dotsStart && travel >= dotsTravel) {
+    return { presentation: "dots", lastY: nextY, direction, travel: 0 };
+  }
+
+  if (state.presentation === "dots" && direction === "up" && travel >= expandTravel) {
+    return { presentation: "compact", lastY: nextY, direction, travel: 0 };
+  }
+
+  if (state.presentation === "compact" && direction === "up" && travel >= expandTravel) {
+    return { presentation: "expanded", lastY: nextY, direction, travel: 0 };
   }
 
   return { ...state, lastY: nextY, direction, travel };
+}
+
+export function expandNotchPresentation(presentation: NotchPresentation) {
+  return presentation === "dots" ? "compact" as const : "expanded" as const;
+}
+
+export function getNotchDotAvailability(currentIndex: number, sectionCount: number) {
+  return { hasPrevious: currentIndex > 0, hasNext: currentIndex < sectionCount - 1 };
 }
 
 export function durationForMotion(
@@ -124,4 +146,35 @@ export function durationForMotion(
   reducedMotion: boolean,
 ) {
   return reducedMotion ? 0 : duration;
+}
+
+export function clampNavigationIndex(index: number, sectionCount: number) {
+  if (sectionCount <= 0) return 0;
+  return Math.min(sectionCount - 1, Math.max(0, index));
+}
+
+/**
+ * Applies a short, rubber-band style resistance when a page drag reaches the
+ * first or last primary section. Positive progress travels toward the
+ * previous section; negative progress travels toward the next section.
+ */
+export function resistFiniteNavigationEdge(
+  progress: number,
+  currentIndex: number,
+  sectionCount: number,
+  resistance = 0.2,
+) {
+  const atFirst = currentIndex <= 0 && progress > 0;
+  const atLast = currentIndex >= sectionCount - 1 && progress < 0;
+
+  return atFirst || atLast ? progress * resistance : progress;
+}
+
+export function resolveFiniteNavigationDestination(
+  currentIndex: number,
+  swipeTarget: -1 | 0 | 1,
+  sectionCount: number,
+) {
+  // A negative swipe moves the track left and advances to the next section.
+  return clampNavigationIndex(currentIndex - swipeTarget, sectionCount);
 }

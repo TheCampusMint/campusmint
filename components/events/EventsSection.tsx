@@ -14,6 +14,7 @@ import {
 } from "@/types/event";
 import { rankEventContent } from "@/lib/content/eventRanking";
 import type { EventMomentsState } from "@/hooks/useEventMoments";
+import { isUpcomingDiscoverableEvent } from "@/lib/events/systemEventIngestion";
 
 type CategoryFilter = "All" | EventCategory;
 
@@ -38,8 +39,8 @@ export function EventsSection({
     useState<CategoryFilter>("All");
 
   const campusEvents = rankEventContent(events.filter((event) =>
-    accessibleCampuses.includes(event.campus),
-  ));
+    accessibleCampuses.includes(event.campus) && isUpcomingDiscoverableEvent(event, eventMoments.currentTime),
+  ), eventMoments.currentTime);
   const visibleEvents = campusEvents.filter(
     (event) =>
       activeCategory === "All" || event.category === activeCategory,
@@ -110,6 +111,7 @@ export function EventsSection({
               campusName={getCampusName(event.campus)}
               isGoing={eventMoments.isAttending(event.id, currentUserId)}
               theme={theme}
+              currentTime={eventMoments.currentTime}
               onToggleRsvp={toggleRsvp}
             />
           ))}

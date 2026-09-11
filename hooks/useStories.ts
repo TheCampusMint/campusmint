@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { createSampleStories } from "@/data/stories";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import { resolveContentStatus } from "@/lib/content/expiration";
 import type { Story, StoryComment } from "@/types/story";
 
 export function useStories() {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [storedStories, setStoredStories] = useState<Story[]>(() =>
-    createSampleStories(currentTime),
+    areDevelopmentFixturesEnabled() ? createSampleStories(currentTime) : [],
   );
   const stories = useMemo(() => storedStories.map((story) => ({
     ...story,

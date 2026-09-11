@@ -10,6 +10,7 @@ import { rankVisibleVideoMintz } from "../lib/social/videoRankingCore.ts";
 import {
   createMintVideoViewerState,
   getMintVideoViewerReturnScrollY,
+  resolveVideoViewerGesture,
 } from "../lib/social/videoViewerState.ts";
 import {
   nextRepostCount,
@@ -117,13 +118,8 @@ test("video viewer state preserves the exact feed return point and tapped Mint",
   assert.equal(getMintVideoViewerReturnScrollY(null, -20), 0);
 });
 
-test("own-Mint settings can update each editable field independently", () => {
+test("own-Mint settings can update caption and comment availability independently", () => {
   const original = mint("editable", "viewer");
-  const visibility = applyEditableMintPatch(
-    original,
-    { likesVisible: false },
-    "2026-08-22T13:00:00.000Z",
-  );
   const comments = applyEditableMintPatch(
     original,
     { commentsEnabled: false },
@@ -135,14 +131,21 @@ test("own-Mint settings can update each editable field independently", () => {
     "2026-08-22T13:02:00.000Z",
   );
 
-  assert.equal(visibility.likesVisible, false);
-  assert.equal(visibility.caption, original.caption);
   assert.equal(comments.commentsEnabled, false);
   assert.equal(caption.caption, "Updated caption");
   assert.equal(applyEditableMintPatch(original, {}, original.updatedAt), null);
 });
 
-test("repost toggle still adds, cancels, and updates its count", () => {
+test("video gestures lock intent and resolve exit, creator, and vertical navigation", () => {
+  assert.equal(resolveVideoViewerGesture({ deltaX: 90, deltaY: 8, committed: true }), "exit");
+  assert.equal(resolveVideoViewerGesture({ deltaX: -90, deltaY: 8, committed: true }), "creator");
+  assert.equal(resolveVideoViewerGesture({ deltaX: 5, deltaY: -80, committed: true }), "next");
+  assert.equal(resolveVideoViewerGesture({ deltaX: 5, deltaY: 80, committed: true }), "previous");
+  assert.equal(resolveVideoViewerGesture({ deltaX: 30, deltaY: 28, committed: false }), "pending");
+  assert.equal(resolveVideoViewerGesture({ deltaX: 30, deltaY: 28, committed: true }), "cancel");
+});
+
+test("historical repost records remain safely normalizable for migration only", () => {
   const input = {
     mintId: "mint-1",
     userId: "viewer",

@@ -12,8 +12,11 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { MusicPicker } from "@/components/music/MusicPicker";
+import { SelectedMusicTrack } from "@/components/music/SelectedMusicTrack";
 import { sampleEvents } from "@/data/events";
 import { developmentOrganizations } from "@/data/organizations";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import { developmentBuildings } from "@/data/development/campusData";
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
 import {
@@ -27,14 +30,18 @@ import {
   MAX_PERSONAL_MINT_DURATION_HOURS,
   personalMintDurationOptions,
 } from "@/lib/content/expiration";
-import { parseHashtags } from "@/lib/content/hashtags";
+import { extractHashtagsFromCaption } from "@/lib/content/hashtags";
+import {
+  extractMentionsFromCaption,
+  getActiveMentionQuery,
+  insertMentionAtCaret,
+} from "@/lib/content/mentions";
 import { zonedDateTimeToIso } from "@/lib/content/eventTiming";
 import {
   getMintContentType,
   prepareLocalMintMedia,
   type LocalMintMediaSelection,
 } from "@/lib/content/localMintMedia";
-import { normalizeUsername } from "@/lib/social/usernames";
 import { canPostAsOrganization } from "@/lib/organizationPermissions";
 import { useModalLayer } from "@/hooks/useModalLayer";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
@@ -42,6 +49,7 @@ import { motion } from "@/lib/motion/interaction";
 import type {
   ContentLocation,
   EventContentData,
+  MusicMetadata,
   SocialContentPrivacy,
   SocialPostType,
   OrganizationContentAudience,
@@ -59,7 +67,6 @@ type CreateContentFlowProps = {
   organizationMemberships: OrganizationMembership[];
   organizationRoles: OrganizationRoleAssignment[];
   defaultCommentsEnabled?: boolean;
-  defaultHideLikeCounts?: boolean;
   selectedMedia?: LocalMintMediaSelection[];
   mediaError?: string | null;
   mediaPreparing?: boolean;
@@ -69,8 +76,9 @@ type CreateContentFlowProps = {
 
 const fieldClass = "mt-1 min-w-0 max-w-full w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base sm:text-sm";
 
-export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose, organizationMemberships, organizationRoles, defaultCommentsEnabled = true, defaultHideLikeCounts = false, selectedMedia, mediaError, mediaPreparing = false, onChooseMedia, onClearMedia }: CreateContentFlowProps) {
+export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose, organizationMemberships, organizationRoles, defaultCommentsEnabled = true, selectedMedia, mediaError, mediaPreparing = false, onChooseMedia, onClearMedia }: CreateContentFlowProps) {
   const internalFileInputRef = useRef<HTMLInputElement>(null);
+  const captionTextareaRef = useRef<HTMLTextAreaElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const closeTimerRef = useRef<number | null>(null);
   const reducedMotion = useReducedMotion();
@@ -81,11 +89,8 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [postType, setPostType] = useState<SocialPostType>("personal");
   const [caption, setCaption] = useState("");
-  const [hashtags, setHashtags] = useState("");
-  const [mentionInput, setMentionInput] = useState("");
-  const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [commentsEnabled, setCommentsEnabled] = useState(defaultCommentsEnabled);
-  const [likesVisible, setLikesVisible] = useState(!defaultHideLikeCounts);
   const [privacy, setPrivacy] = useState<SocialContentPrivacy>("account");
   const [durationHours, setDurationHours] = useState<string>("permanent");
   const [locationChoice, setLocationChoice] = useState("none");
@@ -101,6 +106,8 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
   const [taggedOrganizationId, setTaggedOrganizationId] = useState("");
   const [organizationAudience, setOrganizationAudience] = useState<OrganizationContentAudience>("public");
+  const [selectedMusic, setSelectedMusic] = useState<MusicMetadata | null>(null);
+  const [musicPickerOpen, setMusicPickerOpen] = useState(false);
 
   const requestClose = useCallback(() => {
     if (closing) return;
@@ -153,11 +160,6 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
         )
       : [];
 
-  const otherUsers = users.filter(
-    (user) =>
-      user.account.id !== viewer.account.id,
-  );
-
   const organizationActor =
     configuredUniversityId
       ? {
@@ -169,7 +171,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
 
   const availableOrganizations =
     configuredUniversityId
-      ? developmentOrganizations.filter(
+      ? (areDevelopmentFixturesEnabled() ? developmentOrganizations : []).filter(
           (organization) =>
             organization.universityId ===
             configuredUniversityId,
@@ -190,12 +192,21 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       : [];
   const selectedOrganization = postableOrganizations.find((organization) => organization.id === selectedOrganizationId) ?? null;
 
-  const mentionMatches = useMemo(() => mentionInput.split(/[\s,]+/)
-    .map((value) => normalizeUsername(value.replace(/^@/, "")))
-    .filter(Boolean)
-    .map((username) => users.find((user) => user.profile.usernameNormalized === username))
-    .filter((user): user is CampusMintUser => Boolean(user))
-    .map((user) => ({ userId: user.account.id, username: user.profile.usernameNormalized })), [mentionInput, users]);
+  const mentionMatches = useMemo(
+    () => extractMentionsFromCaption(caption, users),
+    [caption, users],
+  );
+  const mentionSuggestions = useMemo(() => {
+    if (mentionQuery === null) return [];
+    return users
+      .filter(
+        (candidate) =>
+          candidate.account.id !== viewer.account.id &&
+          (candidate.profile.usernameNormalized.startsWith(mentionQuery) ||
+            candidate.profile.displayName.toLocaleLowerCase().includes(mentionQuery)),
+      )
+      .slice(0, 5);
+  }, [mentionQuery, users, viewer.account.id]);
 
   function resolvedLocation(): ContentLocation | null {
     if (locationChoice === "custom" && customLocation.trim()) return { source: "custom", entityId: null, label: customLocation.trim(), details: null };
@@ -315,7 +326,12 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       MAX_PERSONAL_MINT_DURATION_HOURS,
     );
     const eventData = resolvedEventData();
-    const location = postType === "event" ? eventData?.location ?? null : resolvedLocation();
+    const location =
+      postType === "event"
+        ? eventData?.location ?? null
+        : postType === "club"
+          ? resolvedLocation()
+          : null;
 
     onCreateMint({
       publishFormat: "mint",
@@ -342,14 +358,15 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       postType,
       media,
       caption: caption.trim(),
-      hashtags: parseHashtags(hashtags),
+      hashtags: extractHashtagsFromCaption(caption),
       mentions: mentionMatches,
-      taggedUserIds,
+      taggedUserIds: [],
       location,
-      music: null,
+      music: selectedMusic,
       expiresAt,
       commentsEnabled,
-      likesVisible,
+      // Retained only for old stored records; traditional Like totals are not public.
+      likesVisible: false,
       eventData,
       organizationId:
         postType === "club" ? selectedOrganization?.id ?? null : null,
@@ -542,13 +559,150 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
 
           {postType === "club" && <fieldset className="cm-content-swap rounded-2xl border border-slate-200 bg-slate-50 p-5"><legend className="px-2 font-black uppercase tracking-wide text-slate-800">Official club identity</legend>{postableOrganizations.length ? <><label className="block text-sm font-bold text-slate-800">Select Club<select required value={selectedOrganizationId} onChange={(event) => setSelectedOrganizationId(event.target.value)} className={fieldClass}><option value="">Choose an organization</option>{postableOrganizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}</select></label>{selectedOrganization && <p className="mt-3 rounded-xl bg-white p-3 text-xs leading-5 text-slate-600">Publishing as <span className="font-black text-slate-900">{selectedOrganization.name}</span>. The Mint stores only its organization ID.</p>}<label className="mt-4 block text-sm font-bold text-slate-800">Club content audience<select value={organizationAudience} onChange={(event) => setOrganizationAudience(event.target.value as OrganizationContentAudience)} className={fieldClass}><option value="public">Public club content</option><option value="members">Members only</option></select></label></> : <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">You do not hold a leader, officer, or approved publishing role for a club at this university. Create Personal content and tag a club instead.</p>}</fieldset>}
 
-          <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold text-slate-700 sm:col-span-2">Caption or text<textarea required={media.length === 0 && postType !== "event"} value={caption} onChange={(event) => setCaption(event.target.value)} rows={4} className={fieldClass} placeholder={media.length === 0 ? "What do you want to share?" : "Add a caption (optional)"} /></label><label className="text-sm font-bold text-slate-700">Hashtags<input value={hashtags} onChange={(event) => setHashtags(event.target.value)} className={fieldClass} placeholder="#Campus #StudyGroup" /></label><label className="text-sm font-bold text-slate-700">Mentions<input value={mentionInput} onChange={(event) => setMentionInput(event.target.value)} className={fieldClass} placeholder="@username" /></label>{postType !== "event" && <label className="text-sm font-bold text-slate-700">Location<select value={locationChoice} onChange={(event) => setLocationChoice(event.target.value)} className={fieldClass}><option value="none">No location</option>{availableBuildings.map((building) => <option key={building.id} value={building.id}>{building.name}</option>)}<option value="custom">Other / Custom Location</option></select></label>}{locationChoice === "custom" && postType !== "event" && <label className="text-sm font-bold text-slate-700">Custom location<input value={customLocation} onChange={(event) => setCustomLocation(event.target.value)} className={fieldClass} /></label>}{postType !== "club" && <label className="text-sm font-bold text-slate-700">Tag a club (optional)<select value={taggedOrganizationId} onChange={(event) => setTaggedOrganizationId(event.target.value)} className={fieldClass}><option value="">No club tag</option>{availableOrganizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}</select></label>}<label className="text-sm font-bold text-slate-700">Expiration<select value={postType === "event" ? "24" : durationHours} disabled={postType === "event"} onChange={(event) => setDurationHours(event.target.value)} className={fieldClass}>{postType === "event" ? <option value="24">24 hours (Event default)</option> : personalDurationOptions.map((option) => <option key={option.hours} value={option.hours}>{option.label}</option>)}</select></label><label className="text-sm font-bold text-slate-700">Mint privacy<select value={privacy} onChange={(event) => setPrivacy(event.target.value as SocialContentPrivacy)} className={fieldClass}><option value="account">Use account privacy</option><option value="public">Public within discovery scope</option><option value="connections">Connections only</option><option value="private">Only me</option></select></label></div>
-          <fieldset><legend className="text-sm font-bold text-slate-700">Tagged users</legend><div className="mt-2 flex flex-wrap gap-2">{otherUsers.map((user) => <label key={user.account.id} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold"><input type="checkbox" className="mr-2" checked={taggedUserIds.includes(user.account.id)} onChange={() => setTaggedUserIds((current) => current.includes(user.account.id) ? current.filter((id) => id !== user.account.id) : [...current, user.account.id])} />@{user.profile.username}</label>)}</div></fieldset>
-          <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600"><p className="font-bold">Music</p><p className="mt-1">No music selected. Licensed provider integration is intentionally not enabled.</p></div>
-          <div className="flex flex-wrap gap-5"><label className="text-sm font-semibold"><input type="checkbox" className="mr-2" checked={commentsEnabled} onChange={(event) => setCommentsEnabled(event.target.checked)} />Comments enabled</label><label className="text-sm font-semibold"><input type="checkbox" className="mr-2" checked={likesVisible} onChange={(event) => setLikesVisible(event.target.checked)} />Show like count</label></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="relative text-sm font-bold text-slate-700 sm:col-span-2">
+              Caption or text
+              <textarea
+                ref={captionTextareaRef}
+                required={media.length === 0 && postType !== "event"}
+                value={caption}
+                onChange={(event) => {
+                  setCaption(event.target.value);
+                  setMentionQuery(
+                    getActiveMentionQuery(
+                      event.target.value,
+                      event.target.selectionStart,
+                    ),
+                  );
+                }}
+                onSelect={(event) =>
+                  setMentionQuery(
+                    getActiveMentionQuery(
+                      event.currentTarget.value,
+                      event.currentTarget.selectionStart,
+                    ),
+                  )
+                }
+                rows={4}
+                className={fieldClass}
+                placeholder={
+                  media.length === 0
+                    ? "What do you want to share? Use #topics and @usernames inline."
+                    : "Add a caption with #topics or @mentions (optional)"
+                }
+              />
+              {mentionQuery !== null && mentionSuggestions.length > 0 && (
+                <span className="absolute inset-x-0 top-full z-20 mt-1 block overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-xl">
+                  {mentionSuggestions.map((candidate) => (
+                    <button
+                      key={candidate.account.id}
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        const caret = captionTextareaRef.current?.selectionStart ?? caption.length;
+                        const nextCaption = insertMentionAtCaret(
+                          caption,
+                          caret,
+                          candidate.profile.usernameNormalized,
+                        );
+                        setCaption(nextCaption);
+                        setMentionQuery(null);
+                        window.requestAnimationFrame(() => captionTextareaRef.current?.focus());
+                      }}
+                      className="block w-full rounded-xl px-3 py-2 text-left text-xs hover:bg-slate-50"
+                    >
+                      <strong>@{candidate.profile.username}</strong>
+                      <span className="ml-2 font-normal text-slate-500">
+                        {candidate.profile.displayName}
+                      </span>
+                    </button>
+                  ))}
+                </span>
+              )}
+            </label>
+
+            {postType === "club" && (
+              <label className="text-sm font-bold text-slate-700">
+                Location
+                <select
+                  value={locationChoice}
+                  onChange={(event) => setLocationChoice(event.target.value)}
+                  className={fieldClass}
+                >
+                  <option value="none">No location</option>
+                  {availableBuildings.map((building) => (
+                    <option key={building.id} value={building.id}>{building.name}</option>
+                  ))}
+                  <option value="custom">Other / Custom Location</option>
+                </select>
+              </label>
+            )}
+            {locationChoice === "custom" && postType === "club" && (
+              <label className="text-sm font-bold text-slate-700">
+                Custom location
+                <input
+                  value={customLocation}
+                  onChange={(event) => setCustomLocation(event.target.value)}
+                  className={fieldClass}
+                />
+              </label>
+            )}
+            {postType !== "club" && (
+              <label className="text-sm font-bold text-slate-700">
+                Tag a club (optional)
+                <select
+                  value={taggedOrganizationId}
+                  onChange={(event) => setTaggedOrganizationId(event.target.value)}
+                  className={fieldClass}
+                >
+                  <option value="">No club tag</option>
+                  {availableOrganizations.map((organization) => (
+                    <option key={organization.id} value={organization.id}>{organization.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="text-sm font-bold text-slate-700">
+              Duration
+              <select
+                value={postType === "event" ? "24" : durationHours}
+                disabled={postType === "event"}
+                onChange={(event) => setDurationHours(event.target.value)}
+                className={fieldClass}
+              >
+                {postType === "event" ? (
+                  <option value="24">24 hours (Event default)</option>
+                ) : (
+                  personalDurationOptions.map((option) => (
+                    <option key={option.hours} value={option.hours}>{option.label}</option>
+                  ))
+                )}
+              </select>
+            </label>
+            <label className="text-sm font-bold text-slate-700">
+              Mint privacy
+              <select
+                value={privacy}
+                onChange={(event) => setPrivacy(event.target.value as SocialContentPrivacy)}
+                className={fieldClass}
+              >
+                <option value="account">Use account privacy</option>
+                <option value="public">Public within discovery scope</option>
+                <option value="connections">Connections only</option>
+                <option value="private">Only me</option>
+              </select>
+            </label>
+          </div>
+
+          <fieldset className="rounded-2xl bg-slate-50 p-4">
+            <legend className="px-1 text-sm font-bold text-slate-700">Music (optional)</legend>
+            {selectedMusic ? <SelectedMusicTrack track={selectedMusic} onChange={() => setMusicPickerOpen(true)} onRemove={() => setSelectedMusic(null)} /> : <button type="button" onClick={() => setMusicPickerOpen(true)} className="mt-1 flex w-full items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700"><span>♫ Add Music</span><span aria-hidden="true">›</span></button>}
+          </fieldset>
+          <div className="flex flex-wrap gap-5"><label className="text-sm font-semibold"><input type="checkbox" className="mr-2" checked={commentsEnabled} onChange={(event) => setCommentsEnabled(event.target.checked)} />Comments enabled</label></div>
           {submitError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{submitError}</p>}
           <div className="flex gap-3"><button type="button" onClick={requestClose} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold">Cancel</button><button className="flex-1 rounded-xl px-4 py-3 text-sm font-bold text-white" style={{ backgroundColor: postType === "event" ? "#059669" : theme.primary }}>Publish Mint</button></div>
         </form>
+        <MusicPicker open={musicPickerOpen} selected={selectedMusic} onSelect={setSelectedMusic} onClose={() => setMusicPickerOpen(false)} />
       </section>
     </div>,
     document.body,

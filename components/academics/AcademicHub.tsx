@@ -9,6 +9,7 @@ import { developmentAliases, getAcademicCatalog } from "@/data/development/campu
 import type { UniversityId, UniversityTheme } from "@/data/universities";
 import { findProgramDuplicate, formatCourseLabel, getRecommendedCourses } from "@/lib/campus-data/search";
 import { normalizeSearchText } from "@/lib/campus-data/normalization";
+import { areDeveloperControlsEnabled } from "@/lib/runtime/fixturePolicy";
 import type { AcademicEnrollment, AcademicProfile, CampusEntityType, CommunitySubmission } from "@/types/campus-data";
 
 type Props = {
@@ -258,7 +259,7 @@ export function AcademicHub({
         ))}
       </div>
 
-      {process.env.NODE_ENV === "development" && <CampusDataDebugPanel universityId={universityId} localPendingCount={localPendingCount} />}
+      {areDeveloperControlsEnabled() && <CampusDataDebugPanel universityId={universityId} localPendingCount={localPendingCount} />}
     </div>
   );
 }

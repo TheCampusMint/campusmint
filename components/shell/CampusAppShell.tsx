@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -13,12 +14,14 @@ import {
   } from "react";
 
 import { CreateContentFlow } from "@/components/content/CreateContentFlow";
+import { BrandWorkspace } from "@/components/brands/BrandWorkspace";
 import { DeveloperRoleSwitcher } from "@/components/developer/DeveloperRoleSwitcher";
 import { DeveloperSoundPreview } from "@/components/developer/DeveloperSoundPreview";
 import { GroupsSkeleton } from "@/components/groups/GroupsSkeleton";
 import { MessagesSkeleton } from "@/components/messages/MessagesSkeleton";
+import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
 import { CampusMintFeed } from "@/components/mintz/CampusMintFeed";
-import { StudentEmailOnboarding } from "@/components/onboarding/StudentEmailOnboarding";
+import { AccountOnboarding } from "@/components/onboarding/AccountOnboarding";
 import { ProfilesHub } from "@/components/profile/ProfilesHub";
 import { GlobalSearchOverlay } from "@/components/search/GlobalSearchOverlay";
 import { GlobalSearchSkeleton } from "@/components/search/GlobalSearchSkeleton";
@@ -44,6 +47,8 @@ import {
   getAccountUniversityDisplayTheme,
 } from "@/data/universities";
 import { useAppPreferences } from "@/hooks/useAppPreferences";
+import { useCampusNotifications } from "@/hooks/useCampusNotifications";
+import { useCampusEvents } from "@/hooks/useCampusEvents";
 import { useDirectMint } from "@/hooks/useDirectMint";
 import { useEventMoments } from "@/hooks/useEventMoments";
 import { useMarketplace } from "@/hooks/useMarketplace";
@@ -58,9 +63,16 @@ import {
   type LocalMintMediaSelection,
 } from "@/lib/content/localMintMedia";
 import { SectionMemory } from "@/lib/navigation/sectionMemory";
+import { resolveNotificationDeepLink } from "@/lib/notifications/campusNotifications";
+import { rankPrivateMessageSuggestions } from "@/lib/social/privateMessages";
+import { areDeveloperControlsEnabled, areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import {
   initialNotchScrollState,
+  expandNotchPresentation,
+  clampNavigationIndex,
   motion,
+  resistFiniteNavigationEdge,
+  resolveFiniteNavigationDestination,
   resolveGestureAxis,
   updateNotchScrollState,
 } from "@/lib/motion/interaction";
@@ -72,7 +84,9 @@ import {
 } from "@/lib/search/unifiedSearch";
 import { getVisibleStories } from "@/lib/storyPermissions";
 import type { Organization } from "@/types/organization";
+import type { CampusNotification } from "@/types/notification";
 import type { TemporaryUser } from "@/types/user";
+import type { AccountSessionResponse, BrandSessionProfile } from "@/types/accountSession";
 
 type PageDragState = {
   pointerId: number;
@@ -109,28 +123,14 @@ const initialUser: TemporaryUser = {
   verifiedStudent: false,
 };
 
-const showDeveloperControls = process.env.NODE_ENV === "development";
+const showDeveloperControls = areDeveloperControlsEnabled();
 const initialDeveloperUniversityOverride = showDeveloperControls
   ? initialUser.universityId
   : null;
 const marketplacePermissionMode =
-  process.env.NODE_ENV === "development"
+  areDevelopmentFixturesEnabled()
     ? "development_role"
     : "verified_student";
-
-function mod(value: number, length: number) {
-  return ((value % length) + length) % length;
-}
-
-function nearestVirtualIndex(current: number, target: number) {
-  const currentPosition = mod(current, SECTION_COUNT);
-  let delta = target - currentPosition;
-
-  if (delta > SECTION_COUNT / 2) delta -= SECTION_COUNT;
-  if (delta < -SECTION_COUNT / 2) delta += SECTION_COUNT;
-
-  return current + delta;
-}
 
 export function CampusAppShell() {
   const [navIndex, setNavIndex] = useState(() => {
@@ -164,8 +164,18 @@ export function CampusAppShell() {
     useState(CURRENT_DEVELOPMENT_USER_ID);
   const [directMintReturnUserId, setDirectMintReturnUserId] =
     useState<string | null>(null);
+  const [requestedMessageUserId, setRequestedMessageUserId] =
+    useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationReturnScene, setNotificationReturnScene] = useState<
+    "profile" | "messages" | "groups" | "sports" | "search" | null
+  >(null);
+  const [requestedGroupOrganizationId, setRequestedGroupOrganizationId] =
+    useState<string | null>(null);
+  const [requestedSportsSport, setRequestedSportsSport] = useState<
+    "football" | "basketball" | "baseball" | null
+  >(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [createMintOpen, setCreateMintOpen] = useState(false);
   const [createMintMedia, setCreateMintMedia] =
@@ -181,6 +191,8 @@ export function CampusAppShell() {
   const [unifiedSearchState, setUnifiedSearchState] =
     useState<UnifiedSearchState>(() => ({ ...initialUnifiedSearchState }));
   const [onboardingOpen, setOnboardingOpen] = useState(true);
+  const [sessionStatus, setSessionStatus] = useState<"checking" | "signed_out" | "student" | "brand">("checking");
+  const [brandProfile, setBrandProfile] = useState<BrandSessionProfile | null>(null);
 
   const swipeProgressRef = useRef(0);
   const settleTimerRef = useRef<number | null>(null);
@@ -201,21 +213,71 @@ export function CampusAppShell() {
   const notchScrollStateRef = useRef(initialNotchScrollState);
   const [specialPageLeaving, setSpecialPageLeaving] =
     useState(false);
-  const [notchCollapsed, setNotchCollapsed] = useState(false);
+  const [notchPresentation, setNotchPresentation] = useState(initialNotchScrollState.presentation);
 
-  const marketplace = useMarketplace();
-  const mintz = useMintz();
-  const directMint = useDirectMint(
-    CURRENT_DEVELOPMENT_USER_ID,
-  );
-  const eventMoments = useEventMoments();
-  const organizations = useOrganizations(CURRENT_DEVELOPMENT_USER_ID);
   const profiles = useProfiles();
+  const currentUserId = profiles.currentUser.account.id;
+  const currentProfileOnboardingCompletedAt =
+    profiles.currentUser.account.onboardingCompletedAt;
+  const clearAuthenticatedProfile = profiles.clearAuthenticatedUser;
+  const hydrateAuthenticatedProfile = profiles.hydrateAuthenticatedUser;
+  const marketplace = useMarketplace();
+  const mintz = useMintz(currentUserId);
+  const directMint = useDirectMint(currentUserId);
+  const eventMoments = useEventMoments();
+  const campusEventState = useCampusEvents();
+  const organizations = useOrganizations(currentUserId);
+  const campusNotifications = useCampusNotifications(
+    currentUserId,
+    profiles.blocks,
+  );
   const stories = useStories();
   const preferenceState = useAppPreferences();
   const reducedMotion = useReducedMotion(
     preferenceState.preferences.content.reducedMotion,
   );
+
+  const refreshAccountSession = useCallback(async () => {
+    try {
+      const response = await fetch("/api/account/me", { cache: "no-store" });
+      const result = await response.json() as AccountSessionResponse;
+      if (!result.ok) throw new Error(result.message);
+      if (!result.configured && areDevelopmentFixturesEnabled()) {
+        setSessionStatus("student");
+        setOnboardingOpen(!currentProfileOnboardingCompletedAt);
+        return;
+      }
+      if (!result.authenticated) {
+        clearAuthenticatedProfile();
+        setBrandProfile(null);
+        setSessionStatus("signed_out");
+        setOnboardingOpen(true);
+        return;
+      }
+      if (result.accountType === "brand") {
+        setBrandProfile(result.brand);
+        setSessionStatus("brand");
+        setOnboardingOpen(!result.onboardingComplete);
+        return;
+      }
+      setSessionStatus("student");
+      setOnboardingOpen(!result.onboardingComplete);
+      if (result.user) {
+        hydrateAuthenticatedProfile(result.user);
+        setSelectedProfileUserId(result.user.account.id);
+        setUser((current) => ({ ...current, id: result.user!.account.id, firstName: result.user!.profile.firstName, universityId: result.user!.account.universityId, role: result.user!.account.role, verifiedStudent: result.user!.account.verifiedStudent }));
+      }
+    } catch {
+      setSessionStatus(areDevelopmentFixturesEnabled() ? "student" : "signed_out");
+      setOnboardingOpen(!areDevelopmentFixturesEnabled() || !currentProfileOnboardingCompletedAt);
+    }
+  }, [clearAuthenticatedProfile, currentProfileOnboardingCompletedAt, hydrateAuthenticatedProfile]);
+
+  useEffect(() => {
+    if (!profiles.developmentProfileHydrated) return;
+    const timer = window.setTimeout(() => { void refreshAccountSession(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [profiles.developmentProfileHydrated, refreshAccountSession]);
 
   useEffect(() => {
     if (
@@ -258,7 +320,7 @@ export function CampusAppShell() {
   ]);
 
   const currentNavigationSection =
-    sectionSequence[mod(navIndex, SECTION_COUNT)] ?? "mint";
+    sectionSequence[clampNavigationIndex(navIndex, SECTION_COUNT)] ?? "mint";
 
   const sectionMemoryRef = useRef<SectionMemory<SwipeSection> | null>(null);
 
@@ -293,8 +355,8 @@ export function CampusAppShell() {
           window.scrollY,
         );
         notchScrollStateRef.current = next;
-        setNotchCollapsed((current) =>
-          current === next.collapsed ? current : next.collapsed,
+        setNotchPresentation((current) =>
+          current === next.presentation ? current : next.presentation,
         );
       });
     };
@@ -378,11 +440,33 @@ export function CampusAppShell() {
   );
 
   const createMintUsers = useMemo(
-    () =>
-      profiles.users.map((candidate) =>
+    () => {
+      const candidates = profiles.users.map((candidate) =>
         candidate.account.id === viewer.account.id ? viewer : candidate,
-      ),
-    [profiles.users, viewer],
+      );
+      const blockedUserIds = profiles.blocks.flatMap((block) =>
+        block.blockerId === viewer.account.id
+          ? [block.blockedId]
+          : block.blockedId === viewer.account.id
+            ? [block.blockerId]
+            : [],
+      );
+
+      return rankPrivateMessageSuggestions({
+        viewer,
+        candidates,
+        friendships: profiles.friendships,
+        follows: profiles.follows,
+        blockedUserIds,
+        existingConversationUserIds: [],
+      }).map(({ user: candidate }) => candidate);
+    }, [
+      profiles.blocks,
+      profiles.follows,
+      profiles.friendships,
+      profiles.users,
+      viewer,
+    ],
   );
 
   const visibleStories = getVisibleStories(
@@ -397,17 +481,17 @@ export function CampusAppShell() {
     organizations.memberships,
   );
 
-  const previousSection =
+  const previousSection: SwipeSection | null =
     mintSweepProgress === 1
       ? "mint"
-      : sectionSequence[mod(navIndex - 1, SECTION_COUNT)] ?? "groups";
+      : sectionSequence[navIndex - 1] ?? null;
 
-  const nextSection =
+  const nextSection: SwipeSection | null =
     mintSweepProgress === -1
       ? "mint"
-      : sectionSequence[mod(navIndex + 1, SECTION_COUNT)] ?? "messages";
+      : sectionSequence[navIndex + 1] ?? null;
 
-  const swipeSections: SwipeSection[] = [
+  const swipeSections: Array<SwipeSection | null> = [
     previousSection,
     currentNavigationSection,
     nextSection,
@@ -529,13 +613,23 @@ export function CampusAppShell() {
     setSwipeSettling(false);
     setGestureProgress(0);
 
+    if (
+      notificationReturnScene &&
+      notificationReturnScene !== section
+    ) {
+      setNotificationReturnScene(null);
+      setRequestedMessageUserId(null);
+      setRequestedGroupOrganizationId(null);
+      setRequestedSportsSport(null);
+    }
+
     if (section === "messages") {
       setDirectMintReturnUserId(null);
     }
 
     if (section === "profile") {
       cancelScheduledMainSectionCommit();
-      openProfile(CURRENT_DEVELOPMENT_USER_ID);
+      openProfile(viewer.account.id);
       return;
     }
 
@@ -545,7 +639,7 @@ export function CampusAppShell() {
     captureCurrentMainScroll();
     captureSpecialPageScroll();
     setSpecialSection(null);
-    setNavIndex((current) => nearestVirtualIndex(current, targetIndex));
+    setNavIndex(targetIndex);
     scheduleMainSectionCommit(section);
   }
 
@@ -578,12 +672,7 @@ export function CampusAppShell() {
         sectionSequence.indexOf(section);
 
       if (targetIndex >= 0) {
-        setNavIndex((current) =>
-          nearestVirtualIndex(
-            current,
-            targetIndex,
-          ),
-        );
+        setNavIndex(targetIndex);
       }
 
       setSpecialSection(null);
@@ -610,6 +699,15 @@ export function CampusAppShell() {
   }
 
   function goBackFromProfile() {
+    if (notificationReturnScene === "profile") {
+      captureSpecialPageScroll();
+      setSpecialSection(null);
+      setSpecialPageLeaving(false);
+      setNotificationReturnScene(null);
+      setNotificationsOpen(true);
+      scheduleMainSectionCommit(committedSectionRef.current);
+      return;
+    }
     leaveProfileTo(
       profileReturnSectionRef.current,
     );
@@ -620,7 +718,7 @@ export function CampusAppShell() {
     userId: string,
   ) {
     captureSpecialPageScroll();
-    directMint.startConversation(userId);
+    setRequestedMessageUserId(userId);
     setDirectMintReturnUserId(userId);
 
     const targetIndex =
@@ -628,12 +726,7 @@ export function CampusAppShell() {
 
     const finish = () => {
       if (targetIndex >= 0) {
-        setNavIndex((current) =>
-          nearestVirtualIndex(
-            current,
-            targetIndex,
-          ),
-        );
+        setNavIndex(targetIndex);
       }
 
       setSpecialSection(null);
@@ -653,10 +746,60 @@ export function CampusAppShell() {
   }
 
   function openDirectMintFromSearch(userId: string) {
-    directMint.startConversation(userId);
+    setRequestedMessageUserId(userId);
     setDirectMintReturnUserId(null);
     setSearchOpen(false);
     selectSection("messages");
+  }
+
+  function returnToNotifications() {
+    setRequestedMessageUserId(null);
+    setRequestedGroupOrganizationId(null);
+    setRequestedSportsSport(null);
+    setNotificationReturnScene(null);
+    setNotificationsOpen(true);
+  }
+
+  function openNotification(notification: CampusNotification) {
+    campusNotifications.markRead(notification.id);
+    setNotificationsOpen(false);
+    const destination = resolveNotificationDeepLink(notification);
+
+    if (destination.scene === "profile") {
+      setNotificationReturnScene("profile");
+      openProfile(destination.userId);
+      return;
+    }
+
+    if (destination.scene === "message") {
+      setRequestedMessageUserId(destination.userId);
+      setDirectMintReturnUserId(null);
+      setNotificationReturnScene("messages");
+      selectSection("messages");
+      return;
+    }
+
+    if (destination.scene === "organization") {
+      setRequestedGroupOrganizationId(destination.organizationId);
+      setNotificationReturnScene("groups");
+      selectSection("groups");
+      return;
+    }
+
+    if (destination.scene === "sports") {
+      setRequestedSportsSport(destination.sport);
+      setNotificationReturnScene("sports");
+      selectSection("sports");
+      return;
+    }
+
+    setNotificationReturnScene("search");
+    setUnifiedSearchState({
+      ...initialUnifiedSearchState,
+      category: "events",
+      history: [{ kind: "event", id: destination.eventId }],
+    });
+    setSearchOpen(true);
   }
 
   function openSearchOverlay() {
@@ -665,15 +808,18 @@ export function CampusAppShell() {
     setSearchOpen(true);
   }
 
-  function dismissSearchOverlay() {
-    const result = requestUnifiedSearchDismiss(unifiedSearchState);
+  function backSearchOverlay() {
+    setUnifiedSearchState((current) =>
+      requestUnifiedSearchDismiss(current).state,
+    );
+  }
 
-    if (result.closeOverlay) {
-      setSearchOpen(false);
-      return;
+  function closeSearchOverlay() {
+    setSearchOpen(false);
+    if (notificationReturnScene === "search") {
+      setNotificationReturnScene(null);
+      setNotificationsOpen(true);
     }
-
-    setUnifiedSearchState(result.state);
   }
 
   function openCreateMintMediaPicker() {
@@ -725,16 +871,20 @@ export function CampusAppShell() {
     setCreateMintMediaPreparing(false);
   }
 
-  function logoutDevelopmentUser() {
+  async function logoutDevelopmentUser() {
+    await fetch("/api/account/logout", { method: "POST" }).catch(() => null);
     profiles.logoutDevelopmentUser();
+    profiles.clearAuthenticatedUser();
     closeCreateMint();
     setSearchOpen(false);
     setSpecialSection(null);
-    setSelectedProfileUserId(CURRENT_DEVELOPMENT_USER_ID);
+    setSelectedProfileUserId(profiles.currentUser.account.id);
     setUnifiedSearchState({ ...initialUnifiedSearchState });
     setUser(initialUser);
     setDeveloperUniversityOverride(initialDeveloperUniversityOverride);
     setOnboardingOpen(true);
+    setBrandProfile(null);
+    setSessionStatus("signed_out");
   }
 
   function returnToProfileFromDirectMint() {
@@ -794,8 +944,7 @@ export function CampusAppShell() {
     const mintIndex = sectionSequence.indexOf("mint");
     if (mintIndex < 0) return;
 
-    const destination =
-      nearestVirtualIndex(startingIndex, mintIndex);
+    const destination = mintIndex;
 
     if (
       reducedMotion ||
@@ -904,24 +1053,14 @@ export function CampusAppShell() {
 
     if (swipeSettling) setSwipeSettling(false);
 
-    let next = swipeProgressRef.current + deltaSections;
-    let sectionSteps = 0;
+    const rawProgress = swipeProgressRef.current + deltaSections;
+    const resistedProgress = resistFiniteNavigationEdge(
+      rawProgress,
+      navIndex,
+      SECTION_COUNT,
+    );
 
-    while (next <= -1) {
-      next += 1;
-      sectionSteps += 1;
-    }
-
-    while (next >= 1) {
-      next -= 1;
-      sectionSteps -= 1;
-    }
-
-    if (sectionSteps !== 0) {
-      setNavIndex((current) => current + sectionSteps);
-    }
-
-    setGestureProgress(next);
+    setGestureProgress(Math.min(1, Math.max(-1, resistedProgress)));
     void velocitySectionsPerMs;
   }
 
@@ -941,17 +1080,17 @@ export function CampusAppShell() {
     if (projected <= -0.14) target = -1;
     if (projected >= 0.14) target = 1;
 
-    const destinationIndex =
-      navIndex + (target < 0 ? 1 : target > 0 ? -1 : 0);
+    const destinationIndex = resolveFiniteNavigationDestination(
+      navIndex,
+      target as -1 | 0 | 1,
+      SECTION_COUNT,
+    );
+    if (destinationIndex === navIndex) target = 0;
     const destinationSection =
-      sectionSequence[mod(destinationIndex, SECTION_COUNT)] ?? "mint";
+      sectionSequence[destinationIndex] ?? currentNavigationSection;
 
     if (reducedMotion) {
-      if (target < 0) {
-        setNavIndex((current) => current + 1);
-      } else if (target > 0) {
-        setNavIndex((current) => current - 1);
-      }
+      setNavIndex(destinationIndex);
 
       setGestureProgress(0);
       scheduleMainSectionCommit(destinationSection);
@@ -962,11 +1101,7 @@ export function CampusAppShell() {
     setGestureProgress(target);
 
     settleTimerRef.current = window.setTimeout(() => {
-      if (target < 0) {
-        setNavIndex((current) => current + 1);
-      } else if (target > 0) {
-        setNavIndex((current) => current - 1);
-      }
+      setNavIndex(destinationIndex);
 
       setGestureProgress(0);
       setSwipeSettling(false);
@@ -1148,14 +1283,8 @@ export function CampusAppShell() {
   }
 
   function refreshMintFeed() {
-    const result = sectionMemoryRef.current?.refresh("mint");
     mintz.refreshMintz();
-    setMintHeaderHidden(false);
-    setSectionMemoryRevision((current) => current + 1);
-
-    if (result) {
-      restoreWindowScroll(result.scrollY);
-    }
+    scrollMintHomeToTop();
   }
 
   function sectionContent(section: PrimarySection): ReactNode {
@@ -1168,8 +1297,11 @@ export function CampusAppShell() {
           mintz={mintz}
           organizations={organizations}
           eventMoments={eventMoments}
+          events={campusEventState.events}
+          directMint={directMint}
           onCreateStory={stories.addStory}
           onOpenProfile={openProfile}
+          onMessageUser={openDirectMintFromSearch}
           onRequestOrganization={(organizationId) => {
             const organization = getOrganizationById(organizationId);
             if (organization) handleOrganizationMembership(organization);
@@ -1178,6 +1310,7 @@ export function CampusAppShell() {
           autoplayVideo={preferenceState.preferences.content.autoplayVideo}
           onFeedChromeChange={setMintHeaderHidden}
           onRefresh={refreshMintFeed}
+          surfaceActive={!specialSection}
         />
       );
     }
@@ -1190,7 +1323,14 @@ export function CampusAppShell() {
           profiles={profiles}
           directMint={directMint}
           requestedUserId={
-            directMintReturnUserId
+            requestedMessageUserId
+          }
+          onThreadChange={setRequestedMessageUserId}
+          onOpenProfile={openProfile}
+          onBackToNotifications={
+            notificationReturnScene === "messages"
+              ? returnToNotifications
+              : undefined
           }
           onBackToProfile={
             directMintReturnUserId
@@ -1207,6 +1347,12 @@ export function CampusAppShell() {
           key={configuredUniversityId ?? theme.shortName}
           theme={theme}
           universityId={configuredUniversityId}
+          initialSport={requestedSportsSport}
+          onBack={
+            notificationReturnScene === "sports"
+              ? returnToNotifications
+              : undefined
+          }
         />
       );
     }
@@ -1214,12 +1360,21 @@ export function CampusAppShell() {
     if (section === "groups") {
       return (
         <GroupsSkeleton
-          currentUserId={CURRENT_DEVELOPMENT_USER_ID}
+          currentUserId={viewer.account.id}
           user={user}
           configuredUniversityId={configuredUniversityId}
           theme={theme}
           organizations={organizations}
           onOrganizationMembershipAction={handleOrganizationMembership}
+          requestedOrganizationId={requestedGroupOrganizationId}
+          onRequestedOrganizationHandled={() =>
+            setRequestedGroupOrganizationId(null)
+          }
+          onBackToNotifications={
+            notificationReturnScene === "groups"
+              ? returnToNotifications
+              : undefined
+          }
         />
       );
     }
@@ -1326,23 +1481,44 @@ export function CampusAppShell() {
     );
   }
 
+  if (sessionStatus === "checking") {
+    return <main className="min-h-dvh bg-[#f8f3f2]" aria-label="Loading account" />;
+  }
+
+  if (sessionStatus === "brand" && brandProfile && !onboardingOpen) {
+    return <BrandWorkspace brand={brandProfile} onLogout={() => { void logoutDevelopmentUser(); }} />;
+  }
+
   if (onboardingOpen) {
     return (
-      <StudentEmailOnboarding
-        onVerified={(
+      <AccountOnboarding
+        initialAccountType={sessionStatus === "brand" ? "brand" : sessionStatus === "student" ? "student" : null}
+        brandSessionVerified={sessionStatus === "brand"}
+        onBrandComplete={() => { void refreshAccountSession(); }}
+        onStudentVerified={async (
           resolved,
           personalEmail,
           primaryEmail,
           profileSetup,
         ) => {
+          const accountResponse = await fetch("/api/account/complete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ accountType: "student", ...profileSetup }),
+          });
+          const accountResult = await accountResponse.json().catch(() => null) as { ok?: boolean; message?: string } | null;
+          if (!accountResponse.ok || !accountResult?.ok) {
+            return { ok: false, message: accountResult?.message ?? "We couldn't save your account." };
+          }
           const onboardingCompletedAt =
             new Date().toISOString();
+          const [firstName, ...remainingName] = profileSetup.displayName.split(/\s+/);
+          const lastName = remainingName.join(" ") || firstName;
 
           profiles.updateCurrentAccount({
             studentEmail: resolved.email,
             personalEmail,
             primaryEmail,
-            phoneNumber: profileSetup.phoneNumber,
             studentEmailDomain: resolved.domain,
             studentEmailVerifiedAt:
               resolved.mailboxVerifiedAt,
@@ -1362,44 +1538,24 @@ export function CampusAppShell() {
 
           const profileResult =
             profiles.updateCurrentProfile({
-              firstName: profileSetup.firstName,
-              lastName: profileSetup.lastName,
-              displayName: `${profileSetup.firstName} ${profileSetup.lastName}`,
+              firstName,
+              lastName,
+              displayName: profileSetup.displayName,
               username: profileSetup.username,
-              bio: profileSetup.bio,
-              interests: profileSetup.interests,
-              hobbies: profileSetup.hobbies,
-              academicArea:
-                profileSetup.academicArea,
-              lookingForRoommate:
-                profileSetup.lookingForRoommate,
-              roommatePreferences:
-                profileSetup.roommatePreferences,
-              offersTutoring:
-                profileSetup.offersTutoring,
-              tutoringSubjects:
-                profileSetup.tutoringSubjects,
-              clubIds: profileSetup.clubIds,
+              photo: {
+                kind: "initials",
+                placeholderId: null,
+                storagePath: profileSetup.profileImageStoragePath,
+              },
             });
 
           if (!profileResult.ok) {
-            return;
-          }
-
-          for (const clubId of profileSetup.clubIds) {
-            const organization =
-              getOrganizationById(clubId);
-
-            if (organization) {
-              organizations.joinOrRequest(
-                organization,
-              );
-            }
+            return { ok: false, message: profileResult.error };
           }
 
           setUser((current) => ({
             ...current,
-            firstName: profileSetup.firstName,
+            firstName,
             universityId:
               resolved.identity.knownUniversityId ??
               current.universityId,
@@ -1408,6 +1564,8 @@ export function CampusAppShell() {
 
           setDeveloperUniversityOverride(null);
           setOnboardingOpen(false);
+          await refreshAccountSession();
+          return { ok: true };
         }}
       />
     );
@@ -1430,7 +1588,7 @@ export function CampusAppShell() {
     >
       <TopUtilityBar
         hidden={activeSection === "mint" && mintHeaderHidden}
-        compact={notchCollapsed}
+        compact={notchPresentation !== "expanded"}
         viewer={viewer}
         theme={theme}
         onOpenSearch={openSearchOverlay}
@@ -1447,8 +1605,9 @@ export function CampusAppShell() {
         onOpenProfile={() => {
           setSearchOpen(false);
           setNotificationsOpen(false);
-          openProfile(CURRENT_DEVELOPMENT_USER_ID);
+          openProfile(viewer.account.id);
         }}
+        unreadNotificationCount={campusNotifications.unreadCount}
         developerControls={
           showDeveloperControls ? (
             <>
@@ -1475,7 +1634,8 @@ export function CampusAppShell() {
           theme={theme}
           historyDepth={unifiedSearchState.history.length}
           initialScrollY={searchScrollYRef.current}
-          onRequestClose={dismissSearchOverlay}
+          onRequestBack={backSearchOverlay}
+          onRequestClose={closeSearchOverlay}
           onScrollYChange={(scrollY) => {
             searchScrollYRef.current = scrollY;
           }}
@@ -1487,6 +1647,7 @@ export function CampusAppShell() {
             profiles={profiles}
             mintz={mintz}
             eventMoments={eventMoments}
+            events={campusEventState.events}
             marketplace={marketplace}
             marketplacePermissionMode={marketplacePermissionMode}
             organizations={organizations}
@@ -1495,17 +1656,21 @@ export function CampusAppShell() {
             onSearchStateChange={setUnifiedSearchState}
             onOpenDirectMint={openDirectMintFromSearch}
             onLogout={logoutDevelopmentUser}
-            onOrganizationMembershipAction={handleOrganizationMembership}
             autoFocus
           />
         </GlobalSearchOverlay>
       )}
 
-      {specialSection ? (
+      {specialSection && (
         <div className="mx-auto max-w-5xl px-4 pb-36 pt-5 sm:px-6">
           {sectionContent(specialSection)}
         </div>
-      ) : (
+      )}
+
+      <div
+        aria-hidden={specialSection ? "true" : undefined}
+        className={specialSection ? "invisible h-0 overflow-hidden" : undefined}
+      >
         <div
           className="relative touch-pan-y overflow-hidden"
           onPointerDown={beginPageSwipe}
@@ -1526,19 +1691,19 @@ export function CampusAppShell() {
                   : `transform ${HORIZONTAL_SNAP_MS}ms cubic-bezier(.22,1,.36,1)`,
             }}
           >
-            {swipeSections.map((section) => (
+            {swipeSections.map((section, frameIndex) => (
               <div
-                key={section}
+                key={`${frameIndex}:${section ?? "edge"}`}
                 className="w-1/3 shrink-0"
                 data-active-swipe-frame={section === activeSection ? "true" : "false"}
                 style={{ height: section === activeSection ? "auto" : 0 }}
               >
-                {sectionFrame(section)}
+                {section ? sectionFrame(section) : null}
               </div>
             ))}
           </div>
         </div>
-      )}
+      </div>
 
       <input
         ref={createMintFileInputRef}
@@ -1554,13 +1719,18 @@ export function CampusAppShell() {
       <BottomBubbleNav
         activeSection={activeSection}
         navigationSection={currentNavigationSection}
-        collapsed={notchCollapsed}
+        presentation={notchPresentation}
         swipeProgress={swipeProgress}
         swipeSettling={swipeSettling}
         reducedMotion={reducedMotion}
         onSelect={selectSection}
         onMintTap={handleMintTap}
         onCreateMint={beginCreateMint}
+        onExpand={() => {
+          const presentation = expandNotchPresentation(notchScrollStateRef.current.presentation);
+          notchScrollStateRef.current = { ...notchScrollStateRef.current, presentation, travel: 0 };
+          setNotchPresentation(presentation);
+        }}
       />
 
       {createMintOpen && (
@@ -1583,32 +1753,17 @@ export function CampusAppShell() {
           defaultCommentsEnabled={
             preferenceState.preferences.content.commentsDefault
           }
-          defaultHideLikeCounts={
-            preferenceState.preferences.content.hideLikeCountsDefault
-          }
         />
       )}
 
       {notificationsOpen && (
-        <div className="cm-popover-surface fixed right-3 top-[4.35rem] z-[70] w-[min(22rem,calc(100vw-1.5rem))] rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-[0_18px_55px_rgba(15,23,42,0.16)] backdrop-blur-xl">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-black text-slate-950">
-              Notifications
-            </h2>
-            <button
-              type="button"
-              onClick={() => setNotificationsOpen(false)}
-              aria-label="Close notifications"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-600"
-            >
-              ×
-            </button>
-          </div>
-
-          <p className="mt-3 text-sm leading-6 text-slate-500">
-            Notifications will appear here as Campus Mint activity is connected.
-          </p>
-        </div>
+        <NotificationsPanel
+          notifications={campusNotifications}
+          users={profiles.users}
+          theme={theme}
+          onOpen={openNotification}
+          onClose={() => setNotificationsOpen(false)}
+        />
       )}
 
       {settingsOpen && (
@@ -1617,7 +1772,7 @@ export function CampusAppShell() {
           theme={theme}
           profiles={profiles}
           preferenceState={preferenceState}
-          onOpenProfile={() => openProfile(CURRENT_DEVELOPMENT_USER_ID)}
+          onOpenProfile={() => openProfile(viewer.account.id)}
           onClose={() => setSettingsOpen(false)}
         />
       )}

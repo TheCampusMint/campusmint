@@ -12,6 +12,7 @@ import {
   getVisibleEventMoments,
 } from "@/lib/events/eventMoments";
 import { formatEventDateTimeRange } from "@/lib/content/eventTiming";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import type { Event } from "@/types/event";
 import {
   eventMomentPrivacyOptions,
@@ -31,7 +32,7 @@ type EventMomentEventDetailProps = {
   onOpenMoment?: (momentId: string) => void;
 };
 
-const showDevelopmentSimulation = process.env.NODE_ENV === "development";
+const showDevelopmentSimulation = areDevelopmentFixturesEnabled();
 
 function privacyLabel(privacy: EventMomentPrivacy) {
   return (
@@ -81,7 +82,8 @@ export function EventMomentEventDetail({
     },
   );
 
-  const displayedRsvpCount = event.rsvpCount + (isGoing ? 1 : 0);
+  const displayedRsvpCount = event.rsvpCount + eventMoments.rsvps.filter((rsvp) => rsvp.eventId === event.id && rsvp.status === "attending").length;
+  const ended = new Date(event.eventEndAt ?? event.eventStartAt).getTime() <= eventMoments.currentTime || event.status === "cancelled";
   const formattedWhen =
     formatEventDateTimeRange(
       event.eventStartAt,
@@ -183,18 +185,20 @@ export function EventMomentEventDetail({
             <p className="text-sm leading-6 text-slate-600 sm:col-span-2">
               {event.description}
             </p>
+            {event.source && <div className="text-xs text-slate-500 sm:col-span-2"><span className="font-semibold">{event.authorBrandId ? (event.sourceTrust === "verified_brand" ? "Verified Brand source" : "Brand source") : event.systemGenerated ? "Campus Mint source" : "Source"}:</span> {event.source.sourceTitle} · <a href={event.source.sourceUrl} target="_blank" rel="noreferrer" className="font-bold underline underline-offset-2">Official event page</a></div>}
             <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-4 sm:col-span-2">
               <div>
                 <p className="text-sm font-bold text-slate-700">
-                  {displayedRsvpCount.toLocaleString("en-US")} going
+                  {displayedRsvpCount.toLocaleString("en-US")} attending
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  RSVP records planned attendance; it does not verify attendance.
+                  Attending records planned attendance; it does not verify attendance.
                 </p>
               </div>
               <button
                 type="button"
                 aria-pressed={isGoing}
+                disabled={ended}
                 onClick={() => eventMoments.toggleRsvp(event, viewerId)}
                 className="min-w-24 rounded-xl border px-4 py-2.5 text-sm font-black transition"
                 style={{
@@ -203,7 +207,7 @@ export function EventMomentEventDetail({
                   color: isGoing ? theme.primary : theme.secondary,
                 }}
               >
-                {isGoing ? "Going" : "RSVP"}
+                {ended ? "Event ended" : isGoing ? "Attending ✓" : "Attend"}
               </button>
             </div>
           </div>
