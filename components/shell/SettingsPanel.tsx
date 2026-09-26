@@ -177,27 +177,27 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
         <p className="mt-1 text-sm leading-6 text-slate-500">Choose surfaces and accent independently, including any accent in dark mode.</p>
         <div className="mt-5 grid grid-cols-2 gap-3">
           {schemeChoices.map((choice) => (
-            <button key={choice.id} type="button" aria-pressed={preferences.appearance.scheme === choice.id} onClick={() => updateAppearance({ scheme: choice.id })} className="rounded-2xl border p-3 text-left transition active:scale-[0.98]" style={{ borderColor: preferences.appearance.scheme === choice.id ? "var(--app-accent)" : "var(--app-border)", backgroundColor: preferences.appearance.scheme === choice.id ? "var(--app-accent-soft)" : "var(--app-surface)" }}>
-              <span className="block h-12 rounded-xl border border-white/30 shadow-inner" style={schemePreviewStyle(choice.id)} />
-              <span className="mt-3 block text-sm font-black text-slate-900">{choice.label}</span>
-              <span className="mt-0.5 block text-xs text-slate-500">{choice.detail}</span>
+            <button key={choice.id} type="button" aria-pressed={preferences.appearance.scheme === choice.id} onClick={() => updateAppearance({ scheme: choice.id })} className="cm-choice-control rounded-3xl p-3 text-left transition active:scale-[0.98]">
+              <span aria-hidden="true" className="block h-12 rounded-full" style={schemePreviewStyle(choice.id)} />
+              <span className="cm-choice-highlight mt-2 text-sm font-black">{choice.label}</span>
+              <span className="mt-0.5 block px-3 text-xs text-slate-500">{choice.detail}</span>
             </button>
           ))}
         </div>
         <div className="mt-6">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Accent source</p>
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1">
             {accentChoices.map((choice) => (
-              <button key={choice.id} type="button" onClick={() => updateAppearance({ accentSource: choice.id })} aria-pressed={preferences.appearance.accentSource === choice.id} className="min-h-11 rounded-xl border px-3 py-2 text-xs font-bold transition active:scale-[0.98]" style={{ borderColor: preferences.appearance.accentSource === choice.id ? "var(--app-accent)" : "var(--app-border)", backgroundColor: preferences.appearance.accentSource === choice.id ? "var(--app-accent-soft)" : "var(--app-surface)" }}>
-                {choice.label}
+              <button key={choice.id} type="button" onClick={() => updateAppearance({ accentSource: choice.id })} aria-pressed={preferences.appearance.accentSource === choice.id} className="cm-choice-control inline-flex min-h-11 max-w-full items-center rounded-full text-xs font-bold">
+                <span className="cm-choice-highlight">{choice.label}</span>
               </button>
             ))}
           </div>
           <p className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Custom tint</p>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1">
             {curatedTints.map((tint) => (
-              <button key={tint.id} type="button" onClick={() => updateAppearance({ accentSource: "curated", tint: tint.id })} aria-pressed={preferences.appearance.accentSource === "curated" && preferences.appearance.tint === tint.id} className="flex items-center gap-2 rounded-xl border px-3 py-3 text-left text-xs font-bold transition active:scale-[0.98]" style={{ borderColor: preferences.appearance.accentSource === "curated" && preferences.appearance.tint === tint.id ? "var(--app-accent)" : "var(--app-border)", backgroundColor: preferences.appearance.accentSource === "curated" && preferences.appearance.tint === tint.id ? "var(--app-accent-soft)" : "var(--app-surface)" }}>
-                <span className="h-5 w-5 shrink-0 rounded-full" style={{ backgroundColor: tint.preview }} />{tint.label}
+              <button key={tint.id} type="button" onClick={() => updateAppearance({ accentSource: "curated", tint: tint.id })} aria-pressed={preferences.appearance.accentSource === "curated" && preferences.appearance.tint === tint.id} className="cm-choice-control inline-flex min-h-11 max-w-full items-center rounded-full text-left text-xs font-bold">
+                <span className="cm-choice-highlight"><span aria-hidden="true" className="h-5 w-5 shrink-0 rounded-full" style={{ backgroundColor: tint.preview }} />{tint.label}</span>
               </button>
             ))}
           </div>
@@ -245,8 +245,8 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
     );
 
     return (
-      <div><h3 className="text-lg font-black text-slate-950">Help</h3><p className="mt-1 text-sm leading-6 text-slate-500">Campus Mint development resources.</p><div className="mt-5 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200">
-        {["Help / Support", "About Campus Mint", "Terms / Privacy"].map((label) => <button key={label} type="button" onClick={() => setNotice(`${label} is a placeholder in this local development version.`)} className="flex w-full items-center justify-between px-4 py-4 text-left text-sm font-bold text-slate-800 transition hover:bg-slate-50"><span>{label}</span><span aria-hidden="true">›</span></button>)}
+      <div><h3 className="text-lg font-black text-slate-950">Help</h3><p className="mt-1 text-sm leading-6 text-slate-500">Campus Mint development resources.</p><div className="mt-5 flex flex-col gap-1">
+        {["Help / Support", "About Campus Mint", "Terms / Privacy"].map((label) => <button key={label} type="button" onClick={() => setNotice(`${label} is a placeholder in this local development version.`)} className="cm-choice-control flex min-h-11 w-full items-center justify-between gap-3 rounded-full py-1 pr-3 text-left text-sm font-bold"><span className="cm-choice-highlight">{label}</span><span aria-hidden="true">›</span></button>)}
       </div></div>
     );
   })();

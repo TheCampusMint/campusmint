@@ -139,7 +139,7 @@ export function ClubsHub({ user, viewer, profiles, theme, events, stories, organ
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" aria-label="Clubs views">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="tablist">{clubViews.map((item) => <button key={item.id} type="button" role="tab" aria-selected={view === item.id} onClick={() => setView(item.id)} className="rounded-xl px-3 py-3 text-sm font-bold" style={view === item.id ? { backgroundColor: theme.primary, color: theme.secondary } : { color: "#475569" }}>{item.label}</button>)}</div>
+        <div className="flex flex-wrap gap-2" role="tablist">{clubViews.map((item) => <button key={item.id} type="button" role="tab" aria-selected={view === item.id} onClick={() => setView(item.id)} className="cm-choice-control min-h-11 rounded-full text-sm font-bold"><span className="cm-choice-highlight">{item.label}</span></button>)}</div>
       </section>
 
       {feedback && <p aria-live="polite" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{feedback}</p>}

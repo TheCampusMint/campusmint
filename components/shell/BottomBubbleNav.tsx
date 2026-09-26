@@ -38,6 +38,8 @@ type DragState = {
   dragging: boolean;
 };
 
+type LabelSize = { width: number; height: number };
+
 const SLOT_COUNT = bottomNavigationSlots.length;
 const DRAG_THRESHOLD_PX = 8;
 const PAGE_SWIPE_SETTLE_MS = motion.duration.settle;
@@ -59,6 +61,7 @@ export function BottomBubbleNav({
   onExpand,
 }: BottomBubbleNavProps) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const labelRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const dragRef = useRef<DragState | null>(null);
   const suppressClickRef = useRef(false);
   const suppressClickTimerRef = useRef<number | null>(null);
@@ -67,6 +70,7 @@ export function BottomBubbleNav({
   const [previewSection, setPreviewSection] =
     useState<SwipeSection | null>(null);
   const [scrubbing, setScrubbing] = useState(false);
+  const [labelSizes, setLabelSizes] = useState<LabelSize[]>([]);
 
   const activeNavigationIndex = Math.max(
     0,
@@ -99,6 +103,57 @@ export function BottomBubbleNav({
   const notchInset = dots ? 2 : compact ? 2.5 : 4;
   const sportsContrast = activeSection === "sports";
   const dotAvailability = getNotchDotAvailability(activeNavigationIndex, primaryNavigation.length);
+
+  const lowerSlot = Math.floor(selectorPosition);
+  const upperSlot = Math.ceil(selectorPosition);
+  const slotProgress = selectorPosition - lowerSlot;
+  const lowerSize = labelSizes[lowerSlot];
+  const upperSize = labelSizes[upperSlot];
+  const selectorSize = lowerSize && upperSize
+    ? {
+        width: lowerSize.width + (upperSize.width - lowerSize.width) * slotProgress + 16,
+        height: lowerSize.height + (upperSize.height - lowerSize.height) * slotProgress + 10,
+      }
+    : null;
+  const selectorTiming = scrubbing || (pageSwipeActive && !swipeSettling) || reducedMotion
+    ? null
+    : swipeSettling
+      ? `${PAGE_SWIPE_SETTLE_MS}ms cubic-bezier(.22,1,.36,1)`
+      : `${motion.duration.panelEnter}ms ${motion.easing.settle}`;
+
+  useEffect(() => {
+    let frame: number | null = null;
+    let disposed = false;
+
+    function queueMeasurement() {
+      if (disposed || frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        // Layout sizes ignore the dots view's scale and follow real font metrics.
+        const nextSizes = labelRefs.current.map((label) => ({
+          width: label?.offsetWidth ?? 0,
+          height: label?.offsetHeight ?? 0,
+        }));
+        setLabelSizes((current) => current.length === nextSizes.length && current.every(
+          (size, index) => size.width === nextSizes[index].width && size.height === nextSizes[index].height,
+        ) ? current : nextSizes);
+      });
+    }
+
+    const observer = new ResizeObserver(queueMeasurement);
+    if (trackRef.current) observer.observe(trackRef.current);
+    labelRefs.current.forEach((label) => { if (label) observer.observe(label); });
+    queueMeasurement();
+    void document.fonts.ready.then(queueMeasurement);
+    document.fonts.addEventListener("loadingdone", queueMeasurement);
+
+    return () => {
+      disposed = true;
+      observer.disconnect();
+      document.fonts.removeEventListener("loadingdone", queueMeasurement);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, []);
 
   function clearSuppressClickTimer() {
     if (suppressClickTimerRef.current === null) return;
@@ -293,26 +348,25 @@ export function BottomBubbleNav({
           aria-hidden="true"
           className="pointer-events-none absolute z-[1] transform-gpu will-change-transform"
           style={{
-            opacity: dots ? 0 : 1,
+            opacity: dots || !selectorSize ? 0 : 1,
             top: notchInset,
             bottom: notchInset,
             left: notchInset,
             width: `calc((100% - ${notchInset * 2}px) / ${SLOT_COUNT})`,
             transform: `translate3d(${selectorPosition * 100}%,0,0)`,
-            transition:
-              scrubbing || (pageSwipeActive && !swipeSettling)
-                ? "none"
-              : reducedMotion
-                  ? "none"
-                  : swipeSettling
-                    ? `transform ${PAGE_SWIPE_SETTLE_MS}ms cubic-bezier(.22,1,.36,1)`
-                    : `transform ${motion.duration.panelEnter}ms ${motion.easing.settle}`,
+            transition: selectorTiming ? `transform ${selectorTiming}` : "none",
           }}
         >
           <div
-            className="absolute inset-x-0.5 inset-y-0 overflow-hidden rounded-full"
+            className="absolute left-1/2 top-1/2 overflow-hidden rounded-full"
             style={{
               background: "var(--app-accent-soft)",
+              width: selectorSize?.width ?? 0,
+              height: selectorSize?.height ?? 0,
+              maxWidth: "calc(100% - 4px)",
+              maxHeight: "100%",
+              transform: "translate(-50%, -50%)",
+              transition: selectorTiming ? `width ${selectorTiming}, height ${selectorTiming}` : "none",
             }}
           >
           </div>
@@ -328,7 +382,7 @@ export function BottomBubbleNav({
             transition: reducedMotion ? "none" : `opacity ${motion.duration.fast}ms ease, transform ${motion.duration.standard}ms ${motion.easing.settle}`,
           }}
         >
-          {bottomNavigationSlots.map((slot) => {
+          {bottomNavigationSlots.map((slot, slotIndex) => {
             if (slot.kind === "action") {
               return (
                 <button
@@ -341,6 +395,7 @@ export function BottomBubbleNav({
                   className="relative z-20 flex min-h-9 min-w-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-transparent"
                 >
                   <span
+                    ref={(node) => { labelRefs.current[slotIndex] = node; }}
                     className="flex h-8 w-8 items-center justify-center rounded-full text-[1.15rem] font-medium leading-none shadow-sm transition-transform duration-200"
                     style={{
                       backgroundColor: "var(--app-accent)",
@@ -383,6 +438,7 @@ export function BottomBubbleNav({
                 }}
               >
                 <span
+                  ref={(node) => { labelRefs.current[slotIndex] = node; }}
                   className="max-w-full truncate transition-[font-size,opacity]"
                   style={{
                     fontSize: compact ? "0.63rem" : undefined,
