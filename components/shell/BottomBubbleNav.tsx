@@ -99,8 +99,8 @@ export function BottomBubbleNav({
   const selectorPosition = dragPosition ?? pageSelectorPosition;
   const dots = presentation === "dots";
   const compact = presentation === "compact";
-  const notchHeight = dots ? 30 : compact ? 42 : 56;
-  const notchInset = dots ? 2 : compact ? 2.5 : 4;
+  const notchHeight = dots ? 26 : compact ? 40 : 44;
+  const notchInset = 2;
   const sportsContrast = activeSection === "sports";
   const dotAvailability = getNotchDotAvailability(activeNavigationIndex, primaryNavigation.length);
 
@@ -396,10 +396,9 @@ export function BottomBubbleNav({
                 >
                   <span
                     ref={(node) => { labelRefs.current[slotIndex] = node; }}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-[1.15rem] font-medium leading-none shadow-sm transition-transform duration-200"
+                    className="inline-flex items-center justify-center text-2xl font-light leading-none"
                     style={{
-                      backgroundColor: "var(--app-accent)",
-                      color: "var(--app-accent-contrast)",
+                      color: "var(--app-accent)",
                     }}
                     aria-hidden="true"
                   >

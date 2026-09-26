@@ -571,3 +571,8 @@ summary {
   outline: 2px solid var(--app-accent);
   outline-offset: 2px;
 }
+
+/* Keep keyboard focus inside the slimmer navigation track. */
+.campus-app-shell [data-bottom-bubble-nav] button:focus-visible {
+  outline-offset: -2px;
+}

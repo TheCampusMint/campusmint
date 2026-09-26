@@ -155,7 +155,7 @@ export function ProfileNotesStrip({
           />
           <span className="absolute left-1/2 top-[2.65rem] -translate-x-1/2">
             <ProfileAvatar user={viewer} size="md" primaryColor={theme.primary} accentColor={theme.accent} />
-            <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border-2 border-[var(--app-background)] text-xs font-black text-white" style={{ backgroundColor: theme.primary }} aria-hidden="true">+</span>
+            <span className="absolute -bottom-0.5 -right-0.5 text-lg font-medium leading-none" style={{ color: "var(--app-accent)" }} aria-hidden="true">+</span>
           </span>
           <span className="absolute inset-x-0 bottom-0 block truncate px-1 text-center text-[10px] font-bold text-slate-700">You</span>
         </ProfileNoteUnit>
