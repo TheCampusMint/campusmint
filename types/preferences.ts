@@ -26,6 +26,7 @@ export type ContentPreferences = {
   hideLikeCountsDefault: boolean;
   commentsDefault: boolean;
   autoplayVideo: boolean;
+  highQualityUploads: boolean;
   reducedMotion: boolean;
   autoArchiveTemporaryMintz: boolean;
   saveCapturedMediaToDevice: boolean;

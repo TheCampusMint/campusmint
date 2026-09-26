@@ -2,7 +2,7 @@ import type {
   SocialContentType,
   SocialMedia,
 } from "@/types/content";
-import { launchPublishedMediaPolicy } from "./mediaPolicy.ts";
+import { fitUploadDimensions, getPhotoUploadQuality, launchPublishedMediaPolicy } from "./mediaPolicy.ts";
 
 export type LocalMintMediaSelection = {
   fileName: string;
@@ -36,16 +36,17 @@ function validFileSize(file: File, type: SocialMedia["type"]) {
   return file.size > 0 && file.size <= maximum;
 }
 
-async function optimizeImage(file: File) {
+async function optimizeImage(file: File, highQualityUploads: boolean) {
   if (!supportedImageTypes.has(file.type) || typeof createImageBitmap !== "function") {
     return { file, width: null, height: null };
   }
 
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  const scale = Math.min(1, MAX_MINT_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height));
-  const width = Math.max(1, Math.round(bitmap.width * scale));
-  const height = Math.max(1, Math.round(bitmap.height * scale));
-  if (scale === 1 && file.type === "image/webp") {
+  const original = { file, width: bitmap.width, height: bitmap.height };
+  const quality = getPhotoUploadQuality(highQualityUploads);
+  const { width, height } = fitUploadDimensions(bitmap.width, bitmap.height, quality.maxDimension);
+  const resized = width !== bitmap.width || height !== bitmap.height;
+  if (!resized && file.type === "image/webp") {
     bitmap.close();
     return { file, width, height };
   }
@@ -56,12 +57,13 @@ async function optimizeImage(file: File) {
   const context = canvas.getContext("2d");
   if (!context) {
     bitmap.close();
-    return { file, width, height };
+    return original;
   }
   context.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.86));
-  if (!blob || blob.size >= file.size) return { file, width, height };
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality.compressionQuality));
+  // Fallback metadata must describe the file we actually keep.
+  if (!blob || (!resized && blob.size >= file.size)) return original;
   const optimizedName = file.name.replace(/\.[^.]+$/, "") || "mint-photo";
   return {
     file: new File([blob], `${optimizedName}.webp`, { type: "image/webp", lastModified: file.lastModified }),
@@ -124,6 +126,7 @@ function readVideoMetadata(file: File) {
  */
 export async function prepareLocalMintMedia(
   files: readonly File[],
+  highQualityUploads = false,
 ): Promise<LocalMintMediaPreparation> {
   const prepared = await Promise.all(
     files.slice(0, MAX_MINT_MEDIA_ITEMS).map(async (file, order) => {
@@ -142,8 +145,9 @@ export async function prepareLocalMintMedia(
           ? await readVideoMetadata(file)
           : { width: null, height: null, durationSeconds: null };
         const optimized = type === "image"
-          ? await optimizeImage(file)
+          ? await optimizeImage(file, highQualityUploads)
           : { file, width: videoMetadata.width, height: videoMetadata.height };
+        if (!validFileSize(optimized.file, type)) return { fileName: file.name, selection: null };
         const url = await readFileAsDataUrl(optimized.file);
 
         return {

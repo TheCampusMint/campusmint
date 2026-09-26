@@ -32,3 +32,19 @@ export const launchFreeMediaEntitlement: MediaStorageEntitlement = {
   originalArchiveBytes: 0,
   retainOriginalUploads: false,
 };
+
+/** Photo preparation quality is an opt-in preference, independent of storage limits. */
+export function getPhotoUploadQuality(highQualityUploads = false) {
+  return highQualityUploads
+    ? { maxDimension: 3840, compressionQuality: 0.94 }
+    : { maxDimension: launchPublishedMediaPolicy.maxImageDimension, compressionQuality: 0.86 };
+}
+
+/** Fit the longest edge without cropping, stretching, or enlarging small sources. */
+export function fitUploadDimensions(width: number, height: number, maxDimension: number) {
+  const scale = Math.min(1, maxDimension / Math.max(width, height));
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}

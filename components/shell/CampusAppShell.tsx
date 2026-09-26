@@ -1071,7 +1071,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
     setCreateMintMediaPreparing(true);
     setCreateMintMediaError(null);
 
-    const prepared = await prepareLocalMintMedia(files);
+    const prepared = await prepareLocalMintMedia(files, preferenceState.preferences.content.highQualityUploads);
     if (requestId !== createMintMediaRequestRef.current) return;
 
     setCreateMintMedia(prepared.accepted);
@@ -1988,6 +1988,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
             setCreateMintMedia([]);
             setCreateMintMediaError(null);
           }}
+          highQualityUploads={preferenceState.preferences.content.highQualityUploads}
           defaultCommentsEnabled={
             preferenceState.preferences.content.commentsDefault
           }

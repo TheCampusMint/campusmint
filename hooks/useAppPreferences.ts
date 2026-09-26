@@ -20,6 +20,7 @@ export const defaultAppPreferences: AppPreferences = {
     hideLikeCountsDefault: false,
     commentsDefault: true,
     autoplayVideo: true,
+    highQualityUploads: false,
     reducedMotion: false,
     autoArchiveTemporaryMintz: true,
     saveCapturedMediaToDevice: false,
@@ -51,7 +52,11 @@ function loadPreferences() {
     return {
       appearance: migratedAppearance,
       notifications: { ...defaultAppPreferences.notifications, ...parsed.notifications },
-      content: { ...defaultAppPreferences.content, ...parsed.content },
+      content: {
+        ...defaultAppPreferences.content,
+        ...parsed.content,
+        highQualityUploads: parsed.content?.highQualityUploads === true,
+      },
     };
   } catch {
     return defaultAppPreferences;

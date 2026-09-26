@@ -228,6 +228,8 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
     if (activeCategory === "content") return (
       <div><h3 className="text-lg font-black text-slate-950">Content</h3><p className="mt-1 text-sm leading-6 text-slate-500">Defaults apply to future local content. Reduced motion changes the interface immediately.</p><div className="mt-5 divide-y divide-slate-100 rounded-2xl border border-slate-200 px-4">
         {(Object.entries({ commentsDefault: ["Comments on by default", "New Mintz begin with comments enabled."], autoplayVideo: ["Autoplay video", "Allow compatible feed video to start automatically."], reducedMotion: ["Reduced motion", "Disable parallax and shorten interface animation."], autoArchiveTemporaryMintz: ["Auto Archive", "Keep an owner-only copy after a temporary Mint expires."], saveCapturedMediaToDevice: ["Save captures to device", "Stored for a future native camera; the browser does not claim Photos access."] }) as Array<[keyof ContentPreferences, [string, string]]>).map(([key, [label, description]]) => <ToggleRow key={key} label={label} description={description} checked={preferences.content[key]} onChange={(checked) => updateContent({ [key]: checked })} />)}
+      </div><div className="mt-5 px-4">
+        <ToggleRow label="4K / HD uploads" description="Off by default. Turn on for photos up to 4K with less compression. Shape stays unchanged. Videos keep their original quality in either mode. Uses more data and storage; existing file limits apply." checked={preferences.content.highQualityUploads} onChange={(checked) => updateContent({ highQualityUploads: checked })} />
       </div></div>
     );
 

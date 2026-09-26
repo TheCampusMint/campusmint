@@ -72,6 +72,7 @@ type CreateContentFlowProps = {
   organizationMemberships: OrganizationMembership[];
   organizationRoles: OrganizationRoleAssignment[];
   defaultCommentsEnabled?: boolean;
+  highQualityUploads?: boolean;
   selectedMedia?: LocalMintMediaSelection[];
   mediaError?: string | null;
   mediaPreparing?: boolean;
@@ -81,7 +82,7 @@ type CreateContentFlowProps = {
 
 const fieldClass = "mt-1 min-w-0 max-w-full w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base sm:text-sm";
 
-export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose, organizationMemberships, organizationRoles, defaultCommentsEnabled = true, selectedMedia, mediaError, mediaPreparing = false, onChooseMedia, onClearMedia }: CreateContentFlowProps) {
+export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose, organizationMemberships, organizationRoles, defaultCommentsEnabled = true, highQualityUploads = false, selectedMedia, mediaError, mediaPreparing = false, onChooseMedia, onClearMedia }: CreateContentFlowProps) {
   const internalFileInputRef = useRef<HTMLInputElement>(null);
   const captionTextareaRef = useRef<HTMLTextAreaElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
@@ -282,7 +283,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
 
     setInternalMediaPreparing(true);
     setInternalMediaError(null);
-    const prepared = await prepareLocalMintMedia(files);
+    const prepared = await prepareLocalMintMedia(files, highQualityUploads);
     setInternalMedia(prepared.accepted);
     setInternalMediaPreparing(false);
 
