@@ -456,7 +456,7 @@ export function GroupsSkeleton({
               style={
                 selected
                   ? { backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }
-                  : { color: "#64748b" }
+                  : { color: "var(--app-text-secondary)" }
               }
             >
               {option.label}

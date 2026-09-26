@@ -50,7 +50,7 @@ export function ProfileMintz({ viewer, owner, theme, profiles, mintz, organizati
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 px-1"><button type="button" onClick={() => setTab("mintz")} className="rounded-2xl px-4 py-2 text-sm font-bold" style={tab === "mintz" ? { backgroundColor: theme.primary, color: theme.secondary } : { backgroundColor: "#f1f5f9", color: "#475569" }}>Mintz</button><button type="button" onClick={() => setTab("tagged")} className="rounded-2xl px-4 py-2 text-sm font-bold" style={tab === "tagged" ? { backgroundColor: theme.primary, color: theme.secondary } : { backgroundColor: "#f1f5f9", color: "#475569" }}>Tagged</button></div>
+      <div className="flex gap-2 px-1"><button type="button" onClick={() => setTab("mintz")} className="rounded-2xl px-4 py-2 text-sm font-bold" style={tab === "mintz" ? { backgroundColor: theme.primary, color: theme.secondary } : { backgroundColor: "var(--app-surface-elevated)", color: "var(--app-text-secondary)" }}>Mintz</button><button type="button" onClick={() => setTab("tagged")} className="rounded-2xl px-4 py-2 text-sm font-bold" style={tab === "tagged" ? { backgroundColor: theme.primary, color: theme.secondary } : { backgroundColor: "var(--app-surface-elevated)", color: "var(--app-text-secondary)" }}>Tagged</button></div>
       {!canViewAccountContent ? <div className="py-8 text-center"><p className="font-black text-slate-900">This account is private.</p><p className="mt-2 text-sm text-slate-500">Follow this person or become friends to view eligible Mintz.</p></div> : visibleMintz.length > 0 ? <div className="space-y-5">{visibleMintz.map((item) => {
         const author = users.find((user) => user.account.id === item.authorId);
         if (!author) return null;

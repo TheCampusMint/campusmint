@@ -45,6 +45,6 @@ export function FoodSkeleton({
 }
 
 function FilterRow({ value, onChange, theme }: { value: FoodFilter; onChange: (value: FoodFilter) => void; theme: UniversityTheme }) {
-  return <div className="flex gap-2">{(["all", "on_campus", "off_campus"] as FoodFilter[]).map((option) => <button key={option} type="button" onClick={() => onChange(option)} className="rounded-full px-4 py-2 text-xs font-black" style={value === option ? { backgroundColor: theme.primary, color: theme.secondary } : { backgroundColor: "white", color: "#64748b" }}>{option === "all" ? "All" : option === "on_campus" ? "On campus" : "Off campus"}</button>)}</div>;
+  return <div className="flex gap-2">{(["all", "on_campus", "off_campus"] as FoodFilter[]).map((option) => <button key={option} type="button" onClick={() => onChange(option)} className="rounded-full px-4 py-2 text-xs font-black" style={value === option ? { backgroundColor: theme.primary, color: theme.secondary } : { backgroundColor: "var(--app-surface)", color: "var(--app-text-secondary)" }}>{option === "all" ? "All" : option === "on_campus" ? "On campus" : "Off campus"}</button>)}</div>;
 }
 

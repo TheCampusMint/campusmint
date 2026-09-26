@@ -91,7 +91,8 @@ test("Sports participates in the primary navigation sequence", () => {
 test("Sports notch follows semantic appearance tokens instead of a fixed light surface", () => {
   assert.match(bottomNavSource, /sportsContrast/);
   assert.match(bottomNavSource, /var\(--app-surface\)/);
-  assert.match(bottomNavSource, /var\(--app-surface-elevated\)/);
+  assert.match(bottomNavSource, /var\(--app-accent-soft\)/);
+  assert.doesNotMatch(bottomNavSource, /boxShadow:|linear-gradient|radial-gradient|bg-white\//);
   assert.doesNotMatch(bottomNavSource, /rgba\(255,255,255,\.82\), rgba\(226,232,240,\.66\)/);
 });
 

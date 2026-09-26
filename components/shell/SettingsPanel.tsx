@@ -54,8 +54,8 @@ const accentChoices: Array<{ id: AppearanceAccentSource; label: string }> = [
 
 function schemePreviewStyle(scheme: AppearanceScheme) {
   return scheme === "dark"
-    ? { background: "linear-gradient(135deg,#160f11 50%,#2d2023 50%)" }
-    : { background: "linear-gradient(135deg,#fffaf9 50%,#f3e9e8 50%)" };
+    ? { background: "linear-gradient(135deg,#0a0a0a 50%,#242424 50%)" }
+    : { background: "linear-gradient(135deg,#ffffff 50%,#f0f0f0 50%)" };
 }
 
 function visibilityOptions() {
@@ -196,8 +196,8 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
           <p className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Custom tint</p>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {curatedTints.map((tint) => (
-              <button key={tint.id} type="button" onClick={() => updateAppearance({ accentSource: "curated", tint: tint.id })} aria-pressed={preferences.appearance.accentSource === "curated" && preferences.appearance.tint === tint.id} className="flex items-center gap-2 rounded-xl border px-3 py-3 text-left text-xs font-bold transition active:scale-[0.98]" style={{ borderColor: preferences.appearance.accentSource === "curated" && preferences.appearance.tint === tint.id ? "var(--app-accent)" : "var(--app-border)", backgroundColor: "var(--app-surface)" }}>
-                <span className="h-5 w-5 shrink-0 rounded-full shadow-inner" style={{ backgroundColor: tint.preview }} />{tint.label}
+              <button key={tint.id} type="button" onClick={() => updateAppearance({ accentSource: "curated", tint: tint.id })} aria-pressed={preferences.appearance.accentSource === "curated" && preferences.appearance.tint === tint.id} className="flex items-center gap-2 rounded-xl border px-3 py-3 text-left text-xs font-bold transition active:scale-[0.98]" style={{ borderColor: preferences.appearance.accentSource === "curated" && preferences.appearance.tint === tint.id ? "var(--app-accent)" : "var(--app-border)", backgroundColor: preferences.appearance.accentSource === "curated" && preferences.appearance.tint === tint.id ? "var(--app-accent-soft)" : "var(--app-surface)" }}>
+                <span className="h-5 w-5 shrink-0 rounded-full" style={{ backgroundColor: tint.preview }} />{tint.label}
               </button>
             ))}
           </div>

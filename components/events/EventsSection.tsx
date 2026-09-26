@@ -89,9 +89,9 @@ export function EventsSection({
                 onClick={() => setActiveCategory(category)}
                 className="rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2"
                 style={{
-                  backgroundColor: isActive ? theme.primary : "#ffffff",
+                  backgroundColor: isActive ? theme.primary : "var(--app-surface)",
                   borderColor: isActive ? theme.primary : "#cbd5e1",
-                  color: isActive ? theme.secondary : "#475569",
+                  color: isActive ? theme.secondary : "var(--app-text-secondary)",
                   outlineColor: theme.primary,
                 }}
               >

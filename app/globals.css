@@ -3,29 +3,29 @@
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
-  --app-background: #f8f3f2;
-  --app-surface: #fffaf9;
-  --app-surface-elevated: #f3e9e8;
-  --app-text-primary: #2a171b;
-  --app-text-secondary: #725d63;
-  --app-border: #dfced1;
+  --app-background: #fafafa;
+  --app-surface: #ffffff;
+  --app-surface-elevated: #f0f0f0;
+  --app-text-primary: #171717;
+  --app-text-secondary: #595959;
+  --app-border: #cccccc;
   --app-accent: #6f1d2c;
   --app-accent-soft: #f0dfe3;
-  --app-accent-contrast: #fffaf9;
+  --app-accent-contrast: #ffffff;
   --app-danger: #be123c;
   --app-success: #047857;
 }
 
 @theme inline {
-  --color-background: var(--background);
+  --color-background: var(--app-background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--app-background);
+  color: var(--app-text-primary);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   margin: 0;
 }
@@ -218,8 +218,8 @@ summary {
   --cm-radius-control: .875rem;
   --cm-radius-card: 1.5rem;
   --cm-radius-panel: 2rem;
-  --cm-shadow-card: 0 8px 28px rgba(15,23,42,.055);
-  --cm-shadow-panel: 0 24px 70px rgba(15,23,42,.22);
+  --cm-shadow-card: none;
+  --cm-shadow-panel: none;
   --cm-z-header: 40;
   --cm-z-navigation: 50;
   --cm-z-popover: 70;
@@ -277,7 +277,8 @@ summary {
 }
 
 .cm-pressable[data-selected="true"] {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent, currentColor) 30%, transparent);
+  background-color: var(--app-accent-soft);
+  color: var(--app-accent);
 }
 
 .like-pop,
@@ -303,7 +304,7 @@ summary {
   place-items: center;
   font-size: 3.25rem;
   line-height: 1;
-  filter: drop-shadow(0 4px 9px rgba(0, 0, 0, .35));
+
 }
 
 .cm-private-appreciation-burst {
@@ -519,4 +520,21 @@ summary {
 
 .campus-app-shell[data-reduced-motion="true"] .mint-float-layer {
   transform: none !important;
+}
+
+/* Includes inline depth and decorative pseudo-elements, without suppressing outlines. */
+.campus-app-shell :where(div, span, header, footer, nav, article, section, aside, button, a, form, label),
+.campus-app-shell :where(div, span, button, a, label)::before,
+.campus-app-shell :where(div, span, button, a, label)::after {
+  box-shadow: none !important;
+}
+.campus-app-shell :where(span, label, form)[class*="rounded"][class*="border"] {
+  border-width: 0 !important;
+}
+.campus-app-shell :where(input, textarea, select) {
+  accent-color: var(--app-accent);
+}
+.campus-app-shell ::selection {
+  background: var(--app-accent);
+  color: var(--app-accent-contrast);
 }

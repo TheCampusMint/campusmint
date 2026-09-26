@@ -135,7 +135,7 @@ export function MessagesSkeleton({
       <div className="relative max-w-2xl">
         <label htmlFor="private-message-search" className="sr-only">Search people to message</label>
         <span aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
-        <input id="private-message-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" autoComplete="off" className="h-11 w-full rounded-full border border-slate-200 bg-white pl-10 pr-4 text-sm shadow-[0_8px_26px_-24px_rgba(15,23,42,.6)] outline-none focus:border-[var(--app-accent)] focus:ring-2 focus:ring-[var(--app-accent-soft)]" />
+        <input id="private-message-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" autoComplete="off" className="h-11 w-full rounded-full border border-slate-200 bg-white pl-10 pr-4 text-sm outline-none focus:border-[var(--app-accent)] focus:ring-2 focus:ring-[var(--app-accent-soft)]" />
         {normalizedQuery && (
           <div className="absolute inset-x-0 top-12 z-30 rounded-3xl border border-slate-200 bg-white p-2 shadow-xl">
             {searchResults.length > 0 ? searchResults.map(({ user, reason }) => (

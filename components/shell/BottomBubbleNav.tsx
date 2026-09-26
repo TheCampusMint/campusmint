@@ -286,39 +286,9 @@ export function BottomBubbleNav({
             ? "none"
             : `height ${motion.duration.standard}ms ${motion.easing.settle}, padding ${motion.duration.standard}ms ${motion.easing.settle}, box-shadow ${motion.duration.fast}ms ease`,
           touchAction: "pan-y",
-          background: sportsContrast
-            ? "linear-gradient(180deg, color-mix(in srgb, var(--app-surface) 92%, transparent), color-mix(in srgb, var(--app-surface-elevated) 82%, transparent))"
-            : "linear-gradient(180deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,.055) 38%, rgba(15,23,42,.035) 100%), linear-gradient(112deg, color-mix(in srgb, var(--app-surface-elevated) 30%, transparent) 0%, color-mix(in srgb, var(--app-surface) 18%, transparent) 54%, color-mix(in srgb, var(--app-accent-soft) 16%, transparent) 100%)",
-          borderColor: sportsContrast
-            ? "transparent"
-            : "color-mix(in srgb, var(--app-border) 38%, rgba(255,255,255,.34))",
-          backdropFilter:
-            sportsContrast
-              ? "blur(24px) saturate(1.5) brightness(1.05)"
-              : "blur(19px) saturate(1.42) brightness(1.06)",
-          WebkitBackdropFilter:
-            sportsContrast
-              ? "blur(24px) saturate(1.5) brightness(1.05)"
-              : "blur(19px) saturate(1.42) brightness(1.06)",
-          boxShadow: sportsContrast
-            ? "none"
-            : "inset 0 1px 0 rgba(255,255,255,.46), inset 0 -1px 0 rgba(15,23,42,.055), 0 7px 22px rgba(15,23,42,.085), 0 1px 4px rgba(15,23,42,.06)",
+          background: "var(--app-surface)",
         }}
       >
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-0 rounded-[inherit]"
-          style={{
-            background: sportsContrast
-              ? "radial-gradient(120% 90% at 18% -12%, color-mix(in srgb, var(--app-text-primary) 10%, transparent), transparent 55%), radial-gradient(85% 100% at 88% 115%, color-mix(in srgb, var(--app-accent) 16%, transparent), transparent 62%)"
-              : "radial-gradient(120% 85% at 18% -12%, rgba(255,255,255,.28), transparent 52%), radial-gradient(85% 100% at 88% 115%, color-mix(in srgb, var(--app-accent) 9%, transparent), transparent 62%)",
-          }}
-        />
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-4 top-px z-0 h-px rounded-full bg-white/45"
-        />
-
         <div
           aria-hidden="true"
           className="pointer-events-none absolute z-[1] transform-gpu will-change-transform"
@@ -342,32 +312,9 @@ export function BottomBubbleNav({
           <div
             className="absolute inset-x-0.5 inset-y-0 overflow-hidden rounded-full"
             style={{
-              background: sportsContrast
-                ? "linear-gradient(145deg, color-mix(in srgb, var(--app-text-primary) 12%, transparent), color-mix(in srgb, var(--app-accent) 18%, transparent))"
-                : "linear-gradient(145deg, rgba(255,255,255,.28) 0%, color-mix(in srgb, var(--app-surface-elevated) 18%, transparent) 34%, color-mix(in srgb, var(--app-accent-soft) 17%, transparent) 67%, rgba(15,23,42,.045) 100%)",
-              borderColor:
-                "color-mix(in srgb, var(--app-accent) 20%, rgba(255,255,255,.48))",
-              backdropFilter:
-                "blur(26px) saturate(1.68) brightness(1.12)",
-              WebkitBackdropFilter:
-                "blur(26px) saturate(1.68) brightness(1.12)",
-              boxShadow: sportsContrast
-                ? "none"
-                : "inset 0 1px 0 rgba(255,255,255,.68), inset 1px 0 0 rgba(255,255,255,.24), inset 0 -1px 0 rgba(15,23,42,.09), 0 4px 11px rgba(15,23,42,.095), 0 1px 2px rgba(15,23,42,.07)",
-              filter: scrubbing
-                ? "brightness(1.08) saturate(1.12)"
-                : "brightness(1) saturate(1)",
-              transition: reducedMotion
-                ? "none"
-                : "filter 160ms ease, box-shadow 180ms ease",
+              background: "var(--app-accent-soft)",
             }}
           >
-            <span className="absolute inset-x-2 top-0 h-px bg-white/80" />
-            <span className="absolute -left-1 top-1 h-3 w-5 rounded-full bg-white/30 blur-[3px]" />
-            <span
-              className="absolute inset-x-1 bottom-0 h-px opacity-35"
-              style={{ backgroundColor: "var(--app-accent)" }}
-            />
           </div>
         </div>
 
@@ -453,7 +400,7 @@ export function BottomBubbleNav({
         </div>
         <button type="button" onClick={onExpand} aria-label="Expand navigation" className="absolute inset-0 z-20 flex items-center justify-center gap-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]" style={{ opacity: dots ? 1 : 0, pointerEvents: dots ? "auto" : "none", transition: reducedMotion ? "none" : `opacity ${motion.duration.fast}ms ease` }}>
           <span className="h-1.5 w-1.5 rounded-full bg-slate-700 transition-opacity" style={{ opacity: dotAvailability.hasPrevious ? (swipeProgress > 0.08 ? 0.95 : 0.55) : 0.18 }} aria-hidden="true" />
-          <span className="h-2 w-2 rounded-full shadow-sm" style={{ backgroundColor: "var(--app-accent)" }} aria-hidden="true" />
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "var(--app-accent)" }} aria-hidden="true" />
           <span className="h-1.5 w-1.5 rounded-full bg-slate-700 transition-opacity" style={{ opacity: dotAvailability.hasNext ? (swipeProgress < -0.08 ? 0.95 : 0.55) : 0.18 }} aria-hidden="true" />
         </button>
       </div>

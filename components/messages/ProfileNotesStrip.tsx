@@ -75,7 +75,7 @@ function NoteBubble({
   own?: boolean;
 }) {
   return (
-    <span className="absolute left-1/2 top-0 z-10 flex min-h-8 w-[4.75rem] -translate-x-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white px-1.5 py-1 text-center text-[9px] font-semibold leading-3 text-slate-700 shadow-[0_6px_20px_-14px_rgba(15,23,42,.75)] before:absolute before:-bottom-1 before:left-1/2 before:h-2 before:w-2 before:-translate-x-1/2 before:rotate-45 before:border-b before:border-r before:border-slate-200 before:bg-white">
+    <span className="absolute left-1/2 top-0 z-10 flex min-h-8 w-[4.75rem] -translate-x-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white px-1.5 py-1 text-center text-[9px] font-semibold leading-3 text-slate-700 shadow-[0_6px_20px_-14px_rgba(15,23,42,.75)] before:absolute before:-bottom-1 before:left-1/2 before:h-2 before:w-2 before:-translate-x-1/2 before:rotate-45 before:bg-[var(--app-surface)]">
       <span className="line-clamp-2 break-words">
         {text}
         {(hasMusic || hasLink) && (

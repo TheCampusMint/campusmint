@@ -104,7 +104,7 @@ export function MarketplaceHub({ user, theme, permissionMode, marketplace, onOpe
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{marketplaceCategories.map((item) => {
           const detail = marketplaceCategoryDetails[item];
           const selected = category === item;
-          return <button key={item} type="button" onClick={() => setCategory(selected ? "all" : item)} className="rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5" style={{ borderColor: selected ? theme.primary : "#e2e8f0", boxShadow: selected ? `0 0 0 1px ${theme.primary}` : undefined }}><span className="text-2xl" aria-hidden="true">{detail.icon}</span><span className="mt-3 block text-sm font-bold text-slate-800">{detail.shortLabel}</span>{item === "Sports Passes / Tickets" && !theme.marketplace.ticketMarketplaceEnabled && <span className="mt-1 block text-[10px] font-semibold text-amber-700">Policy not configured</span>}</button>;
+          return <button key={item} type="button" onClick={() => setCategory(selected ? "all" : item)} className="rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5" style={{ borderColor: selected ? theme.primary : "#e2e8f0", backgroundColor: selected ? "var(--app-accent-soft)" : "var(--app-surface)" }}><span className="text-2xl" aria-hidden="true">{detail.icon}</span><span className="mt-3 block text-sm font-bold text-slate-800">{detail.shortLabel}</span>{item === "Sports Passes / Tickets" && !theme.marketplace.ticketMarketplaceEnabled && <span className="mt-1 block text-[10px] font-semibold text-amber-700">Policy not configured</span>}</button>;
         })}</div>
       </section>
 

@@ -511,7 +511,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
     ],
   );
 
-  const theme = getAccountUniversityDisplayTheme(viewer.account);
+  const campusTheme = getAccountUniversityDisplayTheme(viewer.account);
 
   const configuredUniversityId =
     getAccountConfiguredUniversityId(viewer.account);
@@ -520,10 +520,18 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
     () =>
       getAppearanceTokens(
         preferenceState.preferences.appearance,
-        theme,
+        campusTheme,
       ),
-    [preferenceState.preferences.appearance, theme],
+    [preferenceState.preferences.appearance, campusTheme],
   );
+
+  // Legacy feature controls consume this palette; university identity stays in campusTheme.
+  const theme = {
+    ...campusTheme,
+    primary: appearanceTokens.accent,
+    secondary: appearanceTokens.accentContrast,
+    accent: appearanceTokens.accentSoft,
+  };
 
   useEffect(() => {
     const root = document.documentElement;
@@ -1655,9 +1663,9 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
   }
 
   const shellStyle = {
-    "--campus-primary": theme.primary,
-    "--campus-secondary": theme.secondary,
-    "--campus-accent": theme.accent,
+    "--campus-primary": campusTheme.primary,
+    "--campus-secondary": campusTheme.secondary,
+    "--campus-accent": campusTheme.accent,
     "--app-background": appearanceTokens.background,
     "--app-surface": appearanceTokens.surface,
     "--app-surface-elevated": appearanceTokens.surfaceElevated,

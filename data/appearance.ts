@@ -100,15 +100,15 @@ export const curatedTints: CuratedTint[] = [
 ];
 
 export const campusMintLightTokens: AppearanceTokens = {
-  background: campusMintBrand.warmBackground, surface: campusMintBrand.warmSurface, surfaceElevated: campusMintBrand.warmRaised,
-  textPrimary: campusMintBrand.ink, textSecondary: campusMintBrand.mutedInk, border: campusMintBrand.border,
+  background: "#fafafa", surface: "#ffffff", surfaceElevated: "#f0f0f0",
+  textPrimary: "#171717", textSecondary: "#595959", border: "#cccccc",
   accent: campusMintBrand.maroon, accentSoft: campusMintBrand.maroonSoft, accentContrast: "#fffaf9",
   colorScheme: "light", ...sharedSemanticTokens,
 };
 
 export const campusMintDarkTokens: AppearanceTokens = {
-  background: "#160f11", surface: "#211719", surfaceElevated: "#2d2023",
-  textPrimary: "#fff8f6", textSecondary: "#cbb9bd", border: "#49363a",
+  background: "#0a0a0a", surface: "#141414", surfaceElevated: "#242424",
+  textPrimary: "#fafafa", textSecondary: "#bcbcbc", border: "#484848",
   accent: "#d37a8c", accentSoft: "#42242b", accentContrast: "#1c1114",
   colorScheme: "dark", danger: "#fb7185", success: "#34d399",
 };
@@ -170,7 +170,7 @@ export function getAppearanceTokens(preferences: AppearancePreferences, universi
     : preferences.accentSource === "curated"
       ? (curatedTints.find((tint) => tint.id === preferences.tint) ?? curatedTints[0]).preview
       : base.accent;
-  const accent = readableAccent(configuredAccent, base.background, preferences.scheme);
+  const accent = readableAccent(configuredAccent, base.surfaceElevated, preferences.scheme);
   const blackContrast = contrastRatio(accent, "#111111");
   const whiteContrast = contrastRatio(accent, "#ffffff");
 

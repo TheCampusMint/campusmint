@@ -242,3 +242,22 @@ test("an eligible public Mint is visible across universities while campus produc
     currentTime: Date.now(),
   }), true);
 });
+
+
+test("every accent keeps neutral surfaces and readable controls in both schemes", () => {
+  for (const scheme of ["light", "dark"]) {
+    for (const tint of ["slate", "warm-gray", "forest", "deep-navy", "muted-maroon"]) {
+      for (const accentSource of ["brand", "campus", "curated"]) {
+        const tokens = getAppearanceTokens({ scheme, tint, accentSource }, universities.tamu);
+        for (const key of ["background", "surface", "surfaceElevated"]) {
+          const hex = tokens[key].slice(1);
+          assert.equal(hex.slice(0, 2), hex.slice(2, 4));
+          assert.equal(hex.slice(2, 4), hex.slice(4, 6));
+          assert.ok(contrast(tokens.accent, tokens[key]) >= 4.5);
+          assert.ok(contrast(tokens.textSecondary, tokens[key]) >= 4.5);
+        }
+        assert.ok(contrast(tokens.accent, tokens.accentContrast) >= 4.5);
+      }
+    }
+  }
+});

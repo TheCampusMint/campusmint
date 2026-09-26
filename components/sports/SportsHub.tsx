@@ -304,7 +304,7 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
                     style={
                       active
                         ? { backgroundColor: theme.primary, color: theme.secondary }
-                        : { color: "#64748b" }
+                        : { color: "var(--app-text-secondary)" }
                     }
                   >
                     {launchCampusSports.find((sport) => sport.id === program.sport)?.label}
