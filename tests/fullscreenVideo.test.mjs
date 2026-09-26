@@ -28,13 +28,14 @@ test("fullscreen viewer uses shared Comment, Share, and public-endorsement contr
   assert.doesNotMatch(source, /absolute[^\n]+right[^\n]+flex flex-col[^\n]+Like/i);
 });
 
-test("horizontal and vertical gestures coexist behind a direction lock", () => {
+test("horizontal and vertical gestures directly manipulate one selected video", () => {
   assert.equal(resolveVideoViewerGesture({ deltaX: 86, deltaY: 6, committed: true }), "exit");
   assert.equal(resolveVideoViewerGesture({ deltaX: -86, deltaY: 6, committed: true }), "creator");
-  assert.equal(resolveVideoViewerGesture({ deltaX: 4, deltaY: -70, committed: true }), "next");
-  assert.equal(resolveVideoViewerGesture({ deltaX: 4, deltaY: 70, committed: true }), "previous");
+  assert.equal(resolveVideoViewerGesture({ deltaX: 4, deltaY: -70, committed: true }), "exit");
+  assert.equal(resolveVideoViewerGesture({ deltaX: 4, deltaY: 70, committed: true }), "exit");
   assert.equal(resolveVideoViewerGesture({ deltaX: 26, deltaY: 24, committed: false }), "pending");
   assert.equal(resolveVideoViewerGesture({ deltaX: 26, deltaY: 24, committed: true }), "cancel");
+  assert.doesNotMatch(source, /snap-y|entries\.map|caught up/i);
 });
 
 test("viewer return state preserves exact Mint, media, order, and feed scroll", () => {
@@ -49,5 +50,5 @@ test("viewer return state preserves exact Mint, media, order, and feed scroll", 
   assert.equal(state.mediaId, "media-active");
   assert.deepEqual(state.orderedMintIds, ["mint-active", "mint-next"]);
   assert.equal(getMintVideoViewerReturnScrollY(state), 932.25);
-  assert.match(source, /if \(entries\.length === 0 \|\| suspended\) return null/);
+  assert.match(source, /if \(!selectedEntry \|\| suspended\) return null/);
 });

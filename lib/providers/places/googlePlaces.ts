@@ -8,6 +8,10 @@ const campusSearchAreas = {
   texas: "Austin, Texas",
   lsu: "Baton Rouge, Louisiana",
   alabama: "Tuscaloosa, Alabama",
+  oregon: "Eugene, Oregon",
+  harvard: "Cambridge, Massachusetts",
+  michigan: "Ann Arbor, Michigan",
+  miami: "Coral Gables, Florida",
 } as const;
 
 type GooglePlace = {

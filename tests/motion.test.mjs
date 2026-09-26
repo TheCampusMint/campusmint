@@ -8,6 +8,7 @@ import {
   getNotchDotAvailability,
   initialNotchScrollState,
   resistFiniteNavigationEdge,
+  resolveDirectManipulationRelease,
   resolveFiniteNavigationDestination,
   resolveGestureAxis,
   updateNotchScrollState,
@@ -18,6 +19,14 @@ test("gesture axis waits for deliberate movement", () => {
   assert.equal(resolveGestureAxis(18, 6), "horizontal");
   assert.equal(resolveGestureAxis(6, 18), "vertical");
   assert.equal(resolveGestureAxis(14, 13), "pending");
+});
+
+test("floating surfaces commit by distance or release velocity and otherwise spring back", () => {
+  const base = { width: 380, height: 640, allowedDirections: ["left", "right", "up", "down"] };
+  assert.deepEqual(resolveDirectManipulationRelease({ ...base, deltaX: 120, deltaY: 4, velocityX: 0.1, velocityY: 0 }), { direction: "right", committed: true });
+  assert.deepEqual(resolveDirectManipulationRelease({ ...base, deltaX: -24, deltaY: 2, velocityX: -0.7, velocityY: 0 }), { direction: "left", committed: true });
+  assert.deepEqual(resolveDirectManipulationRelease({ ...base, deltaX: 4, deltaY: -96, velocityX: 0, velocityY: -0.1 }), { direction: "up", committed: false });
+  assert.deepEqual(resolveDirectManipulationRelease({ ...base, deltaX: 16, deltaY: 15, velocityX: 0.8, velocityY: 0.8 }), { direction: null, committed: false });
 });
 
 test("notch ignores jitter and progressively collapses through compact to dots", () => {

@@ -115,7 +115,10 @@ export function canViewMint(context: MintPermissionContext) {
   if (!canViewPrivateAccountContent(context)) return false;
   if (mint.privacy === "private") return false;
   if (mint.privacy === "connections") return hasEligibleSocialConnection(context);
-  return isEligibleForDiscoveryScope(viewer, author, author.socialSettings.discoveryScope);
+  // Public Mintz belong to one connected Campus Mint network. Discovery scope
+  // remains a relevance/ranking signal; it is not an access boundary for a
+  // deliberately public Mint. Campus-only products enforce their own scope.
+  return true;
 }
 
 export function canLikeMint(context: MintPermissionContext) {

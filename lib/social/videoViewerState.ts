@@ -43,9 +43,7 @@ export type VideoViewerGesture =
   | "pending"
   | "cancel"
   | "exit"
-  | "creator"
-  | "next"
-  | "previous";
+  | "creator";
 
 export function resolveVideoViewerGesture(input: {
   deltaX: number;
@@ -65,7 +63,7 @@ export function resolveVideoViewerGesture(input: {
   const horizontal = absX > absY * 1.35;
   const vertical = absY > absX * 1.35;
   if (!horizontal && !vertical) return input.committed ? "cancel" : "pending";
-  if (!input.committed) return horizontal ? "pending" : input.deltaY < 0 ? "next" : "previous";
+  if (!input.committed) return "pending";
 
   if (horizontal) {
     const committed = absX >= 72 || Math.abs(velocityX) >= 0.55;
@@ -75,5 +73,5 @@ export function resolveVideoViewerGesture(input: {
 
   const committed = absY >= 58 || Math.abs(velocityY) >= 0.5;
   if (!committed) return "cancel";
-  return input.deltaY < 0 ? "next" : "previous";
+  return "exit";
 }

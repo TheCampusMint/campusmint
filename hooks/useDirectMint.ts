@@ -14,6 +14,12 @@ import {
 
 export type DirectMintDeliveryStatus = "sent" | "delivered" | "seen";
 
+export type DirectMintAttachment = {
+  type: "image" | "video" | "gif" | "sticker";
+  label: string;
+  url?: string;
+};
+
 export type DirectMintMessage = {
   id: string;
   conversationId: string;
@@ -22,6 +28,8 @@ export type DirectMintMessage = {
   createdAt: string;
   status: DirectMintDeliveryStatus;
   seenAt: string | null;
+  attachment?: DirectMintAttachment | null;
+  replyToMessageId?: string | null;
 };
 
 export type DirectMintConversation = {
@@ -150,9 +158,16 @@ export function useDirectMint(currentUserId: string) {
     return id;
   }
 
-  function sendMessage(otherUserId: string, body: string) {
+  function sendMessage(
+    otherUserId: string,
+    body: string,
+    options: {
+      attachment?: DirectMintAttachment | null;
+      replyToMessageId?: string | null;
+    } = {},
+  ) {
     const trimmed = body.trim();
-    if (!trimmed) return null;
+    if (!trimmed && !options.attachment) return null;
 
     const conversationId = startConversation(otherUserId);
     const now = new Date().toISOString();
@@ -164,6 +179,8 @@ export function useDirectMint(currentUserId: string) {
       createdAt: now,
       status: "delivered",
       seenAt: null,
+      attachment: options.attachment ?? null,
+      replyToMessageId: options.replyToMessageId ?? null,
     };
 
     setMessages((current) => [...current, message]);

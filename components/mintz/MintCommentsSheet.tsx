@@ -13,7 +13,9 @@ import {
 import { createPortal } from "react-dom";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
+import { CloseButton } from "@/components/ui/CloseButton";
 import type { UniversityTheme } from "@/data/universities";
+import { useDirectManipulation } from "@/hooks/useDirectManipulation";
 import { useModalLayer } from "@/hooks/useModalLayer";
 import {
   isEmojiOnlyComment,
@@ -21,6 +23,7 @@ import {
   validateCommentAttachment,
 } from "@/lib/content/commentMedia";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
+import type { FloatingSurfaceOrigin } from "@/lib/motion/interaction";
 import {
   filterAndRankComments,
   shouldCommitCommentDoubleTap,
@@ -46,6 +49,7 @@ type MintCommentsSheetProps = {
   repostedCommentIds: readonly string[];
   hiddenCommentIds: readonly string[];
   blockedCommentAuthorIds?: readonly string[];
+  origin?: FloatingSurfaceOrigin | null;
   onComment: (input: CreateMintCommentInput) => void;
   onToggleCommentLike: (commentId: string) => void;
   onToggleCommentRepost: (commentId: string) => void;
@@ -100,7 +104,7 @@ function CommentAttachmentView({ attachment }: { attachment: CommentAttachment }
     <img
       src={attachment.url}
       alt={attachment.alt ?? (attachment.type === "gif" ? "Comment GIF" : "Comment image")}
-      className="mt-2 max-h-56 w-full rounded-2xl object-cover"
+      className="mt-2 max-h-56 max-w-full rounded-2xl object-contain"
     />
   );
 }
@@ -116,6 +120,7 @@ export function MintCommentsSheet({
   repostedCommentIds,
   hiddenCommentIds,
   blockedCommentAuthorIds = [],
+  origin = null,
   onComment,
   onToggleCommentLike,
   onToggleCommentRepost,
@@ -140,13 +145,16 @@ export function MintCommentsSheet({
   const [error, setError] = useState<string | null>(null);
   const [contextCommentId, setContextCommentId] = useState<string | null>(null);
   const [likedPulseId, setLikedPulseId] = useState<string | null>(null);
+  const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
+  const [sendStatus, setSendStatus] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const closeTimer = useRef<number | null>(null);
+  const statusTimer = useRef<number | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const closingRef = useRef(false);
   const onCloseRef = useRef(onClose);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const dialogRef = useRef<HTMLElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const commentsScrollRef = useRef<HTMLDivElement>(null);
 
   const visibleComments = useMemo(
     () =>
@@ -173,7 +181,22 @@ export function MintCommentsSheet({
     );
   }, [reducedMotion]);
 
-  useModalLayer(dialogRef, requestClose);
+  const originX = typeof window === "undefined" || !origin
+    ? "50%"
+    : `${Math.max(0, Math.min(Math.min(576, window.innerWidth), origin.x - Math.max(0, (window.innerWidth - Math.min(576, window.innerWidth)) / 2)))}px`;
+
+  const {
+    surfaceRef,
+    surfaceProps,
+    style: directManipulationStyle,
+  } = useDirectManipulation({
+    allowedDirections: ["left", "right", "up", "down"],
+    onDismiss: () => onCloseRef.current(),
+    reducedMotion,
+    scrollRef: commentsScrollRef,
+  });
+
+  useModalLayer(surfaceRef, requestClose);
 
   function createAttachment(): CommentAttachment | null {
     if (attachmentMode === "none") return null;
@@ -217,13 +240,17 @@ export function MintCommentsSheet({
     }
     if (!body.trim() && !attachment) return;
 
-    onComment({ body, attachment, fontStyle });
+    onComment({ body, attachment, fontStyle, parentCommentId: replyToCommentId });
     setBody("");
     setAttachmentMode("none");
     setPreparedAttachment(null);
     setSelectedAttachmentName("");
+    setReplyToCommentId(null);
     setComposerExpanded(false);
     setError(null);
+    setSendStatus("Comment posted on this device");
+    if (statusTimer.current !== null) window.clearTimeout(statusTimer.current);
+    statusTimer.current = window.setTimeout(() => setSendStatus(null), 1800);
     inputRef.current?.focus();
   }
 
@@ -243,6 +270,11 @@ export function MintCommentsSheet({
     }, 520);
   }
 
+  function pulseCommentLike(commentId: string) {
+    setLikedPulseId(null);
+    window.requestAnimationFrame(() => setLikedPulseId(commentId));
+  }
+
   useEffect(() => {
     const timer = window.setTimeout(
       () => inputRef.current?.focus(),
@@ -252,6 +284,7 @@ export function MintCommentsSheet({
       window.clearTimeout(timer);
       clearLongPress();
       if (closeTimer.current) window.clearTimeout(closeTimer.current);
+      if (statusTimer.current) window.clearTimeout(statusTimer.current);
     };
   }, [reducedMotion]);
 
@@ -267,30 +300,36 @@ export function MintCommentsSheet({
       }}
     >
       <section
-        ref={dialogRef}
+        ref={surfaceRef}
+        {...surfaceProps}
         tabIndex={-1}
-        className={`comment-sheet flex max-h-[min(84dvh,calc(100dvh-env(safe-area-inset-top)-.5rem))] w-full max-w-xl flex-col overflow-hidden rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:max-h-[70dvh] sm:rounded-[2rem] ${closing ? "is-closing" : ""}`}
+        className={`comment-sheet flex max-h-[min(84dvh,calc(100dvh-env(safe-area-inset-top)-.5rem))] w-full max-w-xl flex-col overflow-hidden rounded-t-[2rem] bg-[var(--app-surface)] text-[var(--app-text-primary)] sm:max-h-[70dvh] sm:rounded-[2rem] ${closing ? "is-closing" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="comments-title"
+        data-direct-manipulation-surface
+        data-reduced-motion={reducedMotion ? "true" : "false"}
+        style={{
+          ...directManipulationStyle,
+          transformOrigin: `${originX} 100%`,
+          color: "var(--app-text-primary)",
+          backgroundColor: "var(--app-surface)",
+        }}
       >
-        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-slate-200 sm:hidden" aria-hidden="true" />
-        <header className="grid shrink-0 grid-cols-[2.25rem_1fr_2.25rem] items-center border-b border-slate-100 px-4 py-2.5">
+        <div data-direct-drag-handle className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-slate-200 sm:hidden" aria-hidden="true" />
+        <header data-direct-drag-handle className="grid shrink-0 grid-cols-[2.25rem_1fr_2.25rem] items-center border-b border-slate-100 px-4 py-2.5">
           <span aria-hidden="true" />
           <h2 id="comments-title" className="text-center text-sm font-black text-slate-950">
             Comments{visibleComments.length > 0 ? ` · ${visibleComments.length}` : ""}
           </h2>
-          <button
-            type="button"
+          <CloseButton
             onClick={requestClose}
-            aria-label="Close comments"
-            className="interactive-pop flex h-9 w-9 items-center justify-center rounded-full text-lg text-slate-500 hover:bg-slate-100"
-          >
-            ×
-          </button>
+            label="Close comments"
+            tone="minimal"
+          />
         </header>
 
-        <div className="min-h-0 flex-1 overscroll-contain overflow-y-auto px-4 py-4 sm:px-5">
+        <div ref={commentsScrollRef} className="min-h-0 flex-1 overscroll-contain overflow-y-auto px-4 py-4 sm:px-5">
           {visibleComments.length === 0 ? (
             <p className="grid min-h-28 place-items-center text-sm text-slate-400">
               No comments yet
@@ -302,11 +341,12 @@ export function MintCommentsSheet({
                 const liked = likedCommentIds.includes(comment.id);
                 const reposted = repostedCommentIds.includes(comment.id);
                 const own = comment.authorId === viewer.account.id;
+                const isReply = Boolean(comment.parentCommentId);
 
                 return (
                   <article
                     key={comment.id}
-                    className="relative flex gap-3"
+                    className={`relative flex gap-3 ${isReply ? "ml-8 border-l border-slate-100 pl-3" : ""}`}
                     onPointerDown={(event) => beginLongPress(event, comment.id)}
                     onPointerUp={clearLongPress}
                     onPointerCancel={clearLongPress}
@@ -319,7 +359,7 @@ export function MintCommentsSheet({
                       if (shouldCommitCommentDoubleTap(liked)) {
                         onToggleCommentLike(comment.id);
                       }
-                      setLikedPulseId(comment.id);
+                      pulseCommentLike(comment.id);
                     }}
                   >
                     <button
@@ -345,8 +385,9 @@ export function MintCommentsSheet({
                     <div className="min-w-0 flex-1">
                       <div className="rounded-[1.35rem] bg-slate-50 px-3.5 py-3">
                         <div className="flex items-baseline justify-between gap-3">
-                          <p className="truncate text-sm font-black text-slate-900">
+                          <p className="min-w-0 truncate text-sm font-black text-slate-900">
                             {author?.profile.displayName ?? "Unavailable user"}
+                            {author && <span className="ml-1.5 font-semibold text-slate-400">@{author.profile.username}</span>}
                           </p>
                           <time className="shrink-0 text-[10px] font-semibold text-slate-400" dateTime={comment.createdAt}>
                             {formatRelativeTime(comment.createdAt, currentTime)}
@@ -365,7 +406,20 @@ export function MintCommentsSheet({
                       <div className="mt-1 flex items-center gap-3 px-2 text-[11px] font-bold text-slate-400">
                         <button
                           type="button"
-                          onClick={() => onToggleCommentLike(comment.id)}
+                          onClick={() => {
+                            setReplyToCommentId(comment.id);
+                            inputRef.current?.focus();
+                          }}
+                          className="hover:text-slate-700"
+                        >
+                          Reply
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onToggleCommentLike(comment.id);
+                            pulseCommentLike(comment.id);
+                          }}
                           aria-pressed={liked}
                           className={liked ? "text-red-500" : "hover:text-slate-700"}
                         >
@@ -395,7 +449,7 @@ export function MintCommentsSheet({
                       </div>
 
                       {contextCommentId === comment.id && (
-                        <div className="cm-popover-surface mt-2 grid overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-xl sm:grid-cols-2">
+                        <div className="cm-popover-surface mt-2 grid overflow-hidden rounded-2xl bg-slate-50 p-1 sm:grid-cols-2">
                           {own ? (
                             <button
                               type="button"
@@ -465,8 +519,32 @@ export function MintCommentsSheet({
           onSubmit={submit}
           className="shrink-0 border-t border-slate-100 bg-white px-3 pt-2 pb-[max(.75rem,env(safe-area-inset-bottom))]"
         >
+          {sendStatus && <p role="status" className="mb-1 px-2 text-[10px] font-semibold text-slate-400">{sendStatus}</p>}
+          {replyToCommentId && (() => {
+            const parent = comments.find((comment) => comment.id === replyToCommentId);
+            const parentAuthor = users.find((user) => user.account.id === parent?.authorId);
+            return (
+              <div className="mb-2 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                <span className="truncate">Replying to {parentAuthor ? `@${parentAuthor.profile.username}` : "this comment"}</span>
+                <button type="button" onClick={() => setReplyToCommentId(null)} className="shrink-0 font-black text-slate-700" aria-label="Cancel reply">Cancel</button>
+              </div>
+            );
+          })()}
           {composerExpanded && (
             <div className="cm-content-swap mb-2 rounded-2xl bg-slate-50 p-2.5">
+              <div className="mb-2 flex items-center gap-1 overflow-x-auto" aria-label="Quick emoji">
+                {["❤️", "😂", "🔥", "👏", "🎉", "🌿"].map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => setBody((current) => `${current}${emoji}`)}
+                    className="grid h-9 w-9 shrink-0 place-items-center text-lg"
+                    aria-label={`Add ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {(["none", "image", "gif", "video", "sticker"] as const).map((mode) => (
                   <button
@@ -550,14 +628,21 @@ export function MintCommentsSheet({
             >
               +
             </button>
-            <input
+            <textarea
               ref={inputRef}
               data-initial-focus
               value={body}
               onChange={(event) => setBody(event.target.value)}
-              placeholder="Add a comment"
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
+              rows={1}
+              placeholder={replyToCommentId ? "Write a reply" : "Add a comment"}
               aria-label="Add a comment"
-              className={`min-w-0 flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-base text-slate-900 placeholder:text-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] sm:text-sm ${fontClass(fontStyle)}`}
+              className={`max-h-24 min-w-0 flex-1 resize-none rounded-[1.35rem] border border-slate-200 bg-slate-50 px-4 py-2.5 text-base text-slate-900 placeholder:text-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] sm:text-sm ${fontClass(fontStyle)}`}
             />
             <button
               type="submit"
@@ -572,6 +657,7 @@ export function MintCommentsSheet({
               Post
             </button>
           </div>
+          <p className="mt-1 px-2 text-[9px] text-slate-400">Comments in this preview stay on this device.</p>
         </form>
       </section>
     </div>

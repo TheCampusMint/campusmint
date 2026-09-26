@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 
 import { TactileButton } from "@/components/ui/TactileButton";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { useModalLayer } from "@/hooks/useModalLayer";
 
 import { getAcademicCatalog } from "@/data/development/campusData";
@@ -53,7 +54,7 @@ export function EditProfileModal({ user, primaryColor, onSave, onClose }: EditPr
       <section ref={dialogRef} tabIndex={-1} className="cm-panel-sheet max-h-[94dvh] w-full max-w-3xl overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl" role="dialog" aria-modal="true" aria-labelledby="edit-profile-title">
         <div className="flex items-start justify-between gap-4">
           <div><p className="text-xs font-bold uppercase tracking-wider" style={{ color: primaryColor }}>Your public information</p><h2 id="edit-profile-title" className="mt-1 text-2xl font-black text-slate-950">Edit profile</h2></div>
-          <button type="button" data-initial-focus onClick={onClose} aria-label="Close Edit profile" title="Close" className="cm-icon-control flex items-center justify-center bg-slate-100 text-xl font-bold text-slate-600">×</button>
+          <CloseButton data-initial-focus onClick={onClose} label="Close Edit profile" />
         </div>
 
         <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">

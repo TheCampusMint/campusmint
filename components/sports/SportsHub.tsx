@@ -348,9 +348,13 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
           )}
         </>
       ) : (
-        <p className="rounded-[1.25rem] border border-slate-200 bg-white p-5 text-center text-sm text-slate-500">
-          Supported athletics data isn&apos;t available yet.
-        </p>
+        <div className="rounded-[1.25rem] border border-slate-200 bg-white p-5 text-center">
+          <p className="text-sm text-slate-500">Verified schedules and results aren&apos;t available from a connected provider yet.</p>
+          <div className="mt-3 flex flex-wrap justify-center gap-2" aria-label="Configured featured sports">
+            {resolvedProfile.featuredSports.map((sportId) => <span key={sportId} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-700">{launchCampusSports.find((sport) => sport.id === sportId)?.label ?? sportId}</span>)}
+          </div>
+          <a href={resolvedProfile.featuredSportsSource.sourceUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex text-xs font-bold text-[var(--app-accent)] underline underline-offset-4">Official athletics source</a>
+        </div>
       )}
 
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3">

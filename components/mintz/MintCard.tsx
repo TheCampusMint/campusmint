@@ -29,6 +29,7 @@ import {
 import { formatEventDateTimeRange } from "@/lib/content/eventTiming";
 import { getMusicExternalUrl } from "@/lib/content/music";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
+import type { FloatingSurfaceOrigin } from "@/lib/motion/interaction";
 import { resolvePublicMintMetrics } from "@/lib/social/mintInteractions";
 import type { MintPermissionContext } from "@/lib/social/mintPermissions";
 import type { ContentReport } from "@/types/content";
@@ -102,6 +103,7 @@ function expirationLabel(expiresAt: string | null, currentTime: number) {
 export function MintCard(props: MintCardProps) {
   const { mint, author, viewer, users, theme, currentTime } = props;
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentsOrigin, setCommentsOrigin] = useState<FloatingSurfaceOrigin | null>(null);
   const [appreciationBurst, setAppreciationBurst] = useState<{
     point: ScreenPoint;
     sequence: number;
@@ -199,7 +201,7 @@ export function MintCard(props: MintCardProps) {
   return (
     <>
       <FloatingMintCard glowColor={glowColor} reducedMotion={props.reducedMotion}>
-        <article className="mint-card-responsive overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_14px_44px_rgba(15,23,42,0.11)] sm:rounded-[1.75rem]" data-mint-card={mint.id} data-mint-type={mint.postType}>
+        <article className="mint-card-responsive overflow-hidden rounded-[1.5rem] bg-white sm:rounded-[1.75rem]" data-mint-card={mint.id} data-mint-type={mint.postType}>
           <header className="p-3 sm:p-4 lg:p-5">
             <div className="flex items-center gap-3">
               <button type="button" aria-label={`Open ${author.profile.displayName}'s profile`} onClick={() => props.onOpenProfile(author.account.id)}>
@@ -228,7 +230,7 @@ export function MintCard(props: MintCardProps) {
           </MintMediaCarousel>
 
           <div className="p-3 sm:p-4 lg:p-5">
-            {eventTitle && <div className="mb-3 rounded-2xl bg-slate-50 p-3 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.16)] sm:mb-4 sm:p-4"><h3 className="font-black text-slate-950">{eventTitle}</h3>{eventWhen && <p className="mt-1 text-xs font-bold text-emerald-700">{eventWhen}</p>}{eventWhere && <p className="mt-1 text-xs text-slate-600">{eventWhere}</p>}{canonicalEvent?.status === "cancelled" && <p className="mt-2 text-xs font-black text-red-600">Canceled</p>}{canonicalEvent?.source && <a href={canonicalEvent.source.sourceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[10px] font-bold text-slate-500 underline">Event source</a>}</div>}
+            {eventTitle && <div className="mb-3 rounded-2xl bg-slate-50 p-3 sm:mb-4 sm:p-4"><h3 className="font-black text-slate-950">{eventTitle}</h3>{eventWhen && <p className="mt-1 text-xs font-bold text-emerald-700">{eventWhen}</p>}{eventWhere && <p className="mt-1 text-xs text-slate-600">{eventWhere}</p>}{canonicalEvent?.status === "cancelled" && <p className="mt-2 text-xs font-black text-red-600">Canceled</p>}{canonicalEvent?.source && <a href={canonicalEvent.source.sourceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[10px] font-bold text-slate-500 underline">Event source</a>}</div>}
             {mint.postType === "event" && <EventAttendingContext users={props.attendeeUsers ?? []} attending={Boolean(props.attending)} disabled={props.attendingDisabled} theme={theme} onToggle={props.onToggleAttending} />}
             {organization && <p className="mb-3 text-sm font-black text-slate-900">{organization.name}</p>}
             {mint.caption && <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{mint.caption}</p>}
@@ -237,14 +239,14 @@ export function MintCard(props: MintCardProps) {
             {taggedOrganizations.length > 0 && <p className="mt-3 text-xs font-semibold text-slate-500">With {taggedOrganizations.map((tagged) => tagged.name).join(", ")}</p>}
             {(mint.location || mint.music) && <div className="mt-3 space-y-1 text-xs text-slate-500">{mint.location && <p>⌖ {mint.location.label}</p>}{mint.music && (getMusicExternalUrl(mint.music) ? <a href={getMusicExternalUrl(mint.music) ?? undefined} target="_blank" rel="noreferrer" className="inline-flex font-semibold hover:underline">♫ {mint.music.trackTitle} · {mint.music.artist}</a> : <p>♫ {mint.music.trackTitle} · {mint.music.artist}</p>)}</div>}
 
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pt-3" data-public-mint-metrics>
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 pt-2" data-public-mint-metrics>
               {publicMetrics.map((metric) => <CompactMetric key={metric.kind} label={metric.label} />)}
               {ownMint && typeof props.creatorAppreciationCount === "number" && <span className="whitespace-nowrap text-[11px] font-semibold tabular-nums text-slate-500">{props.creatorAppreciationCount} appreciations · only you</span>}
             </div>
 
             <div className="mt-2 flex items-center justify-between gap-2">
               <div className="flex items-center">
-                <CommentAction count={mint.commentCount} disabled={!mint.commentsEnabled} onClick={() => setCommentsOpen(true)} />
+                <CommentAction count={mint.commentCount} disabled={!mint.commentsEnabled} onClick={(origin) => { setCommentsOrigin(origin); setCommentsOpen(true); }} />
                 <ShareAction onClick={shareMint} />
               </div>
               <div className="flex items-center gap-1">
@@ -258,7 +260,7 @@ export function MintCard(props: MintCardProps) {
 
             <details className="mt-2">
               <summary className="w-fit cursor-pointer text-[11px] font-bold text-slate-400">More</summary>
-              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-100 p-3">
+              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 p-3">
                 <button type="button" onClick={() => confirmPrivateAppreciation({ clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 })} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600">{props.privateAppreciated ? "Privately appreciated" : "Appreciate privately"}</button>
                 {ownMint ? (
                   <>
@@ -288,6 +290,7 @@ export function MintCard(props: MintCardProps) {
           repostedCommentIds={props.repostedCommentIds ?? []}
           hiddenCommentIds={props.hiddenCommentIds ?? []}
           blockedCommentAuthorIds={props.blockedCommentAuthorIds ?? []}
+          origin={commentsOrigin}
           onComment={props.onComment}
           onToggleCommentLike={props.onToggleCommentLike ?? (() => undefined)}
           onToggleCommentRepost={props.onToggleCommentRepost ?? (() => undefined)}

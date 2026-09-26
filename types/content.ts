@@ -80,7 +80,7 @@ export type SharedSocialContent = {
    * Legacy configured-campus ID retained while campus-specific
    * features migrate to universal university identity.
    */
-  universityId: UniversityId;
+  universityId: UniversityId | null;
 
   /**
    * Universal identity of the author's verified university.
@@ -90,7 +90,7 @@ export type SharedSocialContent = {
   universityIdentityId?: string | null;
   knownUniversityId?: UniversityId | null;
 
-  campusNetworkId: CampusNetworkId;
+  campusNetworkId: CampusNetworkId | null;
   contentType: SocialContentType;
   postType: SocialPostType;
   media: SocialMedia[];

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
+import { CreatorBadge } from "@/components/creator/CreatorBadge";
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 import { getAcademicCatalog } from "@/data/development/campusData";
 import {
@@ -170,6 +171,7 @@ export function ProfileView({
                     </span>
                   )}
                   {owner.account.isSystemAccount && <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">Campus Mint</span>}
+                  <CreatorBadge approved={owner.account.capabilities?.includes("creator") === true} />
                 </div>
 
                 <p className="mt-1 truncate text-sm font-semibold text-slate-500">

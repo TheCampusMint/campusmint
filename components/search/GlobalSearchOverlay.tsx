@@ -10,6 +10,7 @@ import {
 
 import type { UniversityTheme } from "@/data/universities";
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { useModalLayer } from "@/hooks/useModalLayer";
 import { motion } from "@/lib/motion/interaction";
 
@@ -108,16 +109,12 @@ export function GlobalSearchOverlay({
               style={{ outlineColor: theme.primary }}
             />
           ) : (
-            <button
-              type="button"
+            <CloseButton
               onClick={requestClose}
-              aria-label="Close Search"
-              title="Close"
-              className="cm-icon-control interactive-pop flex items-center justify-center border border-[var(--app-border)] bg-[var(--app-surface-elevated)] text-xl text-[var(--app-text-primary)] shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+              label="Close Search"
+              className="shadow-sm"
               style={{ outlineColor: theme.primary }}
-            >
-              <span aria-hidden="true">×</span>
-            </button>
+            />
           )}
         </div>
       </header>

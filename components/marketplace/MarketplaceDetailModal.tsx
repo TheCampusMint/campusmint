@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 
 import { MarketplacePhotoPlaceholder } from "@/components/marketplace/MarketplacePhotoPlaceholder";
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { getCampusNetwork } from "@/data/campusNetworks";
 import { universities, type UniversityTheme } from "@/data/universities";
 import type { MarketplaceListing, MarketplaceListingStatus, MarketplaceMessage, MarketplaceOffer, MarketplaceReportReason } from "@/types/marketplace";
@@ -95,7 +96,7 @@ export function MarketplaceDetailModal(props: MarketplaceDetailModalProps) {
           {props.closeLabel ? (
             <MintLeafBackButton data-initial-focus onClick={props.onClose} label={props.closeLabel} />
           ) : (
-            <button type="button" data-initial-focus onClick={props.onClose} aria-label="Close" title="Close" className="cm-icon-control flex items-center justify-center border border-slate-200 text-xl text-slate-600">×</button>
+            <CloseButton data-initial-focus onClick={props.onClose} />
           )}
         </div>
 

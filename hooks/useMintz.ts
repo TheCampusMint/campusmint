@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import {
   createDevelopmentMintComments,
   createDevelopmentMintz,
 } from "@/data/development/mintz";
 import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
+import type { LocalMintMediaSelection } from "@/lib/content/localMintMedia";
 import { resolveContentStatus } from "@/lib/content/expiration";
 import { validateCommentAttachment } from "@/lib/content/commentMedia";
 import { canRepostComment } from "@/lib/social/commentRanking";
@@ -48,6 +49,8 @@ import type {
   SocialCommentLike,
   SocialCommentRepost,
 } from "@/types/mint";
+import type { MintFeedResponse, MintPublishResponse } from "@/types/mintPersistence";
+import type { CampusMintUser } from "@/types/profile";
 
 function localId(prefix: string) {
   return `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -62,6 +65,7 @@ const DEVELOPMENT_PUBLIC_ENDORSEMENTS: MintPublicEndorsement[] = [
   },
 ];
 const FIXTURES_ENABLED = areDevelopmentFixturesEnabled();
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function interactionStorageKey(userId: string) {
   return `campusmint:mint-interactions:${userId}:v2`;
@@ -77,6 +81,9 @@ export function useMintz(currentUserId: string) {
   const [storedMintz, setStoredMintz] = useState<Mint[]>(() =>
     FIXTURES_ENABLED ? createDevelopmentMintz(currentTime) : [],
   );
+  const [persistedAuthors, setPersistedAuthors] = useState<CampusMintUser[]>([]);
+  const [persistenceError, setPersistenceError] = useState<string | null>(null);
+  const [persistedMintzLoading, setPersistedMintzLoading] = useState(false);
   const [privateAppreciations, setPrivateAppreciations] = useState<
     MintPrivateAppreciation[]
   >([]);
@@ -176,9 +183,37 @@ export function useMintz(currentUserId: string) {
     return () => window.clearInterval(timer);
   }, []);
 
+  const loadPersistedMintz = useCallback(async () => {
+    if (!uuidPattern.test(currentUserId)) return;
+    setPersistedMintzLoading(true);
+    try {
+      const response = await fetch("/api/mintz", { cache: "no-store" });
+      const result = await response.json().catch(() => null) as MintFeedResponse | null;
+      if (!response.ok || !result?.ok) {
+        throw new Error(result && !result.ok ? result.message : "Mintz are temporarily unavailable.");
+      }
+      setStoredMintz((current) => {
+        const persistedIds = new Set(result.mintz.map((mint) => mint.id));
+        return [...result.mintz, ...current.filter((mint) => mint.isDevelopment && !persistedIds.has(mint.id))];
+      });
+      setPersistedAuthors(result.authors);
+      setPersistenceError(null);
+    } catch (error) {
+      setPersistenceError(error instanceof Error ? error.message : "Mintz are temporarily unavailable.");
+    } finally {
+      setPersistedMintzLoading(false);
+    }
+  }, [currentUserId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadPersistedMintz(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadPersistedMintz]);
+
   function refreshMintz() {
     setCurrentTime(Date.now());
     setRefreshGeneration((current) => current + 1);
+    void loadPersistedMintz();
   }
 
   const mintz = useMemo(() => storedMintz
@@ -188,7 +223,7 @@ export function useMintz(currentUserId: string) {
       status: resolveContentStatus(mint.status, mint.expiresAt, currentTime),
     })), [currentTime, refreshGeneration, storedMintz]);
 
-  function createMint(input: CreateMintInput) {
+  function createLocalMint(input: CreateMintInput) {
     const now = new Date().toISOString();
     const mint: Mint = {
       ...input,
@@ -219,6 +254,63 @@ export function useMintz(currentUserId: string) {
       deliveredAt: null,
     }))]);
     return mint;
+  }
+
+  async function createMint(
+    input: CreateMintInput,
+    selections: readonly LocalMintMediaSelection[] = [],
+    requestId = globalThis.crypto.randomUUID(),
+  ) {
+    if (input.isDevelopment) {
+      return { ok: true as const, mint: createLocalMint(input), message: null };
+    }
+
+    const formData = new FormData();
+    formData.set("payload", JSON.stringify({
+      requestId,
+      caption: input.caption,
+      postType: input.postType,
+      privacy: input.privacy,
+      expiresAt: input.expiresAt,
+      commentsEnabled: input.commentsEnabled,
+      location: input.location,
+      eventData: input.eventData,
+      organizationId: input.organizationId ?? null,
+      taggedOrganizationIds: input.taggedOrganizationIds ?? [],
+      organizationAudience: input.organizationAudience ?? "public",
+      hashtags: input.hashtags,
+      mentions: input.mentions,
+      taggedUserIds: input.taggedUserIds,
+      music: input.music,
+      mediaMetadata: selections.map((selection) => ({
+        width: selection.media.width,
+        height: selection.media.height,
+        durationSeconds: selection.media.durationSeconds,
+      })),
+    }));
+    selections.forEach((selection) => formData.append("media", selection.file, selection.file.name));
+
+    try {
+      const response = await fetch("/api/mintz", { method: "POST", body: formData });
+      const result = await response.json().catch(() => null) as MintPublishResponse | null;
+      if (!response.ok || !result?.ok) {
+        return {
+          ok: false as const,
+          message: result && !result.ok ? result.message : "We couldn't publish your Mint. Your draft is still here—try again.",
+          retryable: result && !result.ok ? result.retryable : true,
+        };
+      }
+      setStoredMintz((current) => [result.mint, ...current.filter((mint) => mint.id !== result.mint.id)]);
+      setPersistedAuthors((current) => [result.author, ...current.filter((author) => author.account.id !== result.author.account.id)]);
+      setPersistenceError(null);
+      return { ok: true as const, mint: result.mint, message: null };
+    } catch {
+      return {
+        ok: false as const,
+        message: "The network interrupted publishing. Your draft is still here—try again.",
+        retryable: true,
+      };
+    }
   }
 
   function registerPrivateAppreciation(
@@ -296,7 +388,7 @@ export function useMintz(currentUserId: string) {
       likeCount: 0,
       repostCount: 0,
       mentions: structured.mentions ?? [],
-      parentCommentId: null,
+      parentCommentId: structured.parentCommentId ?? null,
       status: "active",
       createdAt: now,
       updatedAt: now,
@@ -509,6 +601,9 @@ export function useMintz(currentUserId: string) {
     shares,
     reports,
     pendingNotifications,
+    persistedAuthors,
+    persistedMintzLoading,
+    persistenceError,
     refreshMintz,
     createMint,
     registerPrivateAppreciation,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { normalizeSafeBrandWebsite } from "@/lib/auth/accountTypes";
+import { isStudentSmsVerificationRequired } from "@/lib/auth/studentSmsPolicy";
 import { assessStudentEmail } from "@/lib/auth/studentEmail";
 import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig, hasSupabaseServerConfig } from "@/lib/supabase/server";
 
@@ -84,6 +85,17 @@ export async function POST(request: Request) {
     const { firstName, lastName } = legacyNameParts(displayName);
     const profileImageStoragePath = cleanText("profileImageStoragePath" in body ? body.profileImageStoragePath : null, 1000) || null;
 
+    if (isStudentSmsVerificationRequired()) {
+      const { data: phoneState, error: phoneError } = await admin.from("phone_verification_states")
+        .select("verified_at,status")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (phoneError) return databaseFailure("student phone verification lookup", phoneError);
+      if (!phoneState?.verified_at || phoneState.status !== "verified") {
+        return NextResponse.json({ ok: false, message: "Verify your mobile phone before finishing Student setup." }, { status: 403 });
+      }
+    }
+
     const { error: identityError } = await admin.from("profile_identities").upsert(
       { user_id: user.id, university_id: universityId, account_type: "student", role: "student", verified_student: true, email_verified_at: user.email_confirmed_at },
       { onConflict: "user_id" },
@@ -107,11 +119,11 @@ export async function POST(request: Request) {
 
     const { error: identityError } = await admin.from("profile_identities").upsert({ user_id: user.id, university_id: null, account_type: "brand", role: "local-business", verified_student: false, email_verified_at: new Date().toISOString() });
     if (identityError) return databaseFailure("Brand identity upsert", identityError);
-    const { data: brand, error: brandError } = await admin.from("brand_profiles").upsert({ user_id: user.id, display_name: displayName, username, username_normalized: username, bio: cleanText("bio" in body ? body.bio : null, 1000) || null, website_url: websiteUrl, contact_email: user.email, business_category: cleanText("businessCategory" in body ? body.businessCategory : null, 100) || null, verification_status: "unverified" }).select("id").single();
-    if (brandError || !brand) return databaseFailure("Brand profile upsert", brandError);
-    const channelHandle = username.replace(/[._]+/g, "-");
-    const { error: channelError } = await admin.from("brand_channels").upsert({ brand_id: brand.id, name: displayName, handle: channelHandle, description: cleanText("bio" in body ? body.bio : null, 500) || null, status: "active" }, { onConflict: "brand_id" });
-    if (channelError) return databaseFailure("Brand Channel upsert", channelError);
+    const { error: brandError } = await admin.from("brand_profiles").upsert(
+      { user_id: user.id, display_name: displayName, username, username_normalized: username, bio: cleanText("bio" in body ? body.bio : null, 1000) || null, website_url: websiteUrl, contact_email: user.email, business_category: cleanText("businessCategory" in body ? body.businessCategory : null, 100) || null, verification_status: "unverified" },
+      { onConflict: "user_id" },
+    );
+    if (brandError) return databaseFailure("Brand profile upsert", brandError);
   }
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "private, no-store" } });
 }

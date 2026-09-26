@@ -278,7 +278,7 @@ export function BottomBubbleNav({
         onPointerMove={dots ? undefined : updateScrub}
         onPointerUp={dots ? undefined : finishScrub}
         onPointerCancel={dots ? undefined : cancelScrub}
-        className="pointer-events-auto relative isolate select-none overflow-hidden rounded-full border"
+        className="pointer-events-auto relative isolate select-none overflow-hidden rounded-full"
         style={{
           height: notchHeight,
           padding: notchInset,
@@ -287,10 +287,10 @@ export function BottomBubbleNav({
             : `height ${motion.duration.standard}ms ${motion.easing.settle}, padding ${motion.duration.standard}ms ${motion.easing.settle}, box-shadow ${motion.duration.fast}ms ease`,
           touchAction: "pan-y",
           background: sportsContrast
-            ? "linear-gradient(180deg, rgba(255,255,255,.82), rgba(226,232,240,.66))"
+            ? "linear-gradient(180deg, color-mix(in srgb, var(--app-surface) 92%, transparent), color-mix(in srgb, var(--app-surface-elevated) 82%, transparent))"
             : "linear-gradient(180deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,.055) 38%, rgba(15,23,42,.035) 100%), linear-gradient(112deg, color-mix(in srgb, var(--app-surface-elevated) 30%, transparent) 0%, color-mix(in srgb, var(--app-surface) 18%, transparent) 54%, color-mix(in srgb, var(--app-accent-soft) 16%, transparent) 100%)",
           borderColor: sportsContrast
-            ? "rgba(255,255,255,.82)"
+            ? "transparent"
             : "color-mix(in srgb, var(--app-border) 38%, rgba(255,255,255,.34))",
           backdropFilter:
             sportsContrast
@@ -301,7 +301,7 @@ export function BottomBubbleNav({
               ? "blur(24px) saturate(1.5) brightness(1.05)"
               : "blur(19px) saturate(1.42) brightness(1.06)",
           boxShadow: sportsContrast
-            ? "inset 0 1px 0 rgba(255,255,255,.92), 0 10px 30px rgba(1,25,17,.3), 0 2px 8px rgba(1,25,17,.2)"
+            ? "none"
             : "inset 0 1px 0 rgba(255,255,255,.46), inset 0 -1px 0 rgba(15,23,42,.055), 0 7px 22px rgba(15,23,42,.085), 0 1px 4px rgba(15,23,42,.06)",
         }}
       >
@@ -310,7 +310,7 @@ export function BottomBubbleNav({
           className="pointer-events-none absolute inset-0 z-0 rounded-[inherit]"
           style={{
             background: sportsContrast
-              ? "radial-gradient(120% 90% at 18% -12%, rgba(255,255,255,.9), transparent 55%), radial-gradient(85% 100% at 88% 115%, rgba(5,78,59,.08), transparent 62%)"
+              ? "radial-gradient(120% 90% at 18% -12%, color-mix(in srgb, var(--app-text-primary) 10%, transparent), transparent 55%), radial-gradient(85% 100% at 88% 115%, color-mix(in srgb, var(--app-accent) 16%, transparent), transparent 62%)"
               : "radial-gradient(120% 85% at 18% -12%, rgba(255,255,255,.28), transparent 52%), radial-gradient(85% 100% at 88% 115%, color-mix(in srgb, var(--app-accent) 9%, transparent), transparent 62%)",
           }}
         />
@@ -340,10 +340,10 @@ export function BottomBubbleNav({
           }}
         >
           <div
-            className="absolute inset-x-0.5 inset-y-0 overflow-hidden rounded-full border"
+            className="absolute inset-x-0.5 inset-y-0 overflow-hidden rounded-full"
             style={{
               background: sportsContrast
-                ? "linear-gradient(145deg, rgba(255,255,255,.9), rgba(209,250,229,.62))"
+                ? "linear-gradient(145deg, color-mix(in srgb, var(--app-text-primary) 12%, transparent), color-mix(in srgb, var(--app-accent) 18%, transparent))"
                 : "linear-gradient(145deg, rgba(255,255,255,.28) 0%, color-mix(in srgb, var(--app-surface-elevated) 18%, transparent) 34%, color-mix(in srgb, var(--app-accent-soft) 17%, transparent) 67%, rgba(15,23,42,.045) 100%)",
               borderColor:
                 "color-mix(in srgb, var(--app-accent) 20%, rgba(255,255,255,.48))",
@@ -351,8 +351,9 @@ export function BottomBubbleNav({
                 "blur(26px) saturate(1.68) brightness(1.12)",
               WebkitBackdropFilter:
                 "blur(26px) saturate(1.68) brightness(1.12)",
-              boxShadow:
-                "inset 0 1px 0 rgba(255,255,255,.68), inset 1px 0 0 rgba(255,255,255,.24), inset 0 -1px 0 rgba(15,23,42,.09), 0 4px 11px rgba(15,23,42,.095), 0 1px 2px rgba(15,23,42,.07)",
+              boxShadow: sportsContrast
+                ? "none"
+                : "inset 0 1px 0 rgba(255,255,255,.68), inset 1px 0 0 rgba(255,255,255,.24), inset 0 -1px 0 rgba(15,23,42,.09), 0 4px 11px rgba(15,23,42,.095), 0 1px 2px rgba(15,23,42,.07)",
               filter: scrubbing
                 ? "brightness(1.08) saturate(1.12)"
                 : "brightness(1) saturate(1)",
@@ -426,8 +427,8 @@ export function BottomBubbleNav({
                 style={{
                   color: sportsContrast
                     ? selected || previewed
-                      ? "#052e2b"
-                      : "#1e293b"
+                      ? "var(--app-text-primary)"
+                      : "var(--app-text-secondary)"
                     : selected || previewed
                       ? "var(--app-text-primary)"
                       : "var(--app-text-secondary)",

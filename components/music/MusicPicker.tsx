@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { developmentMusicTracks } from "@/data/development/music";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { useModalLayer } from "@/hooks/useModalLayer";
 import {
   canPreviewTrack,
@@ -93,7 +94,7 @@ export function MusicPicker({ open, selected, onSelect, onClose }: MusicPickerPr
         <header className="border-b border-slate-100 p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div><h2 id="music-picker-title" className="text-lg font-black text-slate-950">Add music</h2><p className="text-[10px] font-semibold text-slate-400">Fictional development catalog · provider-ready</p></div>
-            <button type="button" aria-label="Close music picker" onClick={closePicker} className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-lg text-slate-600">×</button>
+            <CloseButton label="Close music picker" onClick={closePicker} />
           </div>
           <input autoFocus type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search songs, artists, albums" className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base outline-none focus:border-[var(--app-accent)]" />
         </header>

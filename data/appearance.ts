@@ -113,12 +113,71 @@ export const campusMintDarkTokens: AppearanceTokens = {
   colorScheme: "dark", danger: "#fb7185", success: "#34d399",
 };
 
-export function getAppearanceTokens(preferences: AppearancePreferences, university: UniversityTheme): AppearanceTokens {
-  if (preferences.mode === "light") return campusMintLightTokens;
-  if (preferences.mode === "dark") return campusMintDarkTokens;
-  if (preferences.mode === "curated") {
-    return curatedTints.find((tint) => tint.id === preferences.tint)?.tokens ?? curatedTints[0].tokens;
+function hexToRgb(hex: string) {
+  const value = hex.replace("#", "");
+  if (!/^[0-9a-f]{6}$/i.test(value)) return null;
+  return {
+    r: Number.parseInt(value.slice(0, 2), 16),
+    g: Number.parseInt(value.slice(2, 4), 16),
+    b: Number.parseInt(value.slice(4, 6), 16),
+  };
+}
+
+function mixHex(foreground: string, background: string, foregroundWeight: number) {
+  const fg = hexToRgb(foreground);
+  const bg = hexToRgb(background);
+  if (!fg || !bg) return foreground;
+  const channel = (a: number, b: number) =>
+    Math.round(a * foregroundWeight + b * (1 - foregroundWeight))
+      .toString(16)
+      .padStart(2, "0");
+  return `#${channel(fg.r, bg.r)}${channel(fg.g, bg.g)}${channel(fg.b, bg.b)}`;
+}
+
+function relativeLuminance(hex: string) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0;
+  const linear = [rgb.r, rgb.g, rgb.b].map((channel) => {
+    const value = channel / 255;
+    return value <= 0.04045
+      ? value / 12.92
+      : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+}
+
+function contrastRatio(first: string, second: string) {
+  const [lighter, darker] = [relativeLuminance(first), relativeLuminance(second)]
+    .sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function readableAccent(accent: string, background: string, scheme: "light" | "dark") {
+  let result = accent;
+  const target = scheme === "dark" ? "#ffffff" : "#000000";
+  for (let index = 0; index < 8 && contrastRatio(result, background) < 4.5; index += 1) {
+    result = mixHex(result, target, 0.82);
   }
-  void university;
-  return campusMintLightTokens;
+  return result;
+}
+
+export function getAppearanceTokens(preferences: AppearancePreferences, university: UniversityTheme): AppearanceTokens {
+  const base = preferences.scheme === "dark"
+    ? campusMintDarkTokens
+    : campusMintLightTokens;
+  const configuredAccent = preferences.accentSource === "campus"
+    ? university.primary
+    : preferences.accentSource === "curated"
+      ? (curatedTints.find((tint) => tint.id === preferences.tint) ?? curatedTints[0]).preview
+      : base.accent;
+  const accent = readableAccent(configuredAccent, base.background, preferences.scheme);
+  const blackContrast = contrastRatio(accent, "#111111");
+  const whiteContrast = contrastRatio(accent, "#ffffff");
+
+  return {
+    ...base,
+    accent,
+    accentSoft: mixHex(accent, base.background, preferences.scheme === "dark" ? 0.3 : 0.16),
+    accentContrast: blackContrast >= whiteContrast ? "#111111" : "#ffffff",
+  };
 }

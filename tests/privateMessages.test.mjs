@@ -54,8 +54,17 @@ test("suggestion selection opens a nested scene without creating or reordering a
 test("dedicated message thread has leaf Back, profile navigation, and a pinned composer", () => {
   assert.match(threadSource, /MintLeafBackButton/);
   assert.match(threadSource, /onOpenProfile\(otherUser\.account\.id\)/);
-  assert.match(threadSource, /<form[^>]+className="flex shrink-0 items-end/);
+  assert.match(threadSource, /<form[^>]+className="shrink-0/);
   assert.match(threadSource, /markConversationSeen/);
+});
+
+test("Direct Mint exposes honest local attachments, emoji, stickers, and replies", () => {
+  assert.match(threadSource, /replyToMessageId/);
+  assert.match(threadSource, /Camera/);
+  assert.match(threadSource, /Photo \/ video/);
+  assert.match(threadSource, /GIF file/);
+  assert.match(threadSource, /Campus stickers · development/);
+  assert.match(threadSource, /stay on this device/);
 });
 
 test("profile Notes enforce 150 characters, safe web URLs, and migrate legacy music", () => {

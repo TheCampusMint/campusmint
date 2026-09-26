@@ -5,6 +5,7 @@ import { BellIcon, SearchIcon } from "@/components/icons/CampusIcons";
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import type { UniversityTheme } from "@/data/universities";
 import type { CampusMintUser } from "@/types/profile";
+import type { FloatingSurfaceOrigin } from "@/lib/motion/interaction";
 
 type TopUtilityBarProps = {
   viewer: CampusMintUser;
@@ -14,7 +15,7 @@ type TopUtilityBarProps = {
   compact?: boolean;
   onOpenSettings: () => void;
   onOpenSearch: () => void;
-  onOpenNotifications: () => void;
+  onOpenNotifications: (origin: FloatingSurfaceOrigin) => void;
   onOpenProfile: () => void;
   unreadNotificationCount?: number;
 };
@@ -35,23 +36,17 @@ export function TopUtilityBar({
     <header
       aria-hidden={hidden}
       className={
-        `sticky top-0 z-40 overflow-hidden border-b backdrop-blur-xl ` +
-        `transition-[max-height,transform,opacity,border-color,background-color,box-shadow] duration-[300ms] ease-[cubic-bezier(.16,1,.3,1)] ` +
+        `sticky top-0 z-40 overflow-hidden backdrop-blur-xl ` +
+        `transition-[max-height,transform,opacity,background-color] duration-[300ms] ease-[cubic-bezier(.16,1,.3,1)] ` +
         (
           hidden
-            ? "pointer-events-none max-h-0 -translate-y-full border-transparent opacity-0"
+            ? "pointer-events-none max-h-0 -translate-y-full opacity-0"
             : "max-h-96 translate-y-0 opacity-100"
         )
       }
       style={{
         background:
           "linear-gradient(180deg, color-mix(in srgb, var(--app-surface) 86%, transparent) 0%, color-mix(in srgb, var(--app-surface) 68%, transparent) 72%, color-mix(in srgb, var(--app-background) 54%, transparent) 100%)",
-        borderColor: hidden
-          ? "transparent"
-          : "color-mix(in srgb, var(--app-border) 48%, transparent)",
-        boxShadow: hidden
-          ? "none"
-          : "0 12px 28px -28px color-mix(in srgb, var(--app-accent) 28%, transparent)",
         WebkitBackdropFilter: "blur(18px) saturate(1.22)",
       }}
     >
@@ -82,8 +77,15 @@ export function TopUtilityBar({
             type="button"
             aria-label="Open notifications"
             title="Notifications"
-            onClick={onOpenNotifications}
-            className="cm-icon-control interactive-pop relative flex items-center justify-center border border-slate-200 bg-white text-slate-700 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+            onClick={(event) => {
+              const bounds = event.currentTarget.getBoundingClientRect();
+              onOpenNotifications({
+                x: bounds.left + bounds.width / 2,
+                y: bounds.top + bounds.height / 2,
+                bottom: bounds.bottom,
+              });
+            }}
+            className="cm-icon-control interactive-pop relative flex items-center justify-center border-0 bg-transparent text-slate-700 shadow-none focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{ outlineColor: "var(--app-accent)" }}
           >
             <span className="h-[19px] w-[19px]" aria-hidden="true"><BellIcon /></span>
@@ -122,7 +124,7 @@ export function TopUtilityBar({
             aria-label="Open Search"
             title="Search"
             onClick={onOpenSearch}
-            className="cm-icon-control interactive-pop flex items-center justify-center border border-slate-200 bg-white text-slate-700 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="cm-icon-control interactive-pop flex items-center justify-center border-0 bg-transparent text-slate-700 shadow-none focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{
               outlineColor: "var(--app-accent)",
             }}
@@ -156,7 +158,7 @@ export function TopUtilityBar({
           </summary>
 
           <div
-            className="mt-2 flex flex-wrap justify-end gap-2 rounded-2xl border border-white/20 p-3 shadow-sm"
+            className="mt-2 flex flex-wrap justify-end gap-2 rounded-2xl p-3"
             style={{
               backgroundColor:
                 theme.primary,

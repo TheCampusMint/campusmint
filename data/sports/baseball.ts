@@ -16,6 +16,10 @@ export const baseballSeasons: readonly SportsSeason[] = [
   { id: "texas-baseball-2026", sport: "baseball", teamId: "texas", label: "Baseball · 2026", conferenceLabel: "SEC", source: official("Texas Baseball", "https://texaslonghorns.com/sports/baseball"), games: [] },
   { id: "lsu-baseball-2026", sport: "baseball", teamId: "lsu", label: "Baseball · 2026", conferenceLabel: "SEC", source: official("LSU Baseball", "https://lsusports.net/sports/bsb/"), games: [] },
   { id: "alabama-baseball-2026", sport: "baseball", teamId: "alabama", label: "Baseball · 2026", conferenceLabel: "SEC", source: official("Alabama Baseball", "https://rolltide.com/sports/baseball"), games: [] },
+  { id: "oregon-baseball-2026", sport: "baseball", teamId: "oregon", label: "Baseball · 2026", conferenceLabel: "Big Ten", source: official("Oregon Baseball", "https://goducks.com/sports/baseball"), games: [] },
+  { id: "harvard-baseball-2026", sport: "baseball", teamId: "harvard", label: "Baseball · 2026", conferenceLabel: "Ivy League", source: official("Harvard Baseball", "https://gocrimson.com/sports/baseball"), games: [] },
+  { id: "michigan-baseball-2026", sport: "baseball", teamId: "michigan", label: "Baseball · 2026", conferenceLabel: "Big Ten", source: official("Michigan Baseball", "https://mgoblue.com/sports/baseball"), games: [] },
+  { id: "miami-baseball-2026", sport: "baseball", teamId: "miami", label: "Baseball · 2026", conferenceLabel: "ACC", source: official("Miami Baseball", "https://miamihurricanes.com/sports/baseball/"), games: [] },
 ];
 
-export function getBaseballSeason(universityId: UniversityId | null) { return baseballSeasons.find((season) => season.teamId === ({ tamu: "texas-am", blinn: "blinn", texas: "texas", lsu: "lsu", alabama: "alabama" } as const)[universityId ?? "tamu"]) ?? baseballSeasons[0]; }
+export function getBaseballSeason(universityId: UniversityId | null) { return baseballSeasons.find((season) => season.teamId === ({ tamu: "texas-am", blinn: "blinn", texas: "texas", lsu: "lsu", alabama: "alabama", oregon: "oregon", harvard: "harvard", michigan: "michigan", miami: "miami" } as const)[universityId ?? "tamu"]) ?? baseballSeasons[0]; }

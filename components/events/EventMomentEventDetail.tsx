@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { getCampusName, type UniversityTheme } from "@/data/universities";
 import type { EventMomentsState } from "@/hooks/useEventMoments";
 import { useModalLayer } from "@/hooks/useModalLayer";
@@ -152,15 +153,11 @@ export function EventMomentEventDetail({
               aria-label={closeLabel}
             />
           ) : (
-            <button
-              type="button"
+            <CloseButton
               onClick={onClose}
               data-initial-focus
-              aria-label="Close event details"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl font-bold text-slate-600"
-            >
-              ×
-            </button>
+              label="Close event details"
+            />
           )}
         </header>
 

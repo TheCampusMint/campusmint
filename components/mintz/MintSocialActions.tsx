@@ -3,6 +3,7 @@
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import type { UniversityTheme } from "@/data/universities";
 import { PUBLIC_ENDORSEMENT_ACTIVE_COLOR } from "@/lib/social/mintInteractions";
+import type { FloatingSurfaceOrigin } from "@/lib/motion/interaction";
 import type { CampusMintUser } from "@/types/profile";
 
 function CommentGlyph() {
@@ -43,11 +44,20 @@ export function CommentAction({
 }: {
   count: number;
   disabled?: boolean;
-  onClick: () => void;
+  onClick: (origin: FloatingSurfaceOrigin) => void;
   tone?: "light" | "dark";
 }) {
   return (
-    <button type="button" disabled={disabled} onClick={onClick} aria-label={`Open comments, ${count} comments`} className={`${baseAction} ${tone === "dark" ? "text-white" : "text-slate-600"} disabled:opacity-40`}>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={(event) => {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        onClick({ x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2, bottom: bounds.bottom });
+      }}
+      aria-label={`Open comments, ${count} comments`}
+      className={`${baseAction} ${tone === "dark" ? "text-white" : "text-slate-600"} disabled:opacity-40`}
+    >
       <CommentGlyph />
       <span className="tabular-nums">{count}</span>
     </button>

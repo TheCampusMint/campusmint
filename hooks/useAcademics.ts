@@ -27,6 +27,8 @@ export function useAcademics() {
   const [profiles, setProfiles] = useState<Record<UniversityId, AcademicProfile>>(() => ({
     tamu: initialProfile("tamu"), blinn: initialProfile("blinn"), texas: initialProfile("texas"),
     lsu: initialProfile("lsu"), alabama: initialProfile("alabama"),
+    oregon: initialProfile("oregon"), harvard: initialProfile("harvard"),
+    michigan: initialProfile("michigan"), miami: initialProfile("miami"),
   }));
   const [submissions, setSubmissions] = useState<CommunitySubmission[]>([]);
 

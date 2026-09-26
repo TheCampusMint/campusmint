@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ClubChatPlaceholder } from "@/components/clubs/ClubChatPlaceholder";
 import { OrganizationMembershipPanel } from "@/components/clubs/OrganizationMembershipPanel";
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { getCampusNetwork } from "@/data/campusNetworks";
 import { universities, type UniversityTheme } from "@/data/universities";
 import { getClubHref } from "@/data/organizations";
@@ -114,7 +115,7 @@ export function OrganizationDetailModal({
               </div>
             </div>
             {closeLabel === "Close" ? (
-              <button type="button" data-initial-focus onClick={onClose} aria-label="Close" title="Close" className="cm-icon-control relative flex items-center justify-center border border-white/30 bg-white/10 text-xl text-white">×</button>
+              <CloseButton data-initial-focus onClick={onClose} tone="inverse" className="relative" />
             ) : (
               <MintLeafBackButton data-initial-focus onClick={onClose} label={closeLabel} tone="inverse" className="relative" />
             )}

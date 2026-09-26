@@ -11,6 +11,10 @@ async function context(params: Promise<{ channelId: string }>) {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.app_metadata?.account_type !== "student") return { error: NextResponse.json({ ok: false, message: "Only a signed-in student can manage Channel membership." }, { status: 403 }) };
+  const { data: channel } = await supabase.from("brand_channels").select("brand_id").eq("id", channelId).eq("status", "active").maybeSingle();
+  if (!channel) return { error: NextResponse.json({ ok: false, message: "This Channel is unavailable." }, { status: 404 }) };
+  const { data: brand } = await supabase.from("brand_profiles").select("verification_status").eq("id", channel.brand_id).maybeSingle();
+  if (brand?.verification_status !== "verified") return { error: NextResponse.json({ ok: false, message: "This Channel is unavailable." }, { status: 404 }) };
   return { supabase, user, channelId };
 }
 

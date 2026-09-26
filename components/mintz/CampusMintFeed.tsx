@@ -73,15 +73,18 @@ export function CampusMintFeed({
   // the hood, but there is no separate Story UI.
   void onCreateStory;
   const allMintz = mintz.mintz;
+  const feedUsers = useMemo(() => {
+    const byId = new Map(
+      [...profiles.users, ...mintz.persistedAuthors].map((user) => [user.account.id, user]),
+    );
+    byId.set(viewer.account.id, viewer);
+    return [...byId.values()];
+  }, [mintz.persistedAuthors, profiles.users, viewer]);
 
   const feedState = useMemo(
     () => ({
       viewer,
-      users: profiles.users.map((user) =>
-        user.account.id === viewer.account.id
-          ? viewer
-          : user,
-      ),
+      users: feedUsers,
       friendships: profiles.friendships,
       follows: profiles.follows,
       blocks: profiles.blocks,
@@ -110,12 +113,12 @@ export function CampusMintFeed({
       profiles.blocks,
       profiles.follows,
       profiles.friendships,
-      profiles.users,
+      feedUsers,
       viewer,
     ],
   );
   const messageAffinityByUserId = Object.fromEntries(
-    profiles.users.map((user) => [user.account.id, directMint.messagesFor(user.account.id).length]),
+    feedUsers.map((user) => [user.account.id, directMint.messagesFor(user.account.id).length]),
   );
 
   const visibleMintz = useMemo(() => {
@@ -271,7 +274,6 @@ export function CampusMintFeed({
           reducedMotion={reducedMotion}
           suspended={!surfaceActive}
           onClose={closeVideoViewer}
-          onRefresh={refreshFeedGeneration}
         />
       )}
     </div>

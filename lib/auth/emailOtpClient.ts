@@ -43,3 +43,29 @@ export async function verifyEmailOtp(input: {
   } catch {}
   return { ok: false, reason: "auth_unavailable", message: "We couldn't verify that code. Please try again." };
 }
+
+export async function requestExistingAccountOtp(email: string): Promise<EmailOtpRequestResponse> {
+  try {
+    const response = await fetch("/api/student-verification/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, mode: "sign_in" }),
+    });
+    const payload = await readJson<EmailOtpRequestResponse>(response);
+    if (payload && typeof payload.ok === "boolean") return payload;
+  } catch {}
+  return { ok: false, reason: "auth_unavailable", message: "Sign in is temporarily unavailable. Please try again." };
+}
+
+export async function verifyExistingAccountOtp(email: string, code: string): Promise<EmailOtpVerifyResponse> {
+  try {
+    const response = await fetch("/api/student-verification/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code, mode: "sign_in" }),
+    });
+    const payload = await readJson<EmailOtpVerifyResponse>(response);
+    if (payload && typeof payload.ok === "boolean") return payload;
+  } catch {}
+  return { ok: false, reason: "auth_unavailable", message: "We couldn't sign you in. Please try again." };
+}

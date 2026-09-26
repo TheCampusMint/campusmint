@@ -15,18 +15,23 @@ export async function POST(request: Request) {
   let body: unknown;
   try { body = await request.json(); } catch { body = null; }
 
-  if (!body || typeof body !== "object" || !("email" in body) || typeof body.email !== "string" || !("accountType" in body) || !isSignupAccountType(body.accountType)) {
+  if (!body || typeof body !== "object") {
     return json({ ok: false, reason: "invalid_request", message: "Enter a valid email address." }, 400);
   }
+  const input = body as Record<string, unknown>;
+  const signIn = input.mode === "sign_in";
+  const signupAccountType = isSignupAccountType(input.accountType) ? input.accountType : null;
+  if (typeof input.email !== "string" || (!signIn && !signupAccountType)) return json({ ok: false, reason: "invalid_request", message: "Enter a valid email address." }, 400);
 
-  const email = normalizeAuthEmail(body.email);
-  if (body.accountType === "student") {
+  const email = normalizeAuthEmail(input.email);
+  if (!isValidBrandEmail(email)) {
+    return json({ ok: false, reason: "invalid_request", message: "Enter a valid email address." }, 400);
+  }
+  if (!signIn && signupAccountType === "student") {
     const assessment = assessStudentEmail(email);
     if (!assessment.ok) {
       return json({ ok: false, reason: "ineligible_email", message: getStudentEmailRejectionMessage(assessment.reason) }, 400);
     }
-  } else if (!isValidBrandEmail(email)) {
-    return json({ ok: false, reason: "invalid_request", message: "Enter a valid brand or business email address." }, 400);
   }
 
   if (!hasSupabasePublicConfig()) {
@@ -36,7 +41,9 @@ export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: true, data: { account_type: body.accountType } },
+    options: signIn
+      ? { shouldCreateUser: false }
+      : { shouldCreateUser: true, data: { account_type: signupAccountType } },
   });
 
   if (error) {
@@ -52,7 +59,7 @@ export async function POST(request: Request) {
   const now = Date.now();
   return json({ ok: true, challenge: {
     email,
-    accountType: body.accountType,
+    ...(!signIn && signupAccountType ? { accountType: signupAccountType } : {}),
     expiresAt: new Date(now + 600_000).toISOString(),
     resendAvailableAt: new Date(now + 60_000).toISOString(),
   } }, 200);

@@ -20,6 +20,10 @@ export const developmentCatalogs: Record<UniversityId, AcademicCatalog> = {
   texas: emptyCatalog,
   lsu: emptyCatalog,
   alabama: emptyCatalog,
+  oregon: emptyCatalog,
+  harvard: emptyCatalog,
+  michigan: emptyCatalog,
+  miami: emptyCatalog,
 };
 
 export function getAcademicCatalog(universityId: UniversityId) {

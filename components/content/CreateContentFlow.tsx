@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 
 import { MusicPicker } from "@/components/music/MusicPicker";
 import { SelectedMusicTrack } from "@/components/music/SelectedMusicTrack";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { sampleEvents } from "@/data/events";
 import { developmentOrganizations } from "@/data/organizations";
 import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
@@ -62,7 +63,11 @@ type CreateContentFlowProps = {
   viewer: CampusMintUser;
   users: CampusMintUser[];
   theme: UniversityTheme;
-  onCreateMint: (input: CreateMintInput) => void;
+  onCreateMint: (
+    input: CreateMintInput,
+    media: readonly LocalMintMediaSelection[],
+    requestId: string,
+  ) => Promise<{ ok: boolean; message: string | null }>;
   onClose: () => void;
   organizationMemberships: OrganizationMembership[];
   organizationRoles: OrganizationRoleAssignment[];
@@ -81,12 +86,14 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   const captionTextareaRef = useRef<HTMLTextAreaElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const closeTimerRef = useRef<number | null>(null);
+  const publishRequestIdRef = useRef(globalThis.crypto.randomUUID());
   const reducedMotion = useReducedMotion();
   const [closing, setClosing] = useState(false);
   const [internalMedia, setInternalMedia] = useState<LocalMintMediaSelection[]>([]);
   const [internalMediaError, setInternalMediaError] = useState<string | null>(null);
   const [internalMediaPreparing, setInternalMediaPreparing] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [postType, setPostType] = useState<SocialPostType>("personal");
   const [caption, setCaption] = useState("");
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -110,13 +117,21 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
 
   const requestClose = useCallback(() => {
-    if (closing) return;
+    if (closing || submitting) return;
     setClosing(true);
     closeTimerRef.current = window.setTimeout(
       onClose,
       reducedMotion ? 0 : motion.duration.fast,
     );
-  }, [closing, onClose, reducedMotion]);
+  }, [closing, onClose, reducedMotion, submitting]);
+
+  const closeAfterPublish = useCallback(() => {
+    setClosing(true);
+    closeTimerRef.current = window.setTimeout(
+      onClose,
+      reducedMotion ? 0 : motion.duration.fast,
+    );
+  }, [onClose, reducedMotion]);
 
   useModalLayer(dialogRef, requestClose);
 
@@ -290,8 +305,9 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     setInternalMediaError(null);
   }
 
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitting) return;
     setSubmitError(null);
 
     if (!network) {
@@ -333,7 +349,8 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
           ? resolvedLocation()
           : null;
 
-    onCreateMint({
+    setSubmitting(true);
+    const result = await onCreateMint({
       publishFormat: "mint",
       authorId: viewer.account.id,
 
@@ -373,9 +390,14 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       taggedOrganizationIds: postType !== "club" && taggedOrganizationId ? [taggedOrganizationId] : [],
       organizationAudience: postType === "club" ? organizationAudience : "public",
       privacy,
-      isDevelopment: true,
-    });
-    requestClose();
+      isDevelopment: viewer.account.isDevelopment,
+    }, activeMedia, publishRequestIdRef.current);
+    setSubmitting(false);
+    if (!result.ok) {
+      setSubmitError(result.message ?? "We couldn't publish your Mint. Your draft is still here—try again.");
+      return;
+    }
+    closeAfterPublish();
   }
 
   const personalDurationOptions = personalMintDurationOptions.map((option) => ({
@@ -407,21 +429,17 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
         <div className="sticky -top-5 z-30 -mx-4 -mt-5 flex items-start justify-between gap-4 border-b border-slate-100 bg-white/95 px-4 pb-3 pt-5 backdrop-blur-xl sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0">
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: theme.primary }}>
-              Local development flow
+              {viewer.account.isDevelopment ? "Local development flow" : "Campus Mint publishing"}
             </p>
             <h2 id="create-content-title" className="mt-1 text-xl font-black sm:text-2xl">
               Create Mint
             </h2>
           </div>
-          <button
-            type="button"
+          <CloseButton
             onClick={requestClose}
             data-initial-focus
-            aria-label="Close Create Mint"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl font-bold text-slate-700"
-          >
-            ×
-          </button>
+            label="Close Create Mint"
+          />
         </div>
 
         <form onSubmit={submit} className="mt-6 space-y-6">
@@ -448,8 +466,9 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                       : "Text-only Mint"}
                 </p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Photos and videos stay local to this development session.
-                  No production upload is performed.
+                  {viewer.account.isDevelopment
+                    ? "Development accounts keep media in this browser session."
+                    : "Photos are optimized before upload. Your Mint is saved before this composer closes."}
                 </p>
               </div>
 
@@ -687,7 +706,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                 className={fieldClass}
               >
                 <option value="account">Use account privacy</option>
-                <option value="public">Public within discovery scope</option>
+                <option value="public">Public across Campus Mint</option>
                 <option value="connections">Connections only</option>
                 <option value="private">Only me</option>
               </select>
@@ -700,7 +719,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
           </fieldset>
           <div className="flex flex-wrap gap-5"><label className="text-sm font-semibold"><input type="checkbox" className="mr-2" checked={commentsEnabled} onChange={(event) => setCommentsEnabled(event.target.checked)} />Comments enabled</label></div>
           {submitError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{submitError}</p>}
-          <div className="flex gap-3"><button type="button" onClick={requestClose} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold">Cancel</button><button className="flex-1 rounded-xl px-4 py-3 text-sm font-bold text-white" style={{ backgroundColor: postType === "event" ? "#059669" : theme.primary }}>Publish Mint</button></div>
+          <div className="flex gap-3"><button type="button" onClick={requestClose} disabled={submitting} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold disabled:cursor-wait disabled:opacity-50">Cancel</button><button type="submit" disabled={submitting || activeMediaPreparing} className="flex-1 rounded-xl px-4 py-3 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60" style={{ backgroundColor: postType === "event" ? "#059669" : theme.primary }}>{submitting ? "Publishing…" : submitError ? "Retry Publish" : "Publish Mint"}</button></div>
         </form>
         <MusicPicker open={musicPickerOpen} selected={selectedMusic} onSelect={setSelectedMusic} onClose={() => setMusicPickerOpen(false)} />
       </section>

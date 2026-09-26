@@ -13,9 +13,13 @@ export const trackPrograms: readonly TrackProgram[] = [
   { id: "texas-track-2026", teamId: "texas", label: "Track & field · 2026", season: "2026", source: official("Texas Track & Field", "https://texaslonghorns.com/sports/track-and-field"), meets: [] },
   { id: "lsu-track-2026", teamId: "lsu", label: "Track & field · 2026", season: "2026", source: official("LSU Track & Field", "https://lsusports.net/sports/tf/"), meets: [] },
   { id: "alabama-track-2026", teamId: "alabama", label: "Track & field · 2026", season: "2026", source: official("Alabama Track & Field", "https://rolltide.com/sports/xctrack"), meets: [] },
+  { id: "oregon-track-2026", teamId: "oregon", label: "Track & field · 2026", season: "2026", source: official("Oregon Track & Field", "https://goducks.com/sports/track-and-field"), meets: [] },
+  { id: "harvard-track-2026", teamId: "harvard", label: "Track & field · 2026", season: "2026", source: official("Harvard Track & Field", "https://gocrimson.com/sports/track-and-field"), meets: [] },
+  { id: "michigan-track-2026", teamId: "michigan", label: "Track & field · 2026", season: "2026", source: official("Michigan Track & Field", "https://mgoblue.com/sports/mens-track-and-field"), meets: [] },
+  { id: "miami-track-2026", teamId: "miami", label: "Track & field · 2026", season: "2026", source: official("Miami Track & Field", "https://miamihurricanes.com/sports/track/"), meets: [] },
 ];
 
 export function getTrackProgram(universityId: UniversityId | null) {
-  const teamId = universityId ? ({ tamu: "texas-am", texas: "texas", lsu: "lsu", alabama: "alabama", blinn: "blinn" } as const)[universityId] : "texas-am";
+  const teamId = universityId ? ({ tamu: "texas-am", texas: "texas", lsu: "lsu", alabama: "alabama", blinn: "blinn", oregon: "oregon", harvard: "harvard", michigan: "michigan", miami: "miami" } as const)[universityId] : "texas-am";
   return trackPrograms.find((program) => program.teamId === teamId) ?? null;
 }

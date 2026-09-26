@@ -2,9 +2,11 @@ import type {
   SocialContentType,
   SocialMedia,
 } from "@/types/content";
+import { launchPublishedMediaPolicy } from "./mediaPolicy.ts";
 
 export type LocalMintMediaSelection = {
   fileName: string;
+  file: File;
   media: SocialMedia;
 };
 
@@ -19,6 +21,53 @@ export function getMintMediaType(
   if (mimeType.startsWith("image/")) return "image";
   if (mimeType.startsWith("video/")) return "video";
   return null;
+}
+
+export const MAX_MINT_MEDIA_ITEMS = launchPublishedMediaPolicy.maxItemsPerMint;
+export const MAX_MINT_IMAGE_BYTES = launchPublishedMediaPolicy.maxImageBytes;
+export const MAX_MINT_VIDEO_BYTES = launchPublishedMediaPolicy.maxVideoBytes;
+export const MAX_MINT_IMAGE_DIMENSION = launchPublishedMediaPolicy.maxImageDimension;
+
+const supportedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const supportedVideoTypes = new Set(["video/mp4", "video/webm"]);
+
+function validFileSize(file: File, type: SocialMedia["type"]) {
+  const maximum = type === "image" ? MAX_MINT_IMAGE_BYTES : MAX_MINT_VIDEO_BYTES;
+  return file.size > 0 && file.size <= maximum;
+}
+
+async function optimizeImage(file: File) {
+  if (!supportedImageTypes.has(file.type) || typeof createImageBitmap !== "function") {
+    return { file, width: null, height: null };
+  }
+
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const scale = Math.min(1, MAX_MINT_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  if (scale === 1 && file.type === "image/webp") {
+    bitmap.close();
+    return { file, width, height };
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close();
+    return { file, width, height };
+  }
+  context.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.86));
+  if (!blob || blob.size >= file.size) return { file, width, height };
+  const optimizedName = file.name.replace(/\.[^.]+$/, "") || "mint-photo";
+  return {
+    file: new File([blob], `${optimizedName}.webp`, { type: "image/webp", lastModified: file.lastModified }),
+    width,
+    height,
+  };
 }
 
 export function getMintContentType(
@@ -50,34 +99,66 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
+function readVideoMetadata(file: File) {
+  return new Promise<{ width: number | null; height: number | null; durationSeconds: number | null }>((resolve) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    const finish = (value: { width: number | null; height: number | null; durationSeconds: number | null }) => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(value);
+    };
+    video.preload = "metadata";
+    video.addEventListener("loadedmetadata", () => finish({
+      width: video.videoWidth > 0 ? video.videoWidth : null,
+      height: video.videoHeight > 0 ? video.videoHeight : null,
+      durationSeconds: Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null,
+    }), { once: true });
+    video.addEventListener("error", () => finish({ width: null, height: null, durationSeconds: null }), { once: true });
+    video.src = objectUrl;
+  });
+}
+
 /**
- * Converts locally selected development media to in-memory data URLs. This
- * keeps previews usable after the composer closes without pretending that an
- * upload has occurred or leaving object URLs behind to revoke later.
+ * Validates and prepares selected media for both an in-memory preview and the
+ * later authenticated upload. The preview is not treated as publish success.
  */
 export async function prepareLocalMintMedia(
   files: readonly File[],
 ): Promise<LocalMintMediaPreparation> {
   const prepared = await Promise.all(
-    files.map(async (file, order) => {
+    files.slice(0, MAX_MINT_MEDIA_ITEMS).map(async (file, order) => {
       const type = getMintMediaType(file.type);
-      if (!type) return { fileName: file.name, selection: null };
+      const supported = type === "image"
+        ? supportedImageTypes.has(file.type)
+        : type === "video"
+          ? supportedVideoTypes.has(file.type)
+          : false;
+      if (!type || !supported || !validFileSize(file, type)) {
+        return { fileName: file.name, selection: null };
+      }
 
       try {
-        const url = await readFileAsDataUrl(file);
+        const videoMetadata = type === "video"
+          ? await readVideoMetadata(file)
+          : { width: null, height: null, durationSeconds: null };
+        const optimized = type === "image"
+          ? await optimizeImage(file)
+          : { file, width: videoMetadata.width, height: videoMetadata.height };
+        const url = await readFileAsDataUrl(optimized.file);
 
         return {
           fileName: file.name,
           selection: {
             fileName: file.name,
+            file: optimized.file,
             media: {
               id: `local-media-${globalThis.crypto.randomUUID()}`,
               type,
               url,
               thumbnailUrl: null,
-              width: null,
-              height: null,
-              durationSeconds: null,
+              width: optimized.width,
+              height: optimized.height,
+              durationSeconds: videoMetadata.durationSeconds,
               order,
               isDevelopmentPlaceholder: false,
             },
@@ -98,8 +179,9 @@ export async function prepareLocalMintMedia(
       ...item,
       media: { ...item.media, order },
     })),
-    rejectedFileNames: prepared.flatMap((item) =>
-      item.selection ? [] : [item.fileName],
-    ),
+    rejectedFileNames: [
+      ...prepared.flatMap((item) => item.selection ? [] : [item.fileName]),
+      ...files.slice(MAX_MINT_MEDIA_ITEMS).map((file) => file.name),
+    ],
   };
 }

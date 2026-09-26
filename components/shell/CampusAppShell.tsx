@@ -22,6 +22,8 @@ import { MessagesSkeleton } from "@/components/messages/MessagesSkeleton";
 import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
 import { CampusMintFeed } from "@/components/mintz/CampusMintFeed";
 import { AccountOnboarding } from "@/components/onboarding/AccountOnboarding";
+import { CreatorEmailOnboarding } from "@/components/onboarding/CreatorEmailOnboarding";
+import { CreatorWorkspace } from "@/components/creator/CreatorWorkspace";
 import { ProfilesHub } from "@/components/profile/ProfilesHub";
 import { GlobalSearchOverlay } from "@/components/search/GlobalSearchOverlay";
 import { GlobalSearchSkeleton } from "@/components/search/GlobalSearchSkeleton";
@@ -58,11 +60,19 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useStories } from "@/hooks/useStories";
 import { canJoinOrganization } from "@/lib/organizationPermissions";
+import { clearPrivateSessionCache } from "@/lib/auth/privateSessionCache";
 import {
   prepareLocalMintMedia,
   type LocalMintMediaSelection,
 } from "@/lib/content/localMintMedia";
 import { SectionMemory } from "@/lib/navigation/sectionMemory";
+import {
+  mainSectionUrl,
+  parseCampusAppLocation,
+  profileUrl,
+  searchUrl,
+  type CampusAppLocation,
+} from "@/lib/navigation/appLocation";
 import { resolveNotificationDeepLink } from "@/lib/notifications/campusNotifications";
 import { rankPrivateMessageSuggestions } from "@/lib/social/privateMessages";
 import { areDeveloperControlsEnabled, areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
@@ -75,6 +85,7 @@ import {
   resolveFiniteNavigationDestination,
   resolveGestureAxis,
   updateNotchScrollState,
+  type FloatingSurfaceOrigin,
 } from "@/lib/motion/interaction";
 import {
   initialUnifiedSearchState,
@@ -86,7 +97,7 @@ import { getVisibleStories } from "@/lib/storyPermissions";
 import type { Organization } from "@/types/organization";
 import type { CampusNotification } from "@/types/notification";
 import type { TemporaryUser } from "@/types/user";
-import type { AccountSessionResponse, BrandSessionProfile } from "@/types/accountSession";
+import type { AccountSessionResponse, BrandSessionProfile, CreatorSessionProfile } from "@/types/accountSession";
 
 type PageDragState = {
   pointerId: number;
@@ -132,42 +143,43 @@ const marketplacePermissionMode =
     ? "development_role"
     : "verified_student";
 
-export function CampusAppShell() {
-  const [navIndex, setNavIndex] = useState(() => {
-    if (typeof window === "undefined") {
-      return INITIAL_MINT_INDEX >= 0
-        ? INITIAL_MINT_INDEX
-        : 0;
-    }
+type CampusAppShellProps = {
+  initialLocation: CampusAppLocation;
+};
 
-    const savedSection = migrateStoredPrimarySection(
-      window.localStorage.getItem(ACTIVE_SECTION_STORAGE_KEY),
-    );
-
-    const savedIndex = savedSection
-      ? sectionSequence.indexOf(savedSection)
-      : -1;
-
-    return savedIndex >= 0
-      ? savedIndex
+export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
+  const initialSection = initialLocation.kind === "section"
+    ? initialLocation.section
+    : initialLocation.returnSection;
+  const initialSectionIndex = sectionSequence.indexOf(initialSection);
+  const [navIndex, setNavIndex] = useState(
+    initialSectionIndex >= 0
+      ? initialSectionIndex
       : INITIAL_MINT_INDEX >= 0
         ? INITIAL_MINT_INDEX
-        : 0;
-  });
+        : 0,
+  );
   const [specialSection, setSpecialSection] =
-    useState<"profile" | null>(null);
+    useState<"profile" | null>(initialLocation.kind === "profile" ? "profile" : null);
   const [swipeProgress, setSwipeProgress] = useState(0);
   const [swipeSettling, setSwipeSettling] = useState(false);
   const [mintSweepProgress, setMintSweepProgress] =
     useState<-1 | 1 | null>(null);
   const [selectedProfileUserId, setSelectedProfileUserId] =
-    useState(CURRENT_DEVELOPMENT_USER_ID);
+    useState(
+      initialLocation.kind === "profile"
+        ? initialLocation.profileUserId
+        : CURRENT_DEVELOPMENT_USER_ID,
+    );
   const [directMintReturnUserId, setDirectMintReturnUserId] =
     useState<string | null>(null);
   const [requestedMessageUserId, setRequestedMessageUserId] =
     useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [creatorApplicationOpen, setCreatorApplicationOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationOrigin, setNotificationOrigin] =
+    useState<FloatingSurfaceOrigin | null>(null);
   const [notificationReturnScene, setNotificationReturnScene] = useState<
     "profile" | "messages" | "groups" | "sports" | "search" | null
   >(null);
@@ -176,7 +188,7 @@ export function CampusAppShell() {
   const [requestedSportsSport, setRequestedSportsSport] = useState<
     "football" | "basketball" | "baseball" | null
   >(null);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(initialLocation.kind === "search");
   const [createMintOpen, setCreateMintOpen] = useState(false);
   const [createMintMedia, setCreateMintMedia] =
     useState<LocalMintMediaSelection[]>([]);
@@ -189,24 +201,37 @@ export function CampusAppShell() {
   const [developerUniversityOverride, setDeveloperUniversityOverride] =
     useState<UniversityId | null>(initialDeveloperUniversityOverride);
   const [unifiedSearchState, setUnifiedSearchState] =
-    useState<UnifiedSearchState>(() => ({ ...initialUnifiedSearchState }));
+    useState<UnifiedSearchState>(() => initialLocation.kind === "search"
+      ? initialLocation.searchState
+      : { ...initialUnifiedSearchState });
   const [onboardingOpen, setOnboardingOpen] = useState(true);
-  const [sessionStatus, setSessionStatus] = useState<"checking" | "signed_out" | "student" | "brand">("checking");
+  const [sessionStatus, setSessionStatus] = useState<"checking" | "signed_out" | "student" | "brand" | "creator">("checking");
   const [brandProfile, setBrandProfile] = useState<BrandSessionProfile | null>(null);
+  const [creatorProfile, setCreatorProfile] = useState<CreatorSessionProfile | null>(null);
+  const [canUseCampusTester, setCanUseCampusTester] = useState(false);
 
   const swipeProgressRef = useRef(0);
   const settleTimerRef = useRef<number | null>(null);
   const pageDragRef = useRef<PageDragState | null>(null);
   const searchTouchRef = useRef<SearchTouchState>(null);
   const searchScrollYRef = useRef(0);
+  const searchNavigationInFlightRef = useRef(false);
   const profileHydrationAppliedRef = useRef(false);
   const mintReturnTimerRef = useRef<number | null>(null);
   const sectionCommitFrameRef = useRef<number | null>(null);
   const scrollRestoreFrameRef = useRef<number | null>(null);
   const createMintFileInputRef = useRef<HTMLInputElement>(null);
   const createMintMediaRequestRef = useRef(0);
-  const profileReturnSectionRef =
-    useRef<SwipeSection>("mint");
+  const profileReturnSectionRef = useRef<SwipeSection>(
+    initialLocation.kind === "profile"
+      ? initialLocation.returnSection
+      : initialSection,
+  );
+  const searchReturnSectionRef = useRef<SwipeSection>(
+    initialLocation.kind === "search"
+      ? initialLocation.returnSection
+      : initialSection,
+  );
   const profileReturnScrollRef = useRef(0);
   const specialScrollPositionsRef = useRef(new Map<string, number>());
   const scrollOwnerSectionRef = useRef<SwipeSection | null>(null);
@@ -225,7 +250,7 @@ export function CampusAppShell() {
   const mintz = useMintz(currentUserId);
   const directMint = useDirectMint(currentUserId);
   const eventMoments = useEventMoments();
-  const campusEventState = useCampusEvents();
+  const campusEventState = useCampusEvents(developerUniversityOverride);
   const organizations = useOrganizations(currentUserId);
   const campusNotifications = useCampusNotifications(
     currentUserId,
@@ -250,16 +275,27 @@ export function CampusAppShell() {
       if (!result.authenticated) {
         clearAuthenticatedProfile();
         setBrandProfile(null);
+        setCreatorProfile(null);
+        setCanUseCampusTester(false);
         setSessionStatus("signed_out");
         setOnboardingOpen(true);
         return;
       }
+      setCanUseCampusTester(Boolean(result.canUseCampusTester));
       if (result.accountType === "brand") {
         setBrandProfile(result.brand);
         setSessionStatus("brand");
         setOnboardingOpen(!result.onboardingComplete);
         return;
       }
+      if (result.accountType === "creator") {
+        setCreatorProfile(result.creator);
+        setBrandProfile(null);
+        setSessionStatus("creator");
+        setOnboardingOpen(!result.onboardingComplete);
+        return;
+      }
+      setCreatorProfile(result.creator);
       setSessionStatus("student");
       setOnboardingOpen(!result.onboardingComplete);
       if (result.user) {
@@ -373,6 +409,56 @@ export function CampusAppShell() {
   }, []);
 
   useEffect(() => {
+    const applyLocation = () => {
+      searchNavigationInFlightRef.current = false;
+      const location = parseCampusAppLocation(
+        new URLSearchParams(window.location.search),
+      );
+      const section = location.kind === "section"
+        ? location.section
+        : location.returnSection;
+      const sectionIndex = sectionSequence.indexOf(section);
+      clearSettleTimer();
+      cancelScheduledMainSectionCommit();
+      setGestureProgress(0);
+      setSwipeSettling(false);
+      setSettingsOpen(false);
+      setNotificationsOpen(false);
+      if (location.kind === "profile") {
+        setSearchOpen(false);
+        profileReturnSectionRef.current = location.returnSection;
+        setSelectedProfileUserId(location.profileUserId);
+        setSpecialSection("profile");
+        restoreSpecialPageScroll(
+          specialPageKey("profile", location.profileUserId),
+        );
+        return;
+      }
+      if (location.kind === "search") {
+        setSpecialSection(null);
+        searchReturnSectionRef.current = location.returnSection;
+        setUnifiedSearchState(location.searchState);
+        setSearchOpen(true);
+        if (sectionIndex >= 0) setNavIndex(sectionIndex);
+        committedSectionRef.current = section;
+        scrollOwnerSectionRef.current = section;
+        return;
+      }
+      setSearchOpen(false);
+      setSpecialSection(null);
+      if (sectionIndex >= 0) setNavIndex(sectionIndex);
+      committedSectionRef.current = section;
+      scrollOwnerSectionRef.current = section;
+      window.localStorage.setItem(ACTIVE_SECTION_STORAGE_KEY, section);
+      restoreWindowScroll(sectionMemoryRef.current?.getScrollY(section) ?? 0);
+    };
+    window.addEventListener("popstate", applyLocation);
+    return () => window.removeEventListener("popstate", applyLocation);
+    // Route listener reads current refs; it must not churn during gestures.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     const saved = window.localStorage.getItem(ACTIVE_SECTION_STORAGE_KEY);
     const migrated = migrateStoredPrimarySection(saved);
     if (saved !== migrated) {
@@ -438,6 +524,36 @@ export function CampusAppShell() {
       ),
     [preferenceState.preferences.appearance, theme],
   );
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const variables = {
+      "--app-background": appearanceTokens.background,
+      "--app-surface": appearanceTokens.surface,
+      "--app-surface-elevated": appearanceTokens.surfaceElevated,
+      "--app-text-primary": appearanceTokens.textPrimary,
+      "--app-text-secondary": appearanceTokens.textSecondary,
+      "--app-border": appearanceTokens.border,
+      "--app-accent": appearanceTokens.accent,
+      "--app-accent-soft": appearanceTokens.accentSoft,
+      "--app-accent-contrast": appearanceTokens.accentContrast,
+      "--app-danger": appearanceTokens.danger,
+      "--app-success": appearanceTokens.success,
+    } as const;
+    const previous = Object.fromEntries(
+      Object.keys(variables).map((name) => [name, root.style.getPropertyValue(name)]),
+    );
+    const previousScheme = root.style.colorScheme;
+    for (const [name, value] of Object.entries(variables)) root.style.setProperty(name, value);
+    root.style.colorScheme = appearanceTokens.colorScheme;
+    return () => {
+      for (const [name, value] of Object.entries(previous)) {
+        if (value) root.style.setProperty(name, value);
+        else root.style.removeProperty(name);
+      }
+      root.style.colorScheme = previousScheme;
+    };
+  }, [appearanceTokens]);
 
   const createMintUsers = useMemo(
     () => {
@@ -541,6 +657,11 @@ export function CampusAppShell() {
     committedSectionRef.current = section;
     scrollOwnerSectionRef.current = section;
     window.localStorage.setItem(ACTIVE_SECTION_STORAGE_KEY, section);
+    const targetUrl = mainSectionUrl(section);
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (currentUrl !== targetUrl) {
+      window.history.pushState({ campusMintView: "section", section }, "", targetUrl);
+    }
 
     if (result?.refreshed) {
       if (section === "mint") {
@@ -661,6 +782,11 @@ export function CampusAppShell() {
     setSpecialPageLeaving(false);
     setSelectedProfileUserId(userId);
     setSpecialSection("profile");
+    window.history.pushState(
+      { campusMintView: "profile", profileUserId: userId, returnSection: profileReturnSectionRef.current, hasReturnEntry: true },
+      "",
+      profileUrl(userId, profileReturnSectionRef.current),
+    );
     restoreSpecialPageScroll(specialPageKey("profile", userId));
   }
 
@@ -678,6 +804,7 @@ export function CampusAppShell() {
       setSpecialSection(null);
       setSpecialPageLeaving(false);
       setGestureProgress(0);
+      window.history.replaceState({ campusMintView: "section", section }, "", mainSectionUrl(section));
       scheduleMainSectionCommit(
         section,
         section === profileReturnSectionRef.current
@@ -706,6 +833,10 @@ export function CampusAppShell() {
       setNotificationReturnScene(null);
       setNotificationsOpen(true);
       scheduleMainSectionCommit(committedSectionRef.current);
+      return;
+    }
+    if (window.history.state?.campusMintView === "profile" && window.history.state?.hasReturnEntry) {
+      window.history.back();
       return;
     }
     leaveProfileTo(
@@ -793,29 +924,111 @@ export function CampusAppShell() {
       return;
     }
 
-    setNotificationReturnScene("search");
-    setUnifiedSearchState({
+    const eventSearchState: UnifiedSearchState = {
       ...initialUnifiedSearchState,
       category: "events",
       history: [{ kind: "event", id: destination.eventId }],
-    });
-    setSearchOpen(true);
+    };
+    setNotificationReturnScene("search");
+    openSearchOverlayWithState(eventSearchState);
   }
 
-  function openSearchOverlay() {
-    setSettingsOpen(false);
-    setNotificationsOpen(false);
-    setSearchOpen(true);
-  }
+  function updateSearchState(next: UnifiedSearchState) {
+    const previousDepth = unifiedSearchState.history.length;
+    if (
+      searchOpen &&
+      next.history.length < previousDepth &&
+      window.history.state?.campusMintView === "search" &&
+      window.history.state?.hasPreviousSearchEntry
+    ) {
+      searchNavigationInFlightRef.current = true;
+      window.history.go(next.history.length - previousDepth);
+      return;
+    }
 
-  function backSearchOverlay() {
-    setUnifiedSearchState((current) =>
-      requestUnifiedSearchDismiss(current).state,
+    setUnifiedSearchState(next);
+    if (!searchOpen) return;
+
+    const targetUrl = searchUrl(next, searchReturnSectionRef.current);
+    if (next.history.length > previousDepth) {
+      window.history.pushState(
+        {
+          campusMintView: "search",
+          searchDepth: next.history.length,
+          hasPreviousSearchEntry: true,
+        },
+        "",
+        targetUrl,
+      );
+      return;
+    }
+
+    window.history.replaceState(
+      {
+        ...window.history.state,
+        campusMintView: "search",
+        searchDepth: next.history.length,
+      },
+      "",
+      targetUrl,
     );
   }
 
+  function openSearchOverlayWithState(nextState: UnifiedSearchState) {
+    setSettingsOpen(false);
+    setNotificationsOpen(false);
+    searchReturnSectionRef.current = committedSectionRef.current;
+    setUnifiedSearchState(nextState);
+    setSearchOpen(true);
+    window.history.pushState(
+      {
+        campusMintView: "search",
+        searchDepth: nextState.history.length,
+        hasReturnEntry: true,
+      },
+      "",
+      searchUrl(nextState, searchReturnSectionRef.current),
+    );
+  }
+
+  function openSearchOverlay() {
+    openSearchOverlayWithState(unifiedSearchState);
+  }
+
+  function backSearchOverlay() {
+    if (searchNavigationInFlightRef.current) return;
+    if (
+      window.history.state?.campusMintView === "search" &&
+      window.history.state?.hasPreviousSearchEntry
+    ) {
+      searchNavigationInFlightRef.current = true;
+      window.history.back();
+      return;
+    }
+
+    const next = requestUnifiedSearchDismiss(unifiedSearchState).state;
+    updateSearchState(next);
+  }
+
   function closeSearchOverlay() {
-    setSearchOpen(false);
+    if (searchNavigationInFlightRef.current) return;
+    if (
+      window.history.state?.campusMintView === "search" &&
+      window.history.state?.hasReturnEntry
+    ) {
+      searchNavigationInFlightRef.current = true;
+      window.history.back();
+    } else {
+      setSearchOpen(false);
+      window.history.replaceState(
+        {
+          campusMintView: "section",
+          section: searchReturnSectionRef.current,
+        },
+        "",
+        mainSectionUrl(searchReturnSectionRef.current),
+      );
+    }
     if (notificationReturnScene === "search") {
       setNotificationReturnScene(null);
       setNotificationsOpen(true);
@@ -873,6 +1086,7 @@ export function CampusAppShell() {
 
   async function logoutDevelopmentUser() {
     await fetch("/api/account/logout", { method: "POST" }).catch(() => null);
+    clearPrivateSessionCache(window.localStorage, currentUserId);
     profiles.logoutDevelopmentUser();
     profiles.clearAuthenticatedUser();
     closeCreateMint();
@@ -884,7 +1098,10 @@ export function CampusAppShell() {
     setDeveloperUniversityOverride(initialDeveloperUniversityOverride);
     setOnboardingOpen(true);
     setBrandProfile(null);
+    setCreatorProfile(null);
+    setCanUseCampusTester(false);
     setSessionStatus("signed_out");
+    window.history.replaceState({ campusMintView: "section", section: "mint" }, "", "/");
   }
 
   function returnToProfileFromDirectMint() {
@@ -1482,19 +1699,30 @@ export function CampusAppShell() {
   }
 
   if (sessionStatus === "checking") {
-    return <main className="min-h-dvh bg-[#f8f3f2]" aria-label="Loading account" />;
+    return <main className="min-h-dvh bg-[var(--app-background)]" style={shellStyle} aria-label="Loading account" />;
   }
 
   if (sessionStatus === "brand" && brandProfile && !onboardingOpen) {
-    return <BrandWorkspace brand={brandProfile} onLogout={() => { void logoutDevelopmentUser(); }} />;
+    return <div className="campus-app-shell" style={shellStyle} data-appearance={preferenceState.preferences.appearance.scheme}><BrandWorkspace brand={brandProfile} onLogout={() => { void logoutDevelopmentUser(); }} /></div>;
+  }
+
+  if (sessionStatus === "creator" && creatorProfile && !onboardingOpen) {
+    return <div className="campus-app-shell" style={shellStyle} data-appearance={preferenceState.preferences.appearance.scheme}><CreatorWorkspace creator={creatorProfile} onLogout={() => { void logoutDevelopmentUser(); }} /></div>;
+  }
+
+  if (sessionStatus === "student" && creatorApplicationOpen) {
+    return <CreatorEmailOnboarding emailAlreadyVerified onBack={() => setCreatorApplicationOpen(false)} onComplete={() => { setCreatorApplicationOpen(false); void refreshAccountSession(); }} />;
   }
 
   if (onboardingOpen) {
     return (
-      <AccountOnboarding
-        initialAccountType={sessionStatus === "brand" ? "brand" : sessionStatus === "student" ? "student" : null}
+      <div className="campus-app-shell" style={shellStyle} data-appearance={preferenceState.preferences.appearance.scheme}><AccountOnboarding
+        initialAccountType={sessionStatus === "brand" ? "brand" : sessionStatus === "creator" ? "creator" : sessionStatus === "student" ? "student" : null}
         brandSessionVerified={sessionStatus === "brand"}
+        creatorSessionVerified={sessionStatus === "creator"}
         onBrandComplete={() => { void refreshAccountSession(); }}
+        onCreatorComplete={() => { void refreshAccountSession(); }}
+        onSignInComplete={() => { void refreshAccountSession(); }}
         onStudentVerified={async (
           resolved,
           personalEmail,
@@ -1567,7 +1795,7 @@ export function CampusAppShell() {
           await refreshAccountSession();
           return { ok: true };
         }}
-      />
+      /></div>
     );
   }
 
@@ -1576,7 +1804,7 @@ export function CampusAppShell() {
     <main
       className="campus-app-shell min-h-dvh overflow-x-hidden text-slate-950"
       style={shellStyle}
-      data-appearance={preferenceState.preferences.appearance.mode}
+      data-appearance={preferenceState.preferences.appearance.scheme}
       data-reduced-motion={
         reducedMotion ? "true" : "false"
       }
@@ -1597,9 +1825,10 @@ export function CampusAppShell() {
           setNotificationsOpen(false);
           setSettingsOpen(true);
         }}
-        onOpenNotifications={() => {
+        onOpenNotifications={(origin) => {
           setSearchOpen(false);
           setSettingsOpen(false);
+          setNotificationOrigin(origin);
           setNotificationsOpen((open) => !open);
         }}
         onOpenProfile={() => {
@@ -1609,21 +1838,22 @@ export function CampusAppShell() {
         }}
         unreadNotificationCount={campusNotifications.unreadCount}
         developerControls={
-          showDeveloperControls ? (
+          showDeveloperControls || canUseCampusTester ? (
             <>
               <DeveloperUniversitySwitcher
                 selectedUniversityId={user.universityId}
                 onUniversityChange={changeUniversity}
+                label={showDeveloperControls ? "Dev: Switch campus" : "Owner: Test campus"}
               />
-              <DeveloperRoleSwitcher
+              {showDeveloperControls && <DeveloperRoleSwitcher
                 selectedRole={user.role}
                 onRoleChange={changeRole}
                 primaryColor={theme.primary}
                 secondaryColor={theme.secondary}
-              />
-              <DeveloperSoundPreview
+              />}
+              {showDeveloperControls && <DeveloperSoundPreview
                 enabled={preferenceState.preferences.notifications.sounds}
-              />
+              />}
             </>
           ) : undefined
         }
@@ -1653,7 +1883,7 @@ export function CampusAppShell() {
             organizations={organizations}
             stories={visibleStories}
             searchState={unifiedSearchState}
-            onSearchStateChange={setUnifiedSearchState}
+            onSearchStateChange={updateSearchState}
             onOpenDirectMint={openDirectMintFromSearch}
             onLogout={logoutDevelopmentUser}
             autoFocus
@@ -1761,6 +1991,8 @@ export function CampusAppShell() {
           notifications={campusNotifications}
           users={profiles.users}
           theme={theme}
+          origin={notificationOrigin}
+          reducedMotion={reducedMotion}
           onOpen={openNotification}
           onClose={() => setNotificationsOpen(false)}
         />
@@ -1773,6 +2005,7 @@ export function CampusAppShell() {
           profiles={profiles}
           preferenceState={preferenceState}
           onOpenProfile={() => openProfile(viewer.account.id)}
+          onApplyCreator={() => setCreatorApplicationOpen(true)}
           onClose={() => setSettingsOpen(false)}
         />
       )}

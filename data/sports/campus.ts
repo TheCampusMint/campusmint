@@ -8,6 +8,13 @@ export const launchCampusSports = [
   { id: "football", label: "Football" },
   { id: "basketball", label: "Basketball" },
   { id: "baseball", label: "Baseball" },
+  { id: "soccer", label: "Soccer" },
+  { id: "volleyball", label: "Volleyball" },
+  { id: "softball", label: "Softball" },
+  { id: "gymnastics", label: "Gymnastics" },
+  { id: "track", label: "Track & Field" },
+  { id: "hockey", label: "Ice Hockey" },
+  { id: "rowing", label: "Rowing" },
 ] as const;
 
 export type LaunchCampusSportId = (typeof launchCampusSports)[number]["id"];
@@ -81,6 +88,9 @@ export type CampusAthleticsProfile = {
   divisionLabel: string;
   conferenceId: string | null;
   conferenceLabel: string;
+  /** Editorially selected display slots, backed by the official source below. */
+  featuredSports: readonly LaunchCampusSportId[];
+  featuredSportsSource: SportsDataSource;
   supportedSports: readonly LaunchCampusSportId[];
   programs: Partial<Record<LaunchCampusSportId, CampusSportProgram>>;
   /** Provider snapshots may replace bundled weekly poll boards without a deploy. */
@@ -322,11 +332,37 @@ function standardProfile(input: {
   divisionLabel: string;
   conferenceId: string | null;
   conferenceLabel: string;
+  featuredSports: readonly LaunchCampusSportId[];
+  sourceUrl: string;
+  sourceName: string;
 }) : CampusAthleticsProfile {
+  const source: SportsDataSource = {
+    sourceName: input.sourceName,
+    sourceUrl: input.sourceUrl,
+    season: "current athletics offering",
+    verifiedAt: "2026-09-21",
+  };
+  const programs = Object.fromEntries(
+    input.featuredSports.map((sport) => {
+      const label = launchCampusSports.find((entry) => entry.id === sport)?.label ?? sport;
+      return [sport, {
+        sport,
+        label,
+        seasonLabel: "Current season",
+        seasonStart: "2026-07-01",
+        seasonEnd: "2027-06-30",
+        schedulePublished: false,
+        games: [],
+        source,
+      } satisfies CampusSportProgram];
+    }),
+  ) as Partial<Record<LaunchCampusSportId, CampusSportProgram>>;
+
   return {
     ...input,
-    supportedSports: [],
-    programs: {},
+    featuredSportsSource: source,
+    supportedSports: input.featuredSports,
+    programs,
   };
 }
 
@@ -339,13 +375,19 @@ export const campusAthleticsProfiles: Readonly<Record<UniversityId, CampusAthlet
     divisionLabel: "NCAA Division I",
     conferenceId: "sec",
     conferenceLabel: "SEC",
+    featuredSports: ["football", "basketball", "baseball"],
+    featuredSportsSource: footballSource,
     supportedSports: ["football", "basketball", "baseball"],
     programs: texasAmPrograms,
   },
-  blinn: standardProfile({ universityId: "blinn", universityName: "Blinn College", nickname: "Buccaneers", division: "njcaa", divisionLabel: "NJCAA", conferenceId: null, conferenceLabel: "NJCAA Region XIV" }),
-  texas: standardProfile({ universityId: "texas", universityName: "The University of Texas at Austin", nickname: "Longhorns", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "sec", conferenceLabel: "SEC" }),
-  lsu: standardProfile({ universityId: "lsu", universityName: "Louisiana State University", nickname: "Tigers", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "sec", conferenceLabel: "SEC" }),
-  alabama: standardProfile({ universityId: "alabama", universityName: "The University of Alabama", nickname: "Crimson Tide", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "sec", conferenceLabel: "SEC" }),
+  blinn: standardProfile({ universityId: "blinn", universityName: "Blinn College", nickname: "Buccaneers", division: "njcaa", divisionLabel: "NJCAA", conferenceId: null, conferenceLabel: "NJCAA Region XIV", featuredSports: ["football", "baseball", "volleyball"], sourceName: "Blinn College official athletics programs", sourceUrl: "https://buccaneersports.com/sports/2023/6/12/quick-facts.aspx" }),
+  texas: standardProfile({ universityId: "texas", universityName: "The University of Texas at Austin", nickname: "Longhorns", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "sec", conferenceLabel: "SEC", featuredSports: ["football", "volleyball", "basketball"], sourceName: "University of Texas official ticketed sports", sourceUrl: "https://texaslonghorns.com/tickets" }),
+  lsu: standardProfile({ universityId: "lsu", universityName: "Louisiana State University", nickname: "Tigers", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "sec", conferenceLabel: "SEC", featuredSports: ["football", "basketball", "baseball"], sourceName: "LSU official athletics sports directory", sourceUrl: "https://lsusports.net/sports/" }),
+  alabama: standardProfile({ universityId: "alabama", universityName: "The University of Alabama", nickname: "Crimson Tide", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "sec", conferenceLabel: "SEC", featuredSports: ["football", "gymnastics", "softball"], sourceName: "Alabama official athletics sports directory", sourceUrl: "https://rolltide.com/sports/" }),
+  oregon: standardProfile({ universityId: "oregon", universityName: "University of Oregon", nickname: "Ducks", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "big-ten", conferenceLabel: "Big Ten", featuredSports: ["football", "track", "volleyball"], sourceName: "Oregon official athletics sports directory", sourceUrl: "https://goducks.com/" }),
+  harvard: standardProfile({ universityId: "harvard", universityName: "Harvard University", nickname: "Crimson", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "ivy", conferenceLabel: "Ivy League", featuredSports: ["hockey", "football", "rowing"], sourceName: "Harvard official athletics sports directory", sourceUrl: "https://gocrimson.com/" }),
+  michigan: standardProfile({ universityId: "michigan", universityName: "University of Michigan", nickname: "Wolverines", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "big-ten", conferenceLabel: "Big Ten", featuredSports: ["football", "hockey", "basketball"], sourceName: "Michigan official athletics sports directory", sourceUrl: "https://mgoblue.com/" }),
+  miami: standardProfile({ universityId: "miami", universityName: "University of Miami", nickname: "Hurricanes", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "acc", conferenceLabel: "ACC", featuredSports: ["football", "basketball", "baseball"], sourceName: "Miami official athletics sports directory", sourceUrl: "https://miamihurricanes.com/" }),
 };
 
 export function getCampusAthleticsProfile(universityId: UniversityId | null) {

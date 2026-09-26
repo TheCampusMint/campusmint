@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 
 import { configuredUniversityIds, type UniversityId } from "@/data/universities";
 import { userRoleOptions, type UserRole } from "@/data/userRoles";
+import { isStudentSmsVerificationRequired } from "@/lib/auth/studentSmsPolicy";
 import { createSupabaseServerClient, hasSupabasePublicConfig } from "@/lib/supabase/server";
-import type { AccountSessionResponse, BrandSessionProfile } from "@/types/accountSession";
+import { accountCapabilityValues, type AccountCapability } from "@/types/accountCapabilities";
+import type { AccountSessionResponse, BrandSessionProfile, CreatorSessionProfile } from "@/types/accountSession";
 import type { CampusMintUser, ProfilePrivacySettings } from "@/types/profile";
 
 export const runtime = "nodejs";
@@ -28,35 +30,96 @@ export async function GET() {
     const supabase = await createSupabaseServerClient();
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error || !user) return response({ ok: true, configured: true, authenticated: false });
-    const accountType = user.app_metadata?.account_type === "brand" ? "brand" : "student";
+    const metadataAccountType = user.app_metadata?.account_type;
+    const accountType = metadataAccountType === "brand" || metadataAccountType === "creator" ? metadataAccountType : "student";
+    const { data: capabilityRows } = await supabase.from("account_capabilities")
+      .select("capability")
+      .eq("user_id", user.id)
+      .is("revoked_at", null);
+    const capabilities = (capabilityRows ?? []).flatMap((row) =>
+      accountCapabilityValues.includes(row.capability as AccountCapability)
+        ? [row.capability as AccountCapability]
+        : [],
+    );
+    const canUseCampusTester = capabilities.includes("owner_campus_tester");
+
+    if (accountType === "creator") {
+      const [{ data: creator }, { data: application }] = await Promise.all([
+        supabase.from("creator_profiles").select("id,user_id,display_name,username,bio,badge_tint").eq("user_id", user.id).maybeSingle(),
+        supabase.from("creator_applications").select("id,platform,external_handle,status,control_status").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      if (!creator) return response({ ok: true, configured: true, authenticated: true, accountType, capabilities, onboardingComplete: false, creator: null, canUseCampusTester });
+      const creatorProfile: CreatorSessionProfile = {
+        id: creator.id,
+        userId: creator.user_id,
+        displayName: creator.display_name,
+        username: creator.username,
+        bio: creator.bio,
+        badgeTint: creator.badge_tint,
+        creatorApproved: capabilities.includes("creator"),
+        application: application ? {
+          id: application.id,
+          platform: application.platform,
+          externalHandle: application.external_handle,
+          status: application.status,
+          controlStatus: application.control_status,
+        } : null,
+      };
+      return response({ ok: true, configured: true, authenticated: true, accountType, capabilities, onboardingComplete: Boolean(application), creator: creatorProfile, canUseCampusTester });
+    }
 
     if (accountType === "brand") {
       const { data: brand } = await supabase.from("brand_profiles")
         .select("id,user_id,display_name,username,bio,website_url,contact_email,business_category,verification_status,brand_channels(id,name,handle,description,status)")
         .eq("user_id", user.id).maybeSingle();
-      if (!brand) return response({ ok: true, configured: true, authenticated: true, accountType, onboardingComplete: false, brand: null });
-      const channelValue = Array.isArray(brand.brand_channels) ? brand.brand_channels[0] : brand.brand_channels;
+      if (!brand) return response({ ok: true, configured: true, authenticated: true, accountType, capabilities, onboardingComplete: false, brand: null, canUseCampusTester });
+      const channelValue = brand.verification_status === "verified"
+        ? (Array.isArray(brand.brand_channels) ? brand.brand_channels[0] : brand.brand_channels)
+        : null;
       const brandProfile: BrandSessionProfile = {
         id: brand.id, userId: brand.user_id, displayName: brand.display_name, username: brand.username,
         bio: brand.bio, websiteUrl: brand.website_url, contactEmail: brand.contact_email,
         businessCategory: brand.business_category, verificationStatus: brand.verification_status,
         channel: channelValue ? { id: channelValue.id, name: channelValue.name, handle: channelValue.handle, description: channelValue.description, status: channelValue.status } : null,
       };
-      return response({ ok: true, configured: true, authenticated: true, accountType, onboardingComplete: true, brand: brandProfile });
+      return response({ ok: true, configured: true, authenticated: true, accountType, capabilities, onboardingComplete: true, brand: brandProfile, canUseCampusTester });
     }
 
-    const [{ data: identity }, { data: profile }, { data: privacy }] = await Promise.all([
+    const smsRequired = isStudentSmsVerificationRequired();
+    const [{ data: identity }, { data: profile }, { data: privacy }, { data: creator }, { data: application }, { data: phoneState }] = await Promise.all([
       supabase.from("profile_identities").select("user_id,university_id,role,verified_student,verified_alumni,created_at,updated_at").eq("user_id", user.id).maybeSingle(),
       supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
       supabase.from("profile_privacy_settings").select("*").eq("user_id", user.id).maybeSingle(),
+      supabase.from("creator_profiles").select("id,user_id,display_name,username,bio,badge_tint").eq("user_id", user.id).maybeSingle(),
+      supabase.from("creator_applications").select("id,platform,external_handle,status,control_status").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      smsRequired
+        ? supabase.from("phone_verification_states").select("verified_at,status").eq("user_id", user.id).maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
-    if (!identity || !profile) return response({ ok: true, configured: true, authenticated: true, accountType, onboardingComplete: false, user: null });
+    const studentPhoneVerified = Boolean(phoneState?.verified_at && phoneState.status === "verified");
+    const dualCreator: CreatorSessionProfile | null = creator ? {
+      id: creator.id,
+      userId: creator.user_id,
+      displayName: creator.display_name,
+      username: creator.username,
+      bio: creator.bio,
+      badgeTint: creator.badge_tint,
+      creatorApproved: capabilities.includes("creator"),
+      application: application ? {
+        id: application.id,
+        platform: application.platform,
+        externalHandle: application.external_handle,
+        status: application.status,
+        controlStatus: application.control_status,
+      } : null,
+    } : null;
+    if (!identity || !profile) return response({ ok: true, configured: true, authenticated: true, accountType, capabilities, onboardingComplete: false, user: null, creator: dualCreator, studentSmsVerificationRequired: smsRequired, studentPhoneVerified, canUseCampusTester });
     const universityId = configuredUniversityIds.includes(identity.university_id as UniversityId) ? identity.university_id as UniversityId : "tamu";
     const role = userRoleOptions.some((option) => option.id === identity.role) ? identity.role as UserRole : "student";
     const mapPrivacy = (key: keyof ProfilePrivacySettings) => privacy?.[key === "portfolioUrl" ? "portfolio_url" : key === "personalWebsite" ? "personal_website" : key] ?? defaultPrivacy[key];
     const campusUser: CampusMintUser = {
       account: {
-        id: user.id, accountType: "student", universityId, knownUniversityId: universityId,
+        id: user.id, accountType: "student", capabilities, universityId, knownUniversityId: universityId,
         role, verifiedStudent: identity.verified_student, verifiedAlumni: identity.verified_alumni,
         studentEmail: user.email ?? null, primaryEmail: user.email ?? null,
         studentEmailVerifiedAt: user.email_confirmed_at ?? null, studentEmailVerificationMethod: "email_otp",
@@ -83,7 +146,7 @@ export async function GET() {
       },
       socialSettings: { accountType: "private", discoveryScope: "university" },
     };
-    return response({ ok: true, configured: true, authenticated: true, accountType, onboardingComplete: true, user: campusUser });
+    return response({ ok: true, configured: true, authenticated: true, accountType, capabilities, onboardingComplete: !smsRequired || studentPhoneVerified, user: campusUser, creator: dualCreator, studentSmsVerificationRequired: smsRequired, studentPhoneVerified, canUseCampusTester });
   } catch {
     return response({ ok: false, message: "Account status is temporarily unavailable." }, 503);
   }

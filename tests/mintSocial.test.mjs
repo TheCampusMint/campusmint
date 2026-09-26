@@ -136,11 +136,11 @@ test("own-Mint settings can update caption and comment availability independentl
   assert.equal(applyEditableMintPatch(original, {}, original.updatedAt), null);
 });
 
-test("video gestures lock intent and resolve exit, creator, and vertical navigation", () => {
+test("video gestures lock intent and dismiss vertically without building a Reels feed", () => {
   assert.equal(resolveVideoViewerGesture({ deltaX: 90, deltaY: 8, committed: true }), "exit");
   assert.equal(resolveVideoViewerGesture({ deltaX: -90, deltaY: 8, committed: true }), "creator");
-  assert.equal(resolveVideoViewerGesture({ deltaX: 5, deltaY: -80, committed: true }), "next");
-  assert.equal(resolveVideoViewerGesture({ deltaX: 5, deltaY: 80, committed: true }), "previous");
+  assert.equal(resolveVideoViewerGesture({ deltaX: 5, deltaY: -80, committed: true }), "exit");
+  assert.equal(resolveVideoViewerGesture({ deltaX: 5, deltaY: 80, committed: true }), "exit");
   assert.equal(resolveVideoViewerGesture({ deltaX: 30, deltaY: 28, committed: false }), "pending");
   assert.equal(resolveVideoViewerGesture({ deltaX: 30, deltaY: 28, committed: true }), "cancel");
 });

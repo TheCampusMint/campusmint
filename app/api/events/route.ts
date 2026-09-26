@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { universities, type UniversityId } from "@/data/universities";
 import { createSupabaseServerClient, hasSupabasePublicConfig } from "@/lib/supabase/server";
+import { areDeveloperControlsEnabled } from "@/lib/runtime/fixturePolicy";
 import { eventCategories, type Event, type EventCategory } from "@/types/event";
 
 export const dynamic = "force-dynamic";
@@ -17,15 +18,33 @@ function sourceType(value: string): NonNullable<Event["source"]>["sourceType"] {
       : "trusted_public";
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   if (!hasSupabasePublicConfig()) return NextResponse.json({ ok: true, events: [] }, { headers: { "Cache-Control": "private, no-store" } });
   try {
     const supabase = await createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ ok: false, message: "Sign in to view campus events." }, { status: 401 });
     const { data: identity } = await supabase.from("profile_identities").select("university_id").eq("user_id", user.id).maybeSingle();
-    const campus = identity?.university_id as UniversityId | undefined;
-    if (!campus || !universities[campus]) return NextResponse.json({ ok: true, events: [] }, { headers: { "Cache-Control": "private, no-store" } });
+    const identityCampus = identity?.university_id as UniversityId | undefined;
+    if (!identityCampus || !universities[identityCampus]) return NextResponse.json({ ok: true, events: [] }, { headers: { "Cache-Control": "private, no-store" } });
+    const requestedCampus = new URL(request.url).searchParams.get("universityId") as UniversityId | null;
+    let campus = identityCampus;
+    if (requestedCampus && requestedCampus !== identityCampus) {
+      if (!universities[requestedCampus]) {
+        return NextResponse.json({ ok: false, message: "Unknown campus context." }, { status: 400 });
+      }
+      const { data: testerCapability } = await supabase
+        .from("account_capabilities")
+        .select("capability")
+        .eq("user_id", user.id)
+        .eq("capability", "owner_campus_tester")
+        .is("revoked_at", null)
+        .maybeSingle();
+      if (!testerCapability && !areDeveloperControlsEnabled()) {
+        return NextResponse.json({ ok: false, message: "Campus test access is required." }, { status: 403 });
+      }
+      campus = requestedCampus;
+    }
     const accessible = universities[campus].accessibleCampuses;
     const { data, error } = await supabase.from("campus_events").select("*")
       .in("campus_id", accessible).in("status", ["scheduled", "updated"])

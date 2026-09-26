@@ -8,10 +8,7 @@ type FloatingMintCardProps = {
   reducedMotion?: boolean;
 };
 
-/**
- * Mint cards keep their normal card shadow,
- * but no colored backing, gyro tilt, or pointer-follow movement.
- */
+/** Maintains the feed's motion wrapper without ornamental card depth. */
 export function FloatingMintCard({
   children,
 }: FloatingMintCardProps) {

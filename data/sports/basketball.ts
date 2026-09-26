@@ -13,6 +13,10 @@ export const basketballSeasons: readonly SportsSeason[] = [
   { id: "texas-mbb-2025-26", sport: "basketball", teamId: "texas", label: "Men's basketball · 2025-26", conferenceLabel: "SEC", source: official("Texas Athletics men's basketball", "https://texaslonghorns.com/sports/mens-basketball"), games: [] },
   { id: "lsu-mbb-2025-26", sport: "basketball", teamId: "lsu", label: "Men's basketball · 2025-26", conferenceLabel: "SEC", source: official("LSU men's basketball", "https://lsusports.net/sports/mb/"), games: [] },
   { id: "alabama-mbb-2025-26", sport: "basketball", teamId: "alabama", label: "Men's basketball · 2025-26", conferenceLabel: "SEC", source: official("Alabama men's basketball", "https://rolltide.com/sports/mens-basketball"), games: [] },
+  { id: "oregon-mbb-2025-26", sport: "basketball", teamId: "oregon", label: "Men's basketball · 2025-26", conferenceLabel: "Big Ten", source: official("Oregon men's basketball", "https://goducks.com/sports/mens-basketball"), games: [] },
+  { id: "harvard-mbb-2025-26", sport: "basketball", teamId: "harvard", label: "Men's basketball · 2025-26", conferenceLabel: "Ivy League", source: official("Harvard men's basketball", "https://gocrimson.com/sports/mens-basketball"), games: [] },
+  { id: "michigan-mbb-2025-26", sport: "basketball", teamId: "michigan", label: "Men's basketball · 2025-26", conferenceLabel: "Big Ten", source: official("Michigan men's basketball", "https://mgoblue.com/sports/mens-basketball"), games: [] },
+  { id: "miami-mbb-2025-26", sport: "basketball", teamId: "miami", label: "Men's basketball · 2025-26", conferenceLabel: "ACC", source: official("Miami men's basketball", "https://miamihurricanes.com/sports/mbball/"), games: [] },
 ];
 
-export function getBasketballSeason(universityId: UniversityId | null) { return basketballSeasons.find((season) => season.teamId === ({ tamu: "texas-am", blinn: "blinn", texas: "texas", lsu: "lsu", alabama: "alabama" } as const)[universityId ?? "tamu"]) ?? basketballSeasons[0]; }
+export function getBasketballSeason(universityId: UniversityId | null) { return basketballSeasons.find((season) => season.teamId === ({ tamu: "texas-am", blinn: "blinn", texas: "texas", lsu: "lsu", alabama: "alabama", oregon: "oregon", harvard: "harvard", michigan: "michigan", miami: "miami" } as const)[universityId ?? "tamu"]) ?? basketballSeasons[0]; }

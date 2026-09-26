@@ -18,6 +18,7 @@ type OnboardingProfileSetup = {
 };
 
 type StudentEmailOnboardingProps = {
+  onBack?: () => void;
   onVerified: (
     resolved: VerifiedStudentEmail,
     personalEmail: string | null,
@@ -31,7 +32,7 @@ const pageClass = "cm-onboarding-scene min-h-dvh bg-white px-5 py-10 text-slate-
 const inputClass = "mt-2 block w-full rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4 outline-none transition focus:border-slate-400 focus:bg-white";
 const primaryButtonClass = "w-full rounded-full bg-slate-950 px-5 py-4 text-base font-black text-white transition active:scale-[0.985] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400";
 
-export function StudentEmailOnboarding({ onVerified }: StudentEmailOnboardingProps) {
+export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboardingProps) {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [verificationChallenge, setVerificationChallenge] = useState<VerificationRequestSuccess | null>(null);
@@ -312,6 +313,7 @@ export function StudentEmailOnboarding({ onVerified }: StudentEmailOnboardingPro
   return (
     <main className={pageClass}>
       <div className="mx-auto flex min-h-[calc(100dvh-5rem)] w-full max-w-md flex-col justify-center">
+        {onBack && <MintLeafBackButton onClick={onBack} label="Back" className="mb-8 text-slate-500" />}
         <p className="text-sm font-bold uppercase tracking-[0.22em] text-slate-400">The Campus Mint</p>
         <h1 className="mt-4 text-4xl font-black tracking-[-0.045em]">Verify your university</h1>
         <p className="mt-3 text-base leading-7 text-slate-500">Use your university .edu email to join your campus.</p>

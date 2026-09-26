@@ -43,13 +43,11 @@ function accessLabel(group: CampusGroup) {
 
 function GroupCard({
   group,
-  theme,
   status,
   onAction,
   onOpen,
 }: {
   group: CampusGroup;
-  theme: UniversityTheme;
   status: "none" | "member" | "requested";
   onAction: () => void;
   onOpen: () => void;
@@ -64,7 +62,7 @@ function GroupCard({
       <div className="flex items-start justify-between gap-3">
         <span
           className="flex h-12 w-12 items-center justify-center rounded-2xl text-lg font-black"
-          style={{ backgroundColor: theme.accent, color: theme.primary }}
+          style={{ backgroundColor: "var(--app-accent-soft)", color: "var(--app-accent)" }}
           aria-hidden="true"
         >
           ◎
@@ -79,7 +77,7 @@ function GroupCard({
         </div>
       </div>
       {group.courseCode && (
-        <p className="cm-eyebrow mt-4" style={{ color: theme.primary }}>
+        <p className="cm-eyebrow mt-4" style={{ color: "var(--app-accent)" }}>
           {group.courseCode}
         </p>
       )}
@@ -105,9 +103,9 @@ function GroupCard({
             status !== "requested" && group.access !== "restricted"
               ? {
                   backgroundColor:
-                    status === "member" ? theme.accent : theme.primary,
+                    status === "member" ? "var(--app-accent-soft)" : "var(--app-accent)",
                   color:
-                    status === "member" ? theme.primary : theme.secondary,
+                    status === "member" ? "var(--app-accent)" : "var(--app-accent-contrast)",
                 }
               : undefined
           }
@@ -131,14 +129,12 @@ function GroupCard({
 
 function OrganizationGroupCard({
   organization,
-  theme,
   status,
   memberCount,
   onAction,
   onOpen,
 }: {
   organization: Organization;
-  theme: UniversityTheme;
   status: ReturnType<OrganizationsState["getMembershipStatus"]>;
   memberCount: number;
   onAction: () => void;
@@ -156,7 +152,7 @@ function OrganizationGroupCard({
       <div className="flex items-start justify-between gap-3">
         <span
           className="flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black"
-          style={{ backgroundColor: theme.accent, color: theme.primary }}
+          style={{ backgroundColor: "var(--app-accent-soft)", color: "var(--app-accent)" }}
         >
           {organization.name
             .split(/\s+/)
@@ -195,8 +191,8 @@ function OrganizationGroupCard({
           style={
             !disabled || joined
               ? {
-                  backgroundColor: joined ? theme.accent : theme.primary,
-                  color: joined ? theme.primary : theme.secondary,
+                  backgroundColor: joined ? "var(--app-accent-soft)" : "var(--app-accent)",
+                  color: joined ? "var(--app-accent)" : "var(--app-accent-contrast)",
                 }
               : undefined
           }
@@ -413,25 +409,25 @@ export function GroupsSkeleton({
       <section className="cm-content-swap space-y-4" data-group-detail>
         <header className="flex items-center gap-3">
           <MintLeafBackButton onClick={closeDetail} label="Back" aria-label="Back" tone="minimal" className="text-slate-800" />
-          <div className="min-w-0"><p className="cm-eyebrow" style={{ color: theme.primary }}>Group</p><h1 className="truncate text-xl font-black text-slate-950">{title}</h1></div>
+          <div className="min-w-0"><p className="cm-eyebrow" style={{ color: "var(--app-accent)" }}>Group</p><h1 className="truncate text-xl font-black text-slate-950">{title}</h1></div>
         </header>
         <div className="cm-surface-card p-5 sm:p-6">
           <p className="text-sm leading-6 text-slate-600">{description}</p>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
             <p className="text-xs font-semibold text-slate-500">{typeof memberCount === "number" ? `${memberCount.toLocaleString("en-US")} members` : "Member count unavailable"}</p>
             {selectedOrganization && !joinedOrganization && (
-              <button type="button" onClick={() => onOrganizationMembershipAction(selectedOrganization)} className="rounded-full px-4 py-2 text-xs font-black" style={{ backgroundColor: theme.primary, color: theme.secondary }}>{organizationStatus === "requested" ? "Requested" : "Join / Request"}</button>
+              <button type="button" onClick={() => onOrganizationMembershipAction(selectedOrganization)} className="rounded-full px-4 py-2 text-xs font-black" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>{organizationStatus === "requested" ? "Requested" : "Join / Request"}</button>
             )}
           </div>
         </div>
 
         <div className="cm-surface-card p-5">
-          <div className="flex items-center justify-between gap-3"><div><h2 className="font-black text-slate-900">Group chat</h2><p className="mt-1 text-xs text-slate-500">Local prototype conversation</p></div><button type="button" disabled={!canChat} onClick={() => setChatOpen((current) => !current)} className="rounded-full px-3 py-2 text-xs font-black disabled:bg-slate-100 disabled:text-slate-400" style={canChat ? { backgroundColor: theme.primary, color: theme.secondary } : undefined}>{canChat ? (chatOpen ? "Close chat" : "Open chat") : "Members only"}</button></div>
+          <div className="flex items-center justify-between gap-3"><div><h2 className="font-black text-slate-900">Group chat</h2><p className="mt-1 text-xs text-slate-500">Local prototype conversation</p></div><button type="button" disabled={!canChat} onClick={() => setChatOpen((current) => !current)} className="rounded-full px-3 py-2 text-xs font-black disabled:bg-slate-100 disabled:text-slate-400" style={canChat ? { backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" } : undefined}>{canChat ? (chatOpen ? "Close chat" : "Open chat") : "Members only"}</button></div>
           {!canChat && <p className="mt-3 text-xs leading-5 text-slate-500">Join and become an official conversation participant to access this group chat.</p>}
           {chatOpen && canChat && (
             <div className="cm-content-swap mt-4">
-              <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl bg-slate-50 p-3">{chatMessages.length ? chatMessages.map((message, index) => <p key={`${index}:${message}`} className="ml-auto w-fit max-w-[82%] rounded-2xl px-3 py-2 text-sm text-white" style={{ backgroundColor: theme.primary }}>{message}</p>) : <p className="py-6 text-center text-sm text-slate-400">No local messages yet</p>}</div>
-              <form onSubmit={submitChat} className="mt-2 flex gap-2"><input value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} placeholder="Message group" className="min-w-0 flex-1 rounded-full border border-slate-200 px-4 py-2.5 text-sm" /><button type="submit" disabled={!chatDraft.trim()} className="rounded-full px-4 py-2 text-xs font-black text-white disabled:opacity-40" style={{ backgroundColor: theme.primary }}>Send</button></form>
+              <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl bg-slate-50 p-3">{chatMessages.length ? chatMessages.map((message, index) => <p key={`${index}:${message}`} className="ml-auto w-fit max-w-[82%] rounded-2xl px-3 py-2 text-sm" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>{message}</p>) : <p className="py-6 text-center text-sm text-slate-400">No local messages yet</p>}</div>
+              <form onSubmit={submitChat} className="mt-2 flex gap-2"><input value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} placeholder="Message group" className="min-w-0 flex-1 rounded-full border border-slate-200 px-4 py-2.5 text-sm" /><button type="submit" disabled={!chatDraft.trim()} className="rounded-full px-4 py-2 text-xs font-black disabled:opacity-40" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>Send</button></form>
               <p className="mt-2 text-[10px] text-slate-400">Saved only for this browser session. Real-time group delivery is not connected.</p>
             </div>
           )}
@@ -459,7 +455,7 @@ export function GroupsSkeleton({
               className="rounded-full px-4 py-2 text-xs font-black transition"
               style={
                 selected
-                  ? { backgroundColor: theme.primary, color: theme.secondary }
+                  ? { backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }
                   : { color: "#64748b" }
               }
             >
@@ -478,7 +474,7 @@ export function GroupsSkeleton({
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search groups"
             className="w-full rounded-full border border-white/80 bg-white/95 py-3 pl-12 pr-4 text-sm shadow-sm outline-none focus:ring-2"
-            style={{ caretColor: theme.primary }}
+            style={{ caretColor: "var(--app-accent)" }}
           />
         </label>
       )}
@@ -499,7 +495,6 @@ export function GroupsSkeleton({
               <GroupCard
                 key={group.id}
                 group={group}
-                theme={theme}
                 status="member"
                 onAction={() => campusGroups.leave(group)}
                 onOpen={() => setSelected({ kind: "campus", id: group.id })}
@@ -509,7 +504,6 @@ export function GroupsSkeleton({
               <OrganizationGroupCard
                 key={organization.id}
                 organization={organization}
-                theme={theme}
                 status={organizations.getMembershipStatus(organization.id)}
                 memberCount={organizations.getMemberCount(organization.id)}
                 onAction={() => onOrganizationMembershipAction(organization)}
@@ -524,7 +518,7 @@ export function GroupsSkeleton({
               type="button"
               onClick={() => setView("discover")}
               className="mt-5 rounded-full px-4 py-2.5 text-sm font-black"
-              style={{ backgroundColor: theme.primary, color: theme.secondary }}
+              style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}
             >
               Discover groups
             </button>
@@ -536,7 +530,6 @@ export function GroupsSkeleton({
             <GroupCard
               key={group.id}
               group={group}
-              theme={theme}
               status={campusGroups.getStatus(group.id)}
               onAction={() => campusGroups.joinOrRequest(group)}
               onOpen={() => setSelected({ kind: "campus", id: group.id })}
@@ -546,7 +539,6 @@ export function GroupsSkeleton({
             <OrganizationGroupCard
               key={organization.id}
               organization={organization}
-              theme={theme}
               status={organizations.getMembershipStatus(organization.id)}
               memberCount={organizations.getMemberCount(organization.id)}
               onAction={() => onOrganizationMembershipAction(organization)}

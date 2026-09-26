@@ -2,6 +2,7 @@ import type { UniversityId } from "@/data/universities";
 import type { UserRole } from "@/data/userRoles";
 import type { FriendshipStatus } from "@/types/social";
 import type { CampusMintAccountType } from "@/lib/auth/accountTypes";
+import type { AccountCapability } from "@/types/accountCapabilities";
 
 export const profileVisibilityOptions = [
   { id: "everyone", label: "Everyone" },
@@ -41,6 +42,7 @@ export type ProfilePhoto = {
 export type CampusMintAccount = {
   id: string;
   accountType?: CampusMintAccountType;
+  capabilities?: AccountCapability[];
 
   /** Legacy configured-campus ID used while existing campus features migrate. */
   universityId: UniversityId;

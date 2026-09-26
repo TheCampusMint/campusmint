@@ -12,6 +12,7 @@ import {
 
 import type { UniversityTheme } from "@/data/universities";
 import type { ScreenPoint } from "@/components/mintz/PrivateAppreciationBurst";
+import { resolveNaturalMediaPresentation } from "@/lib/content/mediaPresentation";
 import type { MintMedia } from "@/types/mint";
 
 type MintMediaCarouselProps = {
@@ -91,7 +92,7 @@ function InlineMintVideo({
       muted={autoplayVideo}
       preload={active ? "metadata" : "none"}
       onClick={() => onOpenVideo?.(media.id)}
-      className="h-full w-full object-cover"
+      className="h-full w-full object-contain"
       data-horizontal-gesture-ignore
     />
   );
@@ -465,6 +466,9 @@ export function MintMediaCarousel({
   const items =
     media.length > 0 ? media : [null];
 
+  const activeItem = items[activeIndex] ?? null;
+  const presentation = resolveNaturalMediaPresentation(activeItem?.width, activeItem?.height);
+
   const indicatorStep =
     items.length > 7
       ? 8
@@ -537,24 +541,31 @@ export function MintMediaCarousel({
 
   return (
     <div
-      className="relative overflow-hidden bg-slate-900"
+      className="flex justify-center overflow-hidden bg-transparent"
       data-mint-carousel
+      data-natural-media
     >
       <div
-        ref={carouselRef}
-        onScroll={updatePosition}
-        className="mint-carousel flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
-        aria-label={
-          items.length > 1
-            ? `Mint media carousel, item ${activeIndex + 1} of ${items.length}`
-            : "Mint media"
-        }
+        className="relative max-w-full overflow-hidden bg-slate-900 transition-[width,aspect-ratio] duration-300 ease-[cubic-bezier(.2,.8,.2,1)]"
+        style={{ width: presentation.width, aspectRatio: `${presentation.aspectRatio}` }}
+        data-natural-width={presentation.naturalWidth ?? undefined}
+        data-natural-height={presentation.naturalHeight ?? undefined}
       >
-        {items.map((item, index) => (
-          <div
-            key={item?.id ?? "fallback"}
-            className="relative h-[var(--mint-media-height)] w-full shrink-0 snap-center"
-          >
+        <div
+          ref={carouselRef}
+          onScroll={updatePosition}
+          className="mint-carousel flex h-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+          aria-label={
+            items.length > 1
+              ? `Mint media carousel, item ${activeIndex + 1} of ${items.length}`
+              : "Mint media"
+          }
+        >
+          {items.map((item, index) => (
+            <div
+              key={item?.id ?? "fallback"}
+              className="relative h-full w-full shrink-0 snap-center"
+            >
             {item?.url ? (
               <ZoomableMedia
                 active={
@@ -568,7 +579,7 @@ export function MintMediaCarousel({
                     alt={`${fallbackLabel}, media ${index + 1}`}
                     fill
                     sizes="(max-width: 680px) 100vw, 640px"
-                    className="object-cover"
+                    className="object-contain"
                     unoptimized
                   />
                 ) : (
@@ -609,18 +620,18 @@ export function MintMediaCarousel({
               </ZoomableMedia>
             )}
 
-          </div>
-        ))}
-      </div>
+            </div>
+          ))}
+        </div>
 
-      {items.length > 1 && (
+        {items.length > 1 && (
         <>
           <span className="absolute right-3 top-3 rounded-full bg-slate-950/65 px-2.5 py-1 text-[11px] font-black text-white backdrop-blur">
             {activeIndex + 1}/{items.length}
           </span>
 
           <div
-            className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-slate-950/40 px-2.5 py-2 shadow-sm backdrop-blur-md"
+            className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-slate-950/40 px-2.5 py-2 backdrop-blur-md"
             aria-hidden="true"
           >
             <div
@@ -643,14 +654,15 @@ export function MintMediaCarousel({
 
               <span
                 ref={activeIndicatorRef}
-                className="absolute left-0 top-0 h-1 w-[18px] rounded-full bg-white shadow-sm will-change-transform"
+                className="absolute left-0 top-0 h-1 w-[18px] rounded-full bg-white will-change-transform"
               />
             </div>
           </div>
         </>
-      )}
+        )}
 
-      {children}
+        {children}
+      </div>
     </div>
   );
 }

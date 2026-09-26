@@ -80,7 +80,7 @@ test("the same authenticated Brand event suppresses a system-ingested duplicate"
 });
 
 test("Student, Brand, and Campus Mint system accounts remain distinct", () => {
-  assert.deepEqual(accountTypes, ["student", "brand", "system"]);
+  assert.deepEqual(accountTypes, ["student", "brand", "creator", "system"]);
   assert.equal(isValidBrandEmail("events@localbusiness.com"), true);
   assert.equal(isValidBrandEmail("smallbrand@gmail.com"), true);
 });

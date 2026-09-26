@@ -22,12 +22,8 @@ const sportsHubSource = readFileSync(
 const currentTime = new Date("2026-08-29T12:00:00-05:00").getTime();
 const tamu = getCampusAthleticsProfile("tamu");
 
-test("65. launch Sports supports only Football, Basketball, and Baseball", () => {
-  assert.deepEqual(launchCampusSports.map(({ id }) => id), [
-    "football",
-    "basketball",
-    "baseball",
-  ]);
+test("65. the Sports catalog supports university-specific featured programs", () => {
+  assert.deepEqual(launchCampusSports.map(({ id }) => id), ["football", "basketball", "baseball", "soccer", "volleyball", "softball", "gymnastics", "track", "hockey", "rowing"]);
 });
 
 test("66. an unavailable sport is hidden from a school's programs", () => {
@@ -39,15 +35,16 @@ test("66. an unavailable sport is hidden from a school's programs", () => {
     getAvailableCampusPrograms(basketballOnly).map(({ sport }) => sport),
     ["basketball"],
   );
-  assert.deepEqual(getAvailableCampusPrograms(getCampusAthleticsProfile("blinn")), []);
+  assert.deepEqual(getAvailableCampusPrograms(getCampusAthleticsProfile("blinn")).map(({ sport }) => sport), ["football", "baseball", "volleyball"]);
 });
 
-test("67. Soccer is absent from the launch selector", () => {
-  assert.equal(launchCampusSports.some(({ id }) => id === "soccer"), false);
+test("67. Soccer can be selected by a university configuration", () => {
+  assert.equal(launchCampusSports.some(({ id }) => id === "soccer"), true);
 });
 
-test("68. Track is absent from the launch selector", () => {
-  assert.equal(launchCampusSports.some(({ id }) => id === "track"), false);
+test("68. unsupported provider data remains separate from featured-sport identity", () => {
+  assert.equal(getCampusAthleticsProfile("alabama").featuredSports.includes("gymnastics"), true);
+  assert.equal(getAvailableCampusPrograms(getCampusAthleticsProfile("alabama")).every(({ schedulePublished }) => !schedulePublished), true);
 });
 
 test("69. Sports resolves the current user's university", () => {
@@ -215,9 +212,11 @@ test("89. no paid entitlement is fabricated", () => {
   assert.doesNotMatch(sportsHubSource, /payment successful|subscription activated/i);
 });
 
-test("90. every campus sports program stores provenance", () => {
-  for (const universityId of ["tamu", "blinn", "texas", "lsu", "alabama"]) {
+test("90. every campus has exactly three explicit sports with provenance", () => {
+  for (const universityId of ["tamu", "blinn", "texas", "lsu", "alabama", "oregon", "harvard", "michigan", "miami"]) {
     const profile = getCampusAthleticsProfile(universityId);
+    assert.equal(profile.featuredSports.length, 3);
+    assert.equal(getAvailableCampusPrograms(profile).length, 3);
     for (const program of getAvailableCampusPrograms(profile)) {
       assert.ok(program.source.sourceName);
       assert.match(program.source.sourceUrl, /^https:\/\//);

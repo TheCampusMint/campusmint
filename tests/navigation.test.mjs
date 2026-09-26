@@ -11,10 +11,20 @@ import {
   secondaryNavigation,
 } from "../components/shell/navigation.ts";
 import { SectionMemory } from "../lib/navigation/sectionMemory.ts";
+import {
+  mainSectionUrl,
+  parseCampusAppLocation,
+  profileUrl,
+  searchUrl,
+} from "../lib/navigation/appLocation.ts";
 import { readFileSync } from "node:fs";
 
 const headerSource = readFileSync(
   new URL("../components/shell/TopUtilityBar.tsx", import.meta.url),
+  "utf8",
+);
+const bottomNavSource = readFileSync(
+  new URL("../components/shell/BottomBubbleNav.tsx", import.meta.url),
   "utf8",
 );
 
@@ -78,6 +88,13 @@ test("Sports participates in the primary navigation sequence", () => {
   assert.equal(getBottomNavigationSlotIndex("sports") >= 0, true);
 });
 
+test("Sports notch follows semantic appearance tokens instead of a fixed light surface", () => {
+  assert.match(bottomNavSource, /sportsContrast/);
+  assert.match(bottomNavSource, /var\(--app-surface\)/);
+  assert.match(bottomNavSource, /var\(--app-surface-elevated\)/);
+  assert.doesNotMatch(bottomNavSource, /rgba\(255,255,255,\.82\), rgba\(226,232,240,\.66\)/);
+});
+
 test("the primary navigation order has finite Messages and Groups boundaries", () => {
   assert.equal(primaryIds.at(0), "messages");
   assert.equal(primaryIds.at(-1), "groups");
@@ -110,4 +127,45 @@ test("notch indices match every current primary section", () => {
     assert.equal(getPrimaryNavigationIndex(section), index);
     assert.equal(getBottomNavigationSlotIndex(section) >= 0, true);
   });
+});
+
+test("refresh-safe locations preserve sections and profile return context", () => {
+  assert.deepEqual(
+    parseCampusAppLocation(new URLSearchParams("section=messages")),
+    { kind: "section", section: "messages" },
+  );
+  assert.deepEqual(
+    parseCampusAppLocation(new URLSearchParams("view=profile&profile=user-7&from=groups")),
+    { kind: "profile", profileUserId: "user-7", returnSection: "groups" },
+  );
+  assert.equal(mainSectionUrl("sports"), "/?section=sports");
+  assert.equal(profileUrl("user-7", "groups"), "/?view=profile&profile=user-7&from=groups");
+});
+
+test("Search URLs round-trip category, query, and nested detail history", () => {
+  const state = {
+    category: "events",
+    query: "career fair",
+    categoryFilters: { none: null },
+    history: [
+      { kind: "event", id: "event-1" },
+      { kind: "profile", id: "host-1" },
+    ],
+  };
+  const url = new URL(searchUrl(state, "sports"), "https://campusmint.test");
+  assert.deepEqual(parseCampusAppLocation(url.searchParams), {
+    kind: "search",
+    returnSection: "sports",
+    searchState: state,
+  });
+});
+
+test("malformed or retired deep-link state fails closed without clearing other state", () => {
+  const malformed = parseCampusAppLocation(new URLSearchParams(
+    "view=search&from=housing&category=housing&detail=%7Bbad",
+  ));
+  assert.equal(malformed.kind, "search");
+  assert.equal(malformed.returnSection, "mint");
+  assert.equal(malformed.searchState.category, "food");
+  assert.deepEqual(malformed.searchState.history, []);
 });

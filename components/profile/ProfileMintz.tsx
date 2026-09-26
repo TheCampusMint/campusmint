@@ -32,7 +32,9 @@ type ProfileMintzProps = {
 
 export function ProfileMintz({ viewer, owner, theme, profiles, mintz, organizations, onOpenProfile }: ProfileMintzProps) {
   const [tab, setTab] = useState<"mintz" | "tagged">("mintz");
-  const users = profiles.users.map((user) => user.account.id === viewer.account.id ? viewer : user);
+  const usersById = new Map([...profiles.users, ...mintz.persistedAuthors].map((user) => [user.account.id, user]));
+  usersById.set(viewer.account.id, viewer);
+  const users = [...usersById.values()];
   const feedState = { viewer, users, friendships: profiles.friendships, follows: profiles.follows, blocks: profiles.blocks, currentTime: mintz.currentTime, organizationMemberships: organizations.memberships, followedOrganizationIds: organizations.followedOrganizationIds };
   const canViewAccountContent = canViewPrivateAccountContent({
     viewer,

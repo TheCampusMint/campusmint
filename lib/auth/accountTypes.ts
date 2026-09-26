@@ -1,4 +1,4 @@
-export const accountTypes = ["student", "brand", "system"] as const;
+export const accountTypes = ["student", "brand", "creator", "system"] as const;
 
 export type AccountType = (typeof accountTypes)[number];
 export type CampusMintAccountType = AccountType;
@@ -15,7 +15,7 @@ export type BrandVerificationStatus =
   (typeof brandVerificationStatuses)[number];
 
 export function isSignupAccountType(value: unknown): value is SignupAccountType {
-  return value === "student" || value === "brand";
+  return value === "student" || value === "brand" || value === "creator";
 }
 
 export function normalizeAuthEmail(value: string) {

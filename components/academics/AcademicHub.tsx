@@ -10,6 +10,7 @@ import type { UniversityId, UniversityTheme } from "@/data/universities";
 import { findProgramDuplicate, formatCourseLabel, getRecommendedCourses } from "@/lib/campus-data/search";
 import { normalizeSearchText } from "@/lib/campus-data/normalization";
 import { areDeveloperControlsEnabled } from "@/lib/runtime/fixturePolicy";
+import { CloseButton } from "@/components/ui/CloseButton";
 import type { AcademicEnrollment, AcademicProfile, CampusEntityType, CommunitySubmission } from "@/types/campus-data";
 
 type Props = {
@@ -119,7 +120,7 @@ export function AcademicHub({
 
       {notice && (
         <div role="status" className="flex items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          <span>{notice}</span><button type="button" className="font-bold" aria-label="Dismiss message" onClick={() => setNotice(null)}>×</button>
+          <span>{notice}</span><CloseButton label="Dismiss message" tone="minimal" onClick={() => setNotice(null)} />
         </div>
       )}
 

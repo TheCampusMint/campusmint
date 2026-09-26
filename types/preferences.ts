@@ -1,11 +1,15 @@
-export const appearanceModes = ["light", "dark", "campus", "curated"] as const;
-export type AppearanceMode = (typeof appearanceModes)[number];
+export const appearanceSchemes = ["light", "dark"] as const;
+export type AppearanceScheme = (typeof appearanceSchemes)[number];
+
+export const appearanceAccentSources = ["brand", "campus", "curated"] as const;
+export type AppearanceAccentSource = (typeof appearanceAccentSources)[number];
 
 export const curatedTintIds = ["slate", "warm-gray", "forest", "deep-navy", "muted-maroon"] as const;
 export type CuratedTintId = (typeof curatedTintIds)[number];
 
 export type AppearancePreferences = {
-  mode: AppearanceMode;
+  scheme: AppearanceScheme;
+  accentSource: AppearanceAccentSource;
   tint: CuratedTintId;
 };
 
@@ -23,6 +27,8 @@ export type ContentPreferences = {
   commentsDefault: boolean;
   autoplayVideo: boolean;
   reducedMotion: boolean;
+  autoArchiveTemporaryMintz: boolean;
+  saveCapturedMediaToDevice: boolean;
 };
 
 export type AppPreferences = {

@@ -3,7 +3,7 @@ import type { VerifiedStudentEmail } from "@/types/studentVerification";
 
 export type EmailOtpChallenge = {
   email: string;
-  accountType: SignupAccountType;
+  accountType?: SignupAccountType;
   expiresAt: string;
   resendAvailableAt: string;
 };
@@ -35,3 +35,6 @@ export type EmailOtpVerifyResponse =
       reason: "invalid_request" | "invalid_or_expired_code" | "auth_unavailable";
       message: string;
     };
+
+export type ExistingAccountOtpRequestResponse = EmailOtpRequestResponse;
+export type ExistingAccountOtpVerifyResponse = EmailOtpVerifyResponse;

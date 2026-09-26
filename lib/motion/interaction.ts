@@ -18,6 +18,19 @@ export const motion = {
 
 export type GestureAxis = "pending" | "horizontal" | "vertical";
 
+export type DirectManipulationDirection = "left" | "right" | "up" | "down";
+
+export type FloatingSurfaceOrigin = {
+  x: number;
+  y: number;
+  bottom: number;
+};
+
+export type DirectManipulationRelease = {
+  direction: DirectManipulationDirection | null;
+  committed: boolean;
+};
+
 export type GestureAxisOptions = {
   threshold?: number;
   dominance?: number;
@@ -42,6 +55,48 @@ export function resolveGestureAxis(
   if (absoluteX > absoluteY * dominance) return "horizontal";
   if (absoluteY > absoluteX * dominance) return "vertical";
   return "pending";
+}
+
+/**
+ * Resolves a dragged surface using both travel and release velocity. Keeping
+ * this pure lets every floating surface share the same physical threshold
+ * without coupling the gesture to a particular component or animation tool.
+ */
+export function resolveDirectManipulationRelease(input: {
+  deltaX: number;
+  deltaY: number;
+  velocityX: number;
+  velocityY: number;
+  width: number;
+  height: number;
+  allowedDirections: readonly DirectManipulationDirection[];
+}): DirectManipulationRelease {
+  const axis = resolveGestureAxis(input.deltaX, input.deltaY, {
+    threshold: 8,
+    dominance: 1.18,
+  });
+  if (axis === "pending") return { direction: null, committed: false };
+
+  const direction: DirectManipulationDirection = axis === "horizontal"
+    ? input.deltaX < 0 ? "left" : "right"
+    : input.deltaY < 0 ? "up" : "down";
+  if (!input.allowedDirections.includes(direction)) {
+    return { direction: null, committed: false };
+  }
+
+  const distance = axis === "horizontal"
+    ? Math.abs(input.deltaX)
+    : Math.abs(input.deltaY);
+  const velocity = axis === "horizontal"
+    ? Math.abs(input.velocityX)
+    : Math.abs(input.velocityY);
+  const extent = axis === "horizontal" ? input.width : input.height;
+  const distanceThreshold = Math.min(132, Math.max(72, extent * 0.24));
+
+  return {
+    direction,
+    committed: distance >= distanceThreshold || velocity >= 0.55,
+  };
 }
 
 export type NotchPresentation = "expanded" | "compact" | "dots";

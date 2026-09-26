@@ -9,11 +9,13 @@ import {
 type DeveloperUniversitySwitcherProps = {
   selectedUniversityId: UniversityId;
   onUniversityChange: (universityId: UniversityId) => void;
+  label?: string;
 };
 
 export function DeveloperUniversitySwitcher({
   selectedUniversityId,
   onUniversityChange,
+  label = "Dev: Switch campus",
 }: DeveloperUniversitySwitcherProps) {
   const selectedTheme = universities[selectedUniversityId];
 
@@ -22,7 +24,7 @@ export function DeveloperUniversitySwitcher({
       className="flex min-w-0 flex-col gap-1 text-xs font-semibold"
       style={{ color: selectedTheme.secondary }}
     >
-      <span className="opacity-85">Dev: Switch campus</span>
+      <span className="opacity-85">{label}</span>
       <select
         value={selectedUniversityId}
         onChange={(event) =>

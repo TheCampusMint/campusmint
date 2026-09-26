@@ -7,6 +7,7 @@ import { universities, type UniversityId, type UniversityTheme } from "@/data/un
 import { organizationCategories, type NewOrganizationSubmission, type OrganizationCategory } from "@/types/organization";
 import { normalizeOrganizationHandle, suggestOrganizationHandle, type OrganizationSubmissionResult } from "@/lib/organizationIdentity";
 import { useModalLayer } from "@/hooks/useModalLayer";
+import { CloseButton } from "@/components/ui/CloseButton";
 
 type OrganizationSubmissionModalProps = {
   universityId: UniversityId;
@@ -53,7 +54,7 @@ export function OrganizationSubmissionModal({ universityId, theme, onClose, onSu
       <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="organization-submission-title" className="cm-panel-sheet mx-auto my-6 max-w-2xl rounded-3xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-6">
           <div><p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: theme.primary }}>Community submission</p><h2 id="organization-submission-title" className="mt-1 text-2xl font-extrabold text-slate-950">Suggest an organization</h2><p className="mt-1 text-sm leading-6 text-slate-500">Suggestions remain pending until reviewed. They are never automatically marked official.</p></div>
-          <button type="button" data-initial-focus onClick={onClose} aria-label="Close organization submission" title="Close" className="cm-icon-control flex shrink-0 items-center justify-center border border-slate-200 text-xl font-bold text-slate-600">×</button>
+          <CloseButton data-initial-focus onClick={onClose} label="Close organization submission" />
         </div>
         <form onSubmit={submit} className="space-y-5 p-6">
           <label className="block text-sm font-bold text-slate-700">Organization name<input value={name} maxLength={120} onChange={(event) => { const nextName = event.target.value; setName(nextName); setSubmissionResult(null); if (!handleEdited) setHandle(suggestOrganizationHandle(universityId, nextName)); }} className="mt-1 block w-full rounded-xl border border-slate-200 px-4 py-3 font-normal" /></label>

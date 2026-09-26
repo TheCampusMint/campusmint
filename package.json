@@ -25,6 +25,7 @@
     "test:motion": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/motion.test.mjs",
     "test:private-messages": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/privateMessages.test.mjs",
     "test:comment-interactions": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/commentInteractions.test.mjs",
+    "test:media-presentation": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/mediaPresentation.test.mjs",
     "test:create-content": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/createContent.test.mjs",
     "test:mint-interactions": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/mintInteractions.test.mjs",
     "test:notifications": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/notifications.test.mjs",
@@ -33,9 +34,10 @@
     "test:facetime": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/facetime.test.mjs",
     "test:system-events": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/systemEvents.test.mjs",
     "test:production-boundaries": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/productionBoundaries.test.mjs",
+    "test:account-roles": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/accountRoles.test.mjs",
     "test:feed-generation": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/feedGeneration.test.mjs",
     "test:attending": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/attending.test.mjs",
-    "test:social": "npm run test:event-timing && npm run test:organizations && npm run test:organization-identity && npm run test:institution-eligibility && npm run test:student-verification && npm run test:section-memory && npm run test:event-moments && npm run test:unified-search && npm run test:navigation && npm run test:groups && npm run test:mint-social && npm run test:notification-sounds && npm run test:notifications && npm run test:sports && npm run test:mint-feed-ranking && npm run test:motion && npm run test:private-messages && npm run test:comment-interactions && npm run test:create-content && npm run test:mint-interactions && npm run test:fullscreen-video && npm run test:music-picker && npm run test:facetime && npm run test:system-events && npm run test:production-boundaries && npm run test:feed-generation && npm run test:attending"
+    "test:social": "npm run test:event-timing && npm run test:organizations && npm run test:organization-identity && npm run test:institution-eligibility && npm run test:student-verification && npm run test:section-memory && npm run test:event-moments && npm run test:unified-search && npm run test:navigation && npm run test:groups && npm run test:mint-social && npm run test:notification-sounds && npm run test:notifications && npm run test:sports && npm run test:mint-feed-ranking && npm run test:motion && npm run test:private-messages && npm run test:comment-interactions && npm run test:media-presentation && npm run test:create-content && npm run test:mint-interactions && npm run test:fullscreen-video && npm run test:music-picker && npm run test:facetime && npm run test:system-events && npm run test:production-boundaries && npm run test:account-roles && npm run test:feed-generation && npm run test:attending"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

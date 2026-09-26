@@ -7,7 +7,7 @@ import type { AppPreferences, AppearancePreferences, ContentPreferences, Notific
 export const APP_PREFERENCES_STORAGE_KEY = "campusmint.preferences.v1";
 
 export const defaultAppPreferences: AppPreferences = {
-  appearance: { mode: "campus", tint: "slate" },
+  appearance: { scheme: "light", accentSource: "campus", tint: "slate" },
   notifications: {
     sounds: true,
     messages: true,
@@ -21,6 +21,8 @@ export const defaultAppPreferences: AppPreferences = {
     commentsDefault: true,
     autoplayVideo: true,
     reducedMotion: false,
+    autoArchiveTemporaryMintz: true,
+    saveCapturedMediaToDevice: false,
   },
 };
 
@@ -28,9 +30,26 @@ function loadPreferences() {
   try {
     const stored = window.localStorage.getItem(APP_PREFERENCES_STORAGE_KEY);
     if (!stored) return defaultAppPreferences;
-    const parsed = JSON.parse(stored) as Partial<AppPreferences>;
+    const parsed = JSON.parse(stored) as Partial<AppPreferences> & {
+      appearance?: Partial<AppearancePreferences> & {
+        mode?: "light" | "dark" | "campus" | "curated";
+      };
+    };
+    const legacyMode = parsed.appearance?.mode;
+    const migratedAppearance: AppearancePreferences = {
+      ...defaultAppPreferences.appearance,
+      ...parsed.appearance,
+      scheme: parsed.appearance?.scheme ??
+        (legacyMode === "dark" ? "dark" : "light"),
+      accentSource: parsed.appearance?.accentSource ??
+        (legacyMode === "campus"
+          ? "campus"
+          : legacyMode === "curated"
+            ? "curated"
+            : "brand"),
+    };
     return {
-      appearance: { ...defaultAppPreferences.appearance, ...parsed.appearance },
+      appearance: migratedAppearance,
       notifications: { ...defaultAppPreferences.notifications, ...parsed.notifications },
       content: { ...defaultAppPreferences.content, ...parsed.content },
     };

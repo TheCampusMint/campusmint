@@ -126,6 +126,7 @@ export type CreateMintCommentInput = {
   attachment: CommentAttachment | null;
   fontStyle: CommentFontStyle;
   mentions?: MintComment["mentions"];
+  parentCommentId?: string | null;
 };
 export type MintReport = ContentReport & { targetType: "mint" };
 

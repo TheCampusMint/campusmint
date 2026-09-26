@@ -29,8 +29,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: `This venue is outside the ${campus.eventDiscoveryRadiusMiles}-mile ${campus.shortName} event area.` }, { status: 400 });
   }
   const { data: brand } = await supabase.from("brand_profiles")
-    .select("id,display_name,website_url").eq("user_id", user.id).maybeSingle();
+    .select("id,display_name,website_url,verification_status").eq("user_id", user.id).maybeSingle();
   if (!brand) return NextResponse.json({ ok: false, message: "Finish your Brand profile first." }, { status: 409 });
+  if (brand.verification_status !== "verified") {
+    return NextResponse.json({ ok: false, message: "Brand approval is required before publishing events." }, { status: 403 });
+  }
 
   const start = new Date(value.startsAt);
   const windowStart = new Date(start.getTime() - 30 * 60_000).toISOString();

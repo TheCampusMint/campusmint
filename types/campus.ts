@@ -1,1 +1,10 @@
-export type UniversityId = "tamu" | "blinn" | "texas" | "lsu" | "alabama";
+export type UniversityId =
+  | "tamu"
+  | "blinn"
+  | "texas"
+  | "lsu"
+  | "alabama"
+  | "oregon"
+  | "harvard"
+  | "michigan"
+  | "miami";

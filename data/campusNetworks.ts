@@ -50,6 +50,38 @@ export const campusNetworks = {
     universityIds: ["alabama"],
     enabledFeatures: ["marketplace"],
   },
+  eugene: {
+    id: "eugene",
+    name: "Eugene",
+    latitude: 44.0448,
+    longitude: -123.0726,
+    universityIds: ["oregon"],
+    enabledFeatures: ["marketplace"],
+  },
+  cambridge: {
+    id: "cambridge",
+    name: "Cambridge",
+    latitude: 42.377,
+    longitude: -71.1167,
+    universityIds: ["harvard"],
+    enabledFeatures: ["marketplace"],
+  },
+  annArbor: {
+    id: "ann-arbor",
+    name: "Ann Arbor",
+    latitude: 42.278,
+    longitude: -83.7382,
+    universityIds: ["michigan"],
+    enabledFeatures: ["marketplace"],
+  },
+  coralGables: {
+    id: "coral-gables",
+    name: "Coral Gables",
+    latitude: 25.7174,
+    longitude: -80.2789,
+    universityIds: ["miami"],
+    enabledFeatures: ["marketplace"],
+  },
 } as const satisfies Record<string, CampusNetwork>;
 
 export type CampusNetworkId =

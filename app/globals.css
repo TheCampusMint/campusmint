@@ -3,6 +3,17 @@
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
+  --app-background: #f8f3f2;
+  --app-surface: #fffaf9;
+  --app-surface-elevated: #f3e9e8;
+  --app-text-primary: #2a171b;
+  --app-text-secondary: #725d63;
+  --app-border: #dfced1;
+  --app-accent: #6f1d2c;
+  --app-accent-soft: #f0dfe3;
+  --app-accent-contrast: #fffaf9;
+  --app-danger: #be123c;
+  --app-success: #047857;
 }
 
 @theme inline {
@@ -47,10 +58,8 @@ body {
 }
 
 .cm-surface-card {
-  border: 1px solid var(--app-border);
   border-radius: 1.5rem;
   background: var(--app-surface);
-  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.055);
 }
 
 .text-balance {
@@ -74,6 +83,9 @@ summary {
 
 /* Token bridge for existing feature surfaces while their university data remains independent. */
 .campus-app-shell .bg-white,
+.campus-app-shell .bg-white\/65,
+.campus-app-shell .bg-white\/70,
+.campus-app-shell .bg-white\/80,
 .campus-app-shell .bg-white\/78,
 .campus-app-shell .bg-white\/90,
 .campus-app-shell .bg-white\/95 {
@@ -81,6 +93,8 @@ summary {
 }
 
 .campus-app-shell .bg-slate-50,
+.campus-app-shell .bg-slate-50\/75,
+.campus-app-shell .bg-slate-50\/80,
 .campus-app-shell .bg-slate-100 {
   background-color: var(--app-surface-elevated) !important;
 }
@@ -101,11 +115,30 @@ summary {
 
 .campus-app-shell .border-slate-100,
 .campus-app-shell .border-slate-200,
+.campus-app-shell .border-slate-200\/80,
 .campus-app-shell .border-slate-300,
 .campus-app-shell .border-white\/50,
 .campus-app-shell .border-white\/70,
 .campus-app-shell .border-white\/80 {
   border-color: var(--app-border) !important;
+}
+
+/* Seamless application chrome: retain form fields, focus outlines, tables,
+   and simple separators; remove ornamental card/control outlines and depth. */
+.campus-app-shell :where(article, section, [role="dialog"], [role="menu"]),
+.campus-app-shell :where(article, section, div, nav, button, a)[class*="shadow"] {
+  box-shadow: none !important;
+}
+
+.campus-app-shell :where(article, section, [role="dialog"], [role="menu"])[class*="border"],
+.campus-app-shell :where(button, a)[class*="border"],
+.campus-app-shell div[class*="rounded"][class*="border"] {
+  border-width: 0 !important;
+}
+
+[data-bottom-bubble-nav] > div {
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 .mint-perspective {
@@ -165,83 +198,9 @@ summary {
 }
 
 
-/* RESPONSIVE_MINT_VIEWPORT */
-
-/*
- * Size media from the available viewport instead of forcing
- * the entire feed into a fixed-height scrolling rectangle.
- */
-.campus-app-shell {
-  --mint-media-height:
-    clamp(
-      13.5rem,
-      calc(100dvh - 23.5rem),
-      28rem
-    );
-}
-
 .mint-card-responsive {
   width: 100%;
   max-width: 100%;
-}
-
-/* Small / short phones such as older iPhones. */
-@media (max-width: 389px) {
-  .campus-app-shell {
-    --mint-media-height:
-      clamp(
-        12rem,
-        calc(100dvh - 22rem),
-        23rem
-      );
-  }
-}
-
-@media (max-width: 639px) and (max-height: 700px) {
-  .campus-app-shell {
-    --mint-media-height:
-      clamp(
-        11.5rem,
-        38dvh,
-        18rem
-      );
-  }
-}
-
-/* Large phones and tablets. */
-@media (min-width: 640px) {
-  .campus-app-shell {
-    --mint-media-height:
-      clamp(
-        20rem,
-        48dvh,
-        32rem
-      );
-  }
-}
-
-/* Laptops / desktop windows. */
-@media (min-width: 1024px) {
-  .campus-app-shell {
-    --mint-media-height:
-      clamp(
-        22rem,
-        52dvh,
-        34rem
-      );
-  }
-}
-
-/* Very short laptop/browser windows. */
-@media (min-width: 640px) and (max-height: 720px) {
-  .campus-app-shell {
-    --mint-media-height:
-      clamp(
-        17rem,
-        42dvh,
-        24rem
-      );
-  }
 }
 
 /* CAMPUS MINT INTERACTION SYSTEM — authoritative motion and layer tokens. */
@@ -417,18 +376,53 @@ summary {
 }
 
 .cm-interactive-card {
-  transition:
-    transform var(--cm-duration-fast) var(--cm-ease-standard),
-    border-color var(--cm-duration-fast) ease,
-    box-shadow var(--cm-duration-fast) ease;
+  transition: transform var(--cm-duration-fast) var(--cm-ease-standard);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .cm-interactive-card:hover {
     transform: translateY(-2px);
-    border-color: color-mix(in srgb, var(--app-accent) 28%, var(--app-border));
-    box-shadow: 0 12px 32px rgba(15,23,42,.085);
   }
+}
+
+/* Feature surfaces sit on the app canvas without ornamental outlines. */
+[data-sports-hub],
+[data-sports-hub] :where(section, article, div, button, a) {
+  box-shadow: none !important;
+}
+
+[data-sports-hub],
+[data-sports-hub] :where(section, article, div)[class*="border-"] {
+  border-color: transparent !important;
+}
+
+.comment-sheet[data-direct-manipulation-surface],
+.cm-notification-surface {
+  animation: cm-direct-surface-emerge var(--cm-duration-panel) var(--cm-ease-enter) both;
+}
+
+.comment-sheet[data-direct-manipulation-surface].is-closing,
+.cm-notification-surface.is-returning {
+  animation: cm-direct-surface-return var(--cm-duration-fast) var(--cm-ease-exit) both;
+  pointer-events: none;
+}
+
+.comment-sheet .bg-white,
+.comment-sheet form {
+  background-color: var(--app-surface) !important;
+}
+
+.comment-sheet .bg-slate-50,
+.comment-sheet .bg-slate-100 {
+  background-color: var(--app-surface-elevated) !important;
+}
+
+.comment-sheet :where(.text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700) {
+  color: var(--app-text-primary) !important;
+}
+
+.comment-sheet :where(.text-slate-600, .text-slate-500, .text-slate-400) {
+  color: var(--app-text-secondary) !important;
 }
 
 .cm-notice {
@@ -472,6 +466,8 @@ summary {
 @keyframes cm-scene-leave { from { opacity: 1; transform: translate3d(0,0,0); } to { opacity: 0; transform: translate3d(16px,0,0); } }
 @keyframes cm-message-enter { from { opacity: 0; transform: translate3d(0,7px,0) scale(.98); } to { opacity: 1; transform: translate3d(0,0,0) scale(1); } }
 @keyframes cm-notice-in { from { opacity: 0; transform: translate3d(0,-6px,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
+@keyframes cm-direct-surface-emerge { from { opacity: 0; scale: .78; } to { opacity: 1; scale: 1; } }
+@keyframes cm-direct-surface-return { from { opacity: 1; scale: 1; } to { opacity: 0; scale: .12; } }
 
 @media (min-width: 640px) {
   @keyframes cm-sheet-in { from { opacity: 0; transform: translate3d(0,8px,0) scale(.97); } to { opacity: 1; transform: translate3d(0,0,0) scale(1); } }

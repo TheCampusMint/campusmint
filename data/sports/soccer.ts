@@ -17,6 +17,10 @@ export const soccerSeasons: readonly SportsSeason[] = [
   { id: "texas-wsoc-2026", sport: "soccer", teamId: "texas", label: "Women's soccer · 2026", conferenceLabel: "SEC", disciplineLabel: "Women", source: official("Texas Soccer", "https://texaslonghorns.com/sports/womens-soccer"), games: [] },
   { id: "lsu-wsoc-2026", sport: "soccer", teamId: "lsu", label: "Women's soccer · 2026", conferenceLabel: "SEC", disciplineLabel: "Women", source: official("LSU Soccer", "https://lsusports.net/sports/sc/"), games: [] },
   { id: "alabama-wsoc-2026", sport: "soccer", teamId: "alabama", label: "Women's soccer · 2026", conferenceLabel: "SEC", disciplineLabel: "Women", source: official("Alabama Soccer", "https://rolltide.com/sports/womens-soccer"), games: [] },
+  { id: "oregon-wsoc-2026", sport: "soccer", teamId: "oregon", label: "Women's soccer · 2026", conferenceLabel: "Big Ten", disciplineLabel: "Women", source: official("Oregon Soccer", "https://goducks.com/sports/womens-soccer"), games: [] },
+  { id: "harvard-wsoc-2026", sport: "soccer", teamId: "harvard", label: "Women's soccer · 2026", conferenceLabel: "Ivy League", disciplineLabel: "Women", source: official("Harvard Soccer", "https://gocrimson.com/sports/womens-soccer"), games: [] },
+  { id: "michigan-wsoc-2026", sport: "soccer", teamId: "michigan", label: "Women's soccer · 2026", conferenceLabel: "Big Ten", disciplineLabel: "Women", source: official("Michigan Soccer", "https://mgoblue.com/sports/womens-soccer"), games: [] },
+  { id: "miami-wsoc-2026", sport: "soccer", teamId: "miami", label: "Women's soccer · 2026", conferenceLabel: "ACC", disciplineLabel: "Women", source: official("Miami Soccer", "https://miamihurricanes.com/sports/soc/"), games: [] },
 ];
 
-export function getSoccerSeason(universityId: UniversityId | null) { return soccerSeasons.find((season) => season.teamId === ({ tamu: "texas-am", blinn: "blinn", texas: "texas", lsu: "lsu", alabama: "alabama" } as const)[universityId ?? "tamu"]) ?? soccerSeasons[0]; }
+export function getSoccerSeason(universityId: UniversityId | null) { return soccerSeasons.find((season) => season.teamId === ({ tamu: "texas-am", blinn: "blinn", texas: "texas", lsu: "lsu", alabama: "alabama", oregon: "oregon", harvard: "harvard", michigan: "michigan", miami: "miami" } as const)[universityId ?? "tamu"]) ?? soccerSeasons[0]; }

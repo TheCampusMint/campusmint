@@ -90,6 +90,7 @@ export const footballSeasons: Readonly<Record<string, SportsSeason>> = {
 
 export const featuredFootballTeamByUniversity: Readonly<Record<UniversityId, string>> = {
   tamu: "texas-am", blinn: "blinn", texas: "texas", lsu: "lsu", alabama: "alabama",
+  oregon: "oregon", harvard: "harvard", michigan: "michigan", miami: "miami",
 };
 
 export function getFeaturedFootballTeamId(universityId: UniversityId | null) {
