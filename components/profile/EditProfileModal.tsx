@@ -15,7 +15,7 @@ import type { CampusMintProfile, CampusMintUser } from "@/types/profile";
 type EditProfileModalProps = {
   user: CampusMintUser;
   primaryColor: string;
-  onSave: (profile: Partial<CampusMintProfile>) => { ok: boolean; error: string | null };
+  onSave: (profile: Partial<CampusMintProfile>) => Promise<{ ok: boolean; error: string | null }>;
   onClose: () => void;
 };
 
@@ -24,8 +24,25 @@ const inputClass = "mt-1 w-full rounded-xl border border-slate-200 bg-white px-3
 export function EditProfileModal({ user, primaryColor, onSave, onClose }: EditProfileModalProps) {
   const [draft, setDraft] = useState(user.profile);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const dialogRef = useRef<HTMLElement>(null);
-  useModalLayer(dialogRef, onClose);
+  const closeWhenIdle = () => { if (!saving) onClose(); };
+  useModalLayer(dialogRef, closeWhenIdle);
+
+  async function saveProfile() {
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const result = await onSave(draft);
+      if (result.ok) onClose();
+      else setSaveError(result.error);
+    } catch {
+      setSaveError("We couldn't save your profile. Your changes are still here; try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const tutoringSubjects = [
     "Math",
@@ -50,11 +67,11 @@ export function EditProfileModal({ user, primaryColor, onSave, onClose }: EditPr
   }
 
   return (
-    <div className="cm-overlay-backdrop fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/55 sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="cm-overlay-backdrop fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/55 sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeWhenIdle(); }}>
       <section ref={dialogRef} tabIndex={-1} className="cm-panel-sheet max-h-[94dvh] w-full max-w-3xl overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl" role="dialog" aria-modal="true" aria-labelledby="edit-profile-title">
         <div className="flex items-start justify-between gap-4">
           <div><p className="text-xs font-bold uppercase tracking-wider" style={{ color: primaryColor }}>Your public information</p><h2 id="edit-profile-title" className="mt-1 text-2xl font-black text-slate-950">Edit profile</h2></div>
-          <CloseButton data-initial-focus onClick={onClose} label="Close Edit profile" />
+          <CloseButton data-initial-focus onClick={closeWhenIdle} disabled={saving} label="Close Edit profile" />
         </div>
 
         <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -67,6 +84,7 @@ export function EditProfileModal({ user, primaryColor, onSave, onClose }: EditPr
           <p className="mt-1 text-xs text-slate-500">University, role, and verification are controlled by account identity.</p>
         </div>
 
+        <fieldset disabled={saving}>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-semibold text-slate-700">First name<input className={inputClass} value={draft.firstName} onChange={(event) => setDraft({ ...draft, firstName: event.target.value })} /></label>
           <label className="text-sm font-semibold text-slate-700">Last name<input className={inputClass} value={draft.lastName} onChange={(event) => setDraft({ ...draft, lastName: event.target.value })} /></label>
@@ -354,8 +372,9 @@ export function EditProfileModal({ user, primaryColor, onSave, onClose }: EditPr
         {organizations.length > 0 && <fieldset className="mt-6"><legend className="text-sm font-bold text-slate-900">Clubs</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{organizations.map((organization) => <label key={organization.id} className="flex gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-700"><input type="checkbox" checked={draft.clubIds.includes(organization.id)} onChange={() => toggleId("clubIds", organization.id)} /><span>{organization.name}</span></label>)}</div></fieldset>}
 
         <p className="mt-6 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">Photo uploads are not enabled yet. The profile model already separates a future storage path from development placeholders.</p>
+        </fieldset>
         {saveError && <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{saveError}</p>}
-        <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</button><button type="button" onClick={() => { const result = onSave(draft); if (result.ok) onClose(); else setSaveError(result.error); }} className="rounded-xl px-4 py-2.5 text-sm font-bold text-white" style={{ backgroundColor: primaryColor }}>Save profile</button></div>
+        <div className="mt-6 flex justify-end gap-3"><button type="button" disabled={saving} onClick={closeWhenIdle} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</button><button type="button" disabled={saving} onClick={() => { void saveProfile(); }} className="rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-60" style={{ backgroundColor: primaryColor, color: "var(--app-accent-contrast)" }}>{saving ? "Saving…" : "Save profile"}</button></div>
       </section>
     </div>
   );

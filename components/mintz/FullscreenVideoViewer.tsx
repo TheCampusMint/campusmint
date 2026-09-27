@@ -407,7 +407,6 @@ export function FullscreenVideoViewer({
             <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/60">{getAccountUniversityShortName(entry.author.account)}</span>
           </button>
           {entry.mint.caption && <p className="mt-2 line-clamp-3 max-w-xl text-sm leading-5 text-white/90">{entry.mint.caption}</p>}
-          {entry.mint.music && <p className="mt-1 truncate text-xs text-white/70">♫ {entry.mint.music.trackTitle} · {entry.mint.music.artist}</p>}
           {event && <EventAttendingContext users={attendingUsers} attending={eventMoments.isAttending(event.id, feedState.viewer.account.id)} disabled={eventEnded} theme={getAccountUniversityDisplayTheme(entry.author.account)} onToggle={!eventEnded ? () => eventMoments.toggleRsvp(event, feedState.viewer.account.id) : undefined} />}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">{metrics.map((metric) => <CompactMetric key={metric.kind} label={metric.label} tone="dark" />)}</div>
           <div className="mt-1.5 flex items-center justify-between gap-3">

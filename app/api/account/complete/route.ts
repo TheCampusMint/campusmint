@@ -3,15 +3,12 @@ import { NextResponse } from "next/server";
 import { normalizeSafeBrandWebsite } from "@/lib/auth/accountTypes";
 import { isStudentSmsVerificationRequired } from "@/lib/auth/studentSmsPolicy";
 import { assessStudentEmail } from "@/lib/auth/studentEmail";
+import { validateUsername } from "@/lib/social/usernames";
 import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig, hasSupabaseServerConfig } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 const cleanText = (value: unknown, maximum: number) => typeof value === "string" ? value.trim().slice(0, maximum) : "";
-const reservedStudentUsernames = new Set([
-  "admin", "administrator", "campusmint", "campus_mint", "help",
-  "moderator", "official", "security", "support", "system",
-]);
 
 type DatabaseError = {
   code?: string;
@@ -21,11 +18,13 @@ type DatabaseError = {
 };
 
 function normalizedHandle(value: unknown, maximum = 40) {
+  if (maximum === 30) {
+    const result = validateUsername(typeof value === "string" ? value : "");
+    return result.valid ? result.normalized : null;
+  }
   const handle = cleanText(value, maximum).toLocaleLowerCase().replace(/[^a-z0-9._]/g, "");
-  const pattern = maximum === 30
-    ? /^(?!\.)(?!.*\.\.)(?!.*\.$)[a-z0-9._]{3,30}$/
-    : /^[a-z0-9][a-z0-9._]{2,39}$/;
-  if (!pattern.test(handle) || (maximum === 30 && reservedStudentUsernames.has(handle))) return null;
+  const pattern = /^[a-z0-9][a-z0-9._]{2,39}$/;
+  if (!pattern.test(handle)) return null;
   return handle;
 }
 
@@ -45,14 +44,6 @@ function databaseFailure(operation: string, error: DatabaseError | null) {
     return NextResponse.json({ ok: false, message: "That username is already taken." }, { status: 409 });
   }
   return NextResponse.json({ ok: false, message: "We couldn't save your account." }, { status: 500 });
-}
-
-function legacyNameParts(displayName: string) {
-  const [firstName, ...remaining] = displayName.split(/\s+/);
-  return {
-    firstName: firstName.slice(0, 80),
-    lastName: (remaining.join(" ") || firstName).slice(0, 80),
-  };
 }
 
 export async function POST(request: Request) {
@@ -80,9 +71,10 @@ export async function POST(request: Request) {
     if (!assessment.ok) return NextResponse.json({ ok: false, message: "This student email is not eligible." }, { status: 403 });
     const universityId = assessment.resolved.identity.knownUniversityId;
     if (!universityId) return NextResponse.json({ ok: false, message: "This institution is not configured yet." }, { status: 409 });
-    const displayName = cleanText("displayName" in body ? body.displayName : null, 160);
-    if (!displayName) return NextResponse.json({ ok: false, message: "Display name is required." }, { status: 400 });
-    const { firstName, lastName } = legacyNameParts(displayName);
+    const firstName = cleanText("firstName" in body ? body.firstName : null, 80);
+    const lastName = cleanText("lastName" in body ? body.lastName : null, 80);
+    if (!firstName) return NextResponse.json({ ok: false, message: "First name is required." }, { status: 400 });
+    const displayName = [firstName, lastName].filter(Boolean).join(" ").slice(0, 160);
     const profileImageStoragePath = cleanText("profileImageStoragePath" in body ? body.profileImageStoragePath : null, 1000) || null;
 
     if (isStudentSmsVerificationRequired()) {
@@ -96,6 +88,11 @@ export async function POST(request: Request) {
       }
     }
 
+    // A repeat completion request must not reset a previously saved profile.
+    const { data: existingProfile, error: existingError } = await admin.from("profiles").select("user_id").eq("user_id", user.id).maybeSingle();
+    if (existingError) return databaseFailure("student profile lookup", existingError);
+    if (existingProfile) return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "private, no-store" } });
+
     const { error: identityError } = await admin.from("profile_identities").upsert(
       { user_id: user.id, university_id: universityId, account_type: "student", role: "student", verified_student: true, email_verified_at: user.email_confirmed_at },
       { onConflict: "user_id" },
@@ -103,12 +100,12 @@ export async function POST(request: Request) {
     if (identityError) return databaseFailure("student identity upsert", identityError);
     const { error: profileError } = await admin.from("profiles").upsert(
       { user_id: user.id, first_name: firstName, last_name: lastName, display_name: displayName, username, profile_photo_storage_path: profileImageStoragePath, interests: [] },
-      { onConflict: "user_id" },
+      { onConflict: "user_id", ignoreDuplicates: true },
     );
     if (profileError) return databaseFailure("student profile upsert", profileError);
     const { error: privacyError } = await admin.from("profile_privacy_settings").upsert(
       { user_id: user.id },
-      { onConflict: "user_id" },
+      { onConflict: "user_id", ignoreDuplicates: true },
     );
     if (privacyError) return databaseFailure("student privacy upsert", privacyError);
   } else {

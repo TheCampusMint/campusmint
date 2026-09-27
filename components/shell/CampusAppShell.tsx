@@ -206,6 +206,9 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
       : { ...initialUnifiedSearchState });
   const [onboardingOpen, setOnboardingOpen] = useState(true);
   const [sessionStatus, setSessionStatus] = useState<"checking" | "signed_out" | "student" | "brand" | "creator">("checking");
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [sessionRefreshing, setSessionRefreshing] = useState(false);
+  const sessionRequestRef = useRef(0);
   const [brandProfile, setBrandProfile] = useState<BrandSessionProfile | null>(null);
   const [creatorProfile, setCreatorProfile] = useState<CreatorSessionProfile | null>(null);
   const [canUseCampusTester, setCanUseCampusTester] = useState(false);
@@ -263,14 +266,19 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
   );
 
   const refreshAccountSession = useCallback(async () => {
+    const requestId = ++sessionRequestRef.current;
+    setSessionRefreshing(true);
     try {
       const response = await fetch("/api/account/me", { cache: "no-store" });
       const result = await response.json() as AccountSessionResponse;
+      if (requestId !== sessionRequestRef.current) return false;
+      if (!response.ok) throw new Error(result.ok ? "We couldn't load your saved account." : result.message);
       if (!result.ok) throw new Error(result.message);
+      setSessionError(null);
       if (!result.configured && areDevelopmentFixturesEnabled()) {
         setSessionStatus("student");
         setOnboardingOpen(!currentProfileOnboardingCompletedAt);
-        return;
+        return true;
       }
       if (!result.authenticated) {
         clearAuthenticatedProfile();
@@ -279,21 +287,21 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
         setCanUseCampusTester(false);
         setSessionStatus("signed_out");
         setOnboardingOpen(true);
-        return;
+        return true;
       }
       setCanUseCampusTester(Boolean(result.canUseCampusTester));
       if (result.accountType === "brand") {
         setBrandProfile(result.brand);
         setSessionStatus("brand");
         setOnboardingOpen(!result.onboardingComplete);
-        return;
+        return true;
       }
       if (result.accountType === "creator") {
         setCreatorProfile(result.creator);
         setBrandProfile(null);
         setSessionStatus("creator");
         setOnboardingOpen(!result.onboardingComplete);
-        return;
+        return true;
       }
       setCreatorProfile(result.creator);
       setSessionStatus("student");
@@ -303,9 +311,15 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
         setSelectedProfileUserId(result.user.account.id);
         setUser((current) => ({ ...current, id: result.user!.account.id, firstName: result.user!.profile.firstName, universityId: result.user!.account.universityId, role: result.user!.account.role, verifiedStudent: result.user!.account.verifiedStudent }));
       }
-    } catch {
-      setSessionStatus(areDevelopmentFixturesEnabled() ? "student" : "signed_out");
-      setOnboardingOpen(!areDevelopmentFixturesEnabled() || !currentProfileOnboardingCompletedAt);
+      return true;
+    } catch (error) {
+      if (requestId !== sessionRequestRef.current) return false;
+      // Preserve the current account on a transient failure. A failed lookup must
+      // never send an existing user back into new-account setup.
+      setSessionError(error instanceof Error ? error.message : "We couldn't load your saved account. Please try again.");
+      return false;
+    } finally {
+      if (requestId === sessionRequestRef.current) setSessionRefreshing(false);
     }
   }, [clearAuthenticatedProfile, currentProfileOnboardingCompletedAt, hydrateAuthenticatedProfile]);
 
@@ -314,6 +328,12 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
     const timer = window.setTimeout(() => { void refreshAccountSession(); }, 0);
     return () => window.clearTimeout(timer);
   }, [profiles.developmentProfileHydrated, refreshAccountSession]);
+
+  useEffect(() => {
+    const reconnect = () => { void refreshAccountSession(); };
+    window.addEventListener("online", reconnect);
+    return () => window.removeEventListener("online", reconnect);
+  }, [refreshAccountSession]);
 
   useEffect(() => {
     if (
@@ -1057,7 +1077,6 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
     setCreateMintMediaError(null);
     setCreateMintMediaPreparing(false);
     setCreateMintOpen(true);
-    openCreateMintMediaPicker();
   }
 
   async function selectCreateMintMedia(
@@ -1093,6 +1112,9 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
   }
 
   async function logoutDevelopmentUser() {
+    sessionRequestRef.current += 1;
+    setSessionError(null);
+    setSessionRefreshing(false);
     await fetch("/api/account/logout", { method: "POST" }).catch(() => null);
     clearPrivateSessionCache(window.localStorage, currentUserId);
     profiles.logoutDevelopmentUser();
@@ -1706,6 +1728,10 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
     );
   }
 
+  if (sessionError) {
+    return <main className="campus-app-shell flex min-h-dvh items-center justify-center bg-[var(--app-background)] p-6 text-[var(--app-text-primary)]" style={shellStyle}><section className="max-w-md rounded-3xl bg-[var(--app-surface)] p-6"><h1 className="text-xl font-black">Your account couldn&apos;t load</h1><p role="alert" className="mt-3 text-sm text-[var(--app-text-secondary)]">{sessionError}</p><p className="mt-2 text-sm text-[var(--app-text-secondary)]">Retry to restore your session and continue.</p><button type="button" disabled={sessionRefreshing} onClick={() => { void refreshAccountSession(); }} className="mt-5 rounded-full bg-[var(--app-accent)] px-5 py-2.5 text-sm font-bold text-[var(--app-accent-contrast)] disabled:opacity-60">{sessionRefreshing ? "Retrying…" : "Retry"}</button></section></main>;
+  }
+
   if (sessionStatus === "checking") {
     return <main className="min-h-dvh bg-[var(--app-background)]" style={shellStyle} aria-label="Loading account" />;
   }
@@ -1732,9 +1758,9 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
         onCreatorComplete={() => { void refreshAccountSession(); }}
         onSignInComplete={() => { void refreshAccountSession(); }}
         onStudentVerified={async (
-          resolved,
-          personalEmail,
-          primaryEmail,
+          _resolved,
+          _personalEmail,
+          _primaryEmail,
           profileSetup,
         ) => {
           const accountResponse = await fetch("/api/account/complete", {
@@ -1746,62 +1772,12 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
           if (!accountResponse.ok || !accountResult?.ok) {
             return { ok: false, message: accountResult?.message ?? "We couldn't save your account." };
           }
-          const onboardingCompletedAt =
-            new Date().toISOString();
-          const [firstName, ...remainingName] = profileSetup.displayName.split(/\s+/);
-          const lastName = remainingName.join(" ") || firstName;
-
-          profiles.updateCurrentAccount({
-            studentEmail: resolved.email,
-            personalEmail,
-            primaryEmail,
-            studentEmailDomain: resolved.domain,
-            studentEmailVerifiedAt:
-              resolved.mailboxVerifiedAt,
-            studentEmailVerificationMethod:
-              resolved.mailboxVerificationMethod,
-            studentEmailVerificationChallengeId:
-              resolved.verificationChallengeId,
-            onboardingCompletedAt,
-            universityIdentityId: resolved.identity.id,
-            universityDomain: resolved.identity.domain,
-            universityName: resolved.identity.name,
-            universityShortName: resolved.identity.shortName,
-            knownUniversityId:
-              resolved.identity.knownUniversityId,
-            verifiedStudent: true,
-          });
-
-          const profileResult =
-            profiles.updateCurrentProfile({
-              firstName,
-              lastName,
-              displayName: profileSetup.displayName,
-              username: profileSetup.username,
-              photo: {
-                kind: "initials",
-                placeholderId: null,
-                storagePath: profileSetup.profileImageStoragePath,
-              },
-            });
-
-          if (!profileResult.ok) {
-            return { ok: false, message: profileResult.error };
-          }
-
-          setUser((current) => ({
-            ...current,
-            firstName,
-            universityId:
-              resolved.identity.knownUniversityId ??
-              current.universityId,
-            verifiedStudent: true,
-          }));
-
           setDeveloperUniversityOverride(null);
-          setOnboardingOpen(false);
-          await refreshAccountSession();
-          return { ok: true };
+          // Rehydrate the saved server identity rather than editing the anonymous
+          // placeholder (or a previous account) and pretending setup is durable.
+          return await refreshAccountSession()
+            ? { ok: true }
+            : { ok: false, message: "Your account was saved, but we couldn't reload it yet. Please retry." };
         }}
       /></div>
     );
@@ -1981,6 +1957,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
           organizationMemberships={organizations.memberships}
           organizationRoles={organizations.roles}
           selectedMedia={createMintMedia}
+          onRestoreMedia={setCreateMintMedia}
           mediaError={createMintMediaError}
           mediaPreparing={createMintMediaPreparing}
           onChooseMedia={openCreateMintMediaPicker}
@@ -1988,6 +1965,9 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
             setCreateMintMedia([]);
             setCreateMintMediaError(null);
           }}
+          drafts={mintz.drafts}
+          onSaveDraft={mintz.saveDraft}
+          onDeleteDraft={mintz.deleteDraft}
           highQualityUploads={preferenceState.preferences.content.highQualityUploads}
           defaultCommentsEnabled={
             preferenceState.preferences.content.commentsDefault

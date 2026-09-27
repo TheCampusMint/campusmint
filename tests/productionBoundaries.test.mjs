@@ -74,11 +74,14 @@ test("Brand onboarding stays separate from student fields and still verifies ema
 });
 
 test("student completion uses the minimal verified profile contract and reports database failures locally", () => {
-  assert.match(studentOnboarding, /displayName: string/);
+  assert.match(studentOnboarding, /firstName: string/);
+  assert.match(studentOnboarding, /lastName: string/);
   assert.match(studentOnboarding, /username: string/);
   assert.doesNotMatch(studentOnboarding, /interests|hobbies|academicArea|tutoring|roommate|clubIds|phoneNumber/);
   assert.match(accountCompletion, /user\.email_confirmed_at/);
-  assert.match(accountCompletion, /display_name: displayName/);
+  assert.match(accountCompletion, /firstName = cleanText/);
+  assert.match(accountCompletion, /lastName = cleanText/);
+  assert.match(accountCompletion, /const displayName = \[firstName, lastName\]\.filter\(Boolean\)\.join\(" "\)/);
   assert.match(accountCompletion, /process\.env\.NODE_ENV === "production"/);
   assert.match(accountCompletion, /That username is already taken/);
   assert.match(accountPrivileges, /profile_identities[\s\S]*profiles[\s\S]*profile_privacy_settings[\s\S]*to service_role/);
@@ -166,7 +169,8 @@ test("production Mint publishing waits for authenticated storage and database pe
   assert.match(mintPersistenceRoute, /removeUploadedMedia/);
   assert.match(mintPersistenceMigration, /unique index social_content_author_request_unique_idx/);
   assert.match(mintHook, /fetch\("\/api\/mintz"/);
-  assert.match(mintHook, /FormData/);
+  assert.match(mintHook, /uploadToSignedUrl/);
+  assert.match(source("../lib/content/publishMint.ts"), /JSON\.stringify\(body\)/);
   assert.match(mintComposer, /Retry Publish/);
   assert.doesNotMatch(mintComposer, /onCreateMint\(input\);\s*onClose/);
 });

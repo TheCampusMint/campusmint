@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   if (expirationError) return NextResponse.json({ ok: false, message: "Expiration could not be recorded." }, { status: 503 });
   const now = new Date();
   const { data: jobs, error: jobsError } = await admin.from("media_cleanup_jobs")
-    .select("id,bucket_id,storage_path,attempt_count")
+    .select("id,content_id,bucket_id,storage_path,attempt_count")
     .in("status", ["pending", "retry"])
     .lte("due_at", now.toISOString())
     .or(`next_attempt_at.is.null,next_attempt_at.lte.${now.toISOString()}`)
@@ -29,6 +29,22 @@ export async function GET(request: Request) {
   let complete = 0;
   let retried = 0;
   for (const job of jobs ?? []) {
+    if (!job.content_id && job.bucket_id === "mint-media") {
+      // A staged upload may have been published even if cancelling its cleanup
+      // job failed. Never treat a referenced active object's bytes as orphaned.
+      const { data: media, error: mediaError } = await admin.from("content_media")
+        .select("content_id").eq("storage_path", job.storage_path).limit(1).maybeSingle();
+      if (mediaError) { retried += 1; continue; }
+      if (media) {
+        const { data: content, error: contentError } = await admin.from("social_content")
+          .select("status").eq("id", media.content_id).maybeSingle();
+        if (contentError) { retried += 1; continue; }
+        if (content?.status !== "expired") {
+          await admin.from("media_cleanup_jobs").delete().eq("id", job.id);
+          continue;
+        }
+      }
+    }
     await admin.from("media_cleanup_jobs").update({ status: "processing" }).eq("id", job.id);
     const { error } = await admin.storage.from(job.bucket_id).remove([job.storage_path]);
     if (!error) {

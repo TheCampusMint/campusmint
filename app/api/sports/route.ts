@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 
 import { configuredUniversityIds, type UniversityId } from "@/data/universities";
 import { areDeveloperControlsEnabled } from "@/lib/runtime/fixturePolicy";
+import { refreshCampusSports, type SportsSnapshot } from "@/lib/sports/refresh";
 import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig, hasSupabaseServerConfig } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 30;
 
 export async function GET(request: Request) {
   if (!hasSupabasePublicConfig() || !hasSupabaseServerConfig()) return NextResponse.json({ ok: true, profile: null }, { headers: { "Cache-Control": "private, no-store" } });
@@ -28,5 +31,9 @@ export async function GET(request: Request) {
   }
   const { data, error } = await admin.from("sports_program_snapshots").select("payload,fetched_at,verified_at,stale_after").eq("university_id", requestedUniversityId).eq("dataset_key", "campus-athletics").maybeSingle();
   if (error) return NextResponse.json({ ok: false, message: "Sports data is temporarily unavailable." }, { status: 503 });
-  return NextResponse.json({ ok: true, profile: data?.payload ?? null, freshness: data ? { fetchedAt: data.fetched_at, verifiedAt: data.verified_at, staleAfter: data.stale_after } : null }, { headers: { "Cache-Control": "private, no-store" } });
+  let snapshot = data as SportsSnapshot | null;
+  let refreshUnavailable = false;
+  try { snapshot = await refreshCampusSports(requestedUniversityId, snapshot); }
+  catch { refreshUnavailable = true; }
+  return NextResponse.json({ ok: true, profile: snapshot?.payload ?? null, refreshUnavailable, freshness: snapshot ? { fetchedAt: snapshot.fetched_at, verifiedAt: snapshot.verified_at, staleAfter: snapshot.stale_after } : null }, { headers: { "Cache-Control": "private, no-store" } });
 }

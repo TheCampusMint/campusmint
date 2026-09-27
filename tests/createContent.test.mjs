@@ -82,6 +82,6 @@ test("legacy Spotify and Apple Music links still migrate without remaining the c
     }),
     null,
   );
-  assert.match(createSource, /MusicPicker/);
+  assert.doesNotMatch(createSource, /MusicPicker|SelectedMusicTrack|Add Music|Music \(optional\)/);
   assert.doesNotMatch(createSource, /open\.spotify\.com link|music\.apple\.com link/i);
 });

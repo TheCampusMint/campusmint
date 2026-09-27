@@ -30,7 +30,8 @@ test("Student email OTP and minimal profile stay intact while SMS is disabled", 
   assert.match(authRequest, /signupAccountType === "student"/);
   assert.match(authRequest, /signInWithOtp/);
   assert.match(authVerify, /verifyOtp/);
-  assert.match(accountComplete, /display_name: displayName/);
+  assert.match(accountComplete, /firstName = cleanText/);
+  assert.match(accountComplete, /lastName = cleanText/);
   assert.doesNotMatch(studentOnboarding, /interests|hobbies|academicArea|tutoring|roommate|clubIds|phoneNumber/);
   assert.match(source("../.env.example"), /STUDENT_SMS_VERIFICATION_REQUIRED=false/);
 });

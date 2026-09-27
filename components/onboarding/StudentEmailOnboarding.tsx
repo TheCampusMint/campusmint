@@ -12,7 +12,8 @@ import type { VerifiedStudentEmail } from "@/types/studentVerification";
 type VerificationRequestSuccess = Extract<EmailOtpRequestResponse, { ok: true }>;
 
 type OnboardingProfileSetup = {
-  displayName: string;
+  firstName: string;
+  lastName: string;
   username: string;
   profileImageStoragePath: string | null;
 };
@@ -48,7 +49,8 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
   const [selectedPersonalEmail, setSelectedPersonalEmail] = useState<string | null>(null);
   const [selectedPrimaryEmail, setSelectedPrimaryEmail] = useState<string | null>(null);
   const [profileSetupOpen, setProfileSetupOpen] = useState(false);
-  const [displayName, setDisplayName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");
   const [completionPending, setCompletionPending] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
@@ -122,26 +124,30 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
     if (!verifiedTarget || !selectedPrimaryEmail) return;
     setCompletionPending(true);
     setCompletionError(null);
-    const result = await onVerified(
-      verifiedTarget,
-      selectedPersonalEmail,
-      selectedPrimaryEmail,
-      {
-        displayName: displayName.trim(),
-        username: username.trim().toLowerCase(),
-        profileImageStoragePath: null,
-      },
-    );
-    setCompletionPending(false);
-    if (result && !result.ok) {
-      setCompletionError(result.message ?? "We couldn't finish account setup.");
+    try {
+      const result = await onVerified(
+        verifiedTarget,
+        selectedPersonalEmail,
+        selectedPrimaryEmail,
+        {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          username: username.trim().toLowerCase(),
+          profileImageStoragePath: null,
+        },
+      );
+      if (result && !result.ok) setCompletionError(result.message ?? "We couldn't finish account setup.");
+    } catch {
+      setCompletionError("We couldn't reach Campus Mint. Please try again.");
+    } finally {
+      setCompletionPending(false);
     }
   }
 
   if (profileSetupOpen && verifiedTarget && selectedPrimaryEmail) {
     const normalizedUsername = username.trim().toLowerCase();
     const usernameValid = usernamePattern.test(normalizedUsername);
-    const profileValid = displayName.trim().length > 0 && usernameValid;
+    const profileValid = firstName.trim().length > 0 && usernameValid;
 
     return (
       <main className={pageClass}>
@@ -150,17 +156,30 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
           <p className="text-sm font-bold uppercase tracking-[0.22em] text-slate-400">The Campus Mint</p>
           <h1 className="mt-4 text-4xl font-black tracking-[-0.045em]">Build your profile</h1>
           <p className="mt-3 text-base leading-7 text-slate-500">
-            Choose how your name and username will appear on campus. You can add more details later.
+            Add your name and username exactly as you want them to appear on campus. You can add more details later.
           </p>
           <div className="mt-8 space-y-4">
             <label className="block">
-              <span className="text-sm font-bold text-slate-700">Display name</span>
+              <span className="text-sm font-bold text-slate-700">First name</span>
               <input
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value.slice(0, 160))}
-                autoComplete="name"
+                required
+                value={firstName}
+                onChange={(event) => setFirstName(event.target.value.slice(0, 80))}
+                autoComplete="given-name"
+                placeholder="First name"
                 className={inputClass}
               />
+            </label>
+            <label className="block">
+              <span className="text-sm font-bold text-slate-700">Last name</span>
+              <input
+                value={lastName}
+                onChange={(event) => setLastName(event.target.value.slice(0, 80))}
+                autoComplete="family-name"
+                placeholder="Last name"
+                className={inputClass}
+              />
+              <span className="mt-1 block text-xs text-slate-500">Leave blank if you use one name.</span>
             </label>
             <label className="block">
               <span className="text-sm font-bold text-slate-700">Username</span>

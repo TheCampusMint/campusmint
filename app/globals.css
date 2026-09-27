@@ -576,3 +576,10 @@ summary {
 .campus-app-shell [data-bottom-bubble-nav] button:focus-visible {
   outline-offset: -2px;
 }
+
+/* Note editor is portaled to body, outside the shell's scoped focus rules. */
+.cm-note-editor :where(button, input, textarea):focus-visible,
+.cm-create-composer :where(button, input, textarea, select):focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}

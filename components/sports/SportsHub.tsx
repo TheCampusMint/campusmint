@@ -160,6 +160,7 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
     defaultSport,
   );
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const [refreshUnavailable, setRefreshUnavailable] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 60_000);
@@ -169,13 +170,32 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
   useEffect(() => {
     if (!universityId) return;
     let active = true;
-    fetch(`/api/sports?universityId=${encodeURIComponent(universityId)}`, { cache: "no-store" })
-      .then(async (response) => ({ response, payload: await response.json() as { ok?: boolean; profile?: CampusAthleticsProfile | null } }))
-      .then(({ response, payload }) => {
-        if (active && response.ok && payload.ok && payload.profile?.universityId === universityId) setRemoteProfile(payload.profile);
-      })
-      .catch(() => null);
-    return () => { active = false; };
+    let pending = false;
+    const controller = new AbortController();
+    const refresh = async () => {
+      if (pending || document.visibilityState === "hidden") return;
+      pending = true;
+      try {
+        const response = await fetch(`/api/sports?universityId=${encodeURIComponent(universityId)}`, { cache: "no-store", signal: controller.signal });
+        const payload = await response.json() as { ok?: boolean; profile?: CampusAthleticsProfile | null; refreshUnavailable?: boolean };
+        if (!active) return;
+        setRefreshUnavailable(!response.ok || !payload.ok || payload.refreshUnavailable === true);
+        if (response.ok && payload.ok && payload.profile?.universityId === universityId) setRemoteProfile(payload.profile);
+      } catch { if (active) setRefreshUnavailable(true); }
+      finally { pending = false; }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 60_000);
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      active = false;
+      controller.abort();
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   }, [universityId]);
 
   useEffect(() => {
@@ -249,6 +269,8 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
           </p>
         </div>
       </header>
+
+      {refreshUnavailable && <p role="status" className="text-xs text-[var(--app-text-secondary)]">Scores could not be refreshed. Showing the last verified schedule.</p>}
 
       <section
         className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-[0_12px_38px_-30px_rgba(15,23,42,.7)]"

@@ -27,7 +27,6 @@ import {
   getAccountUniversityShortName,
 } from "@/data/universities";
 import { formatEventDateTimeRange } from "@/lib/content/eventTiming";
-import { getMusicExternalUrl } from "@/lib/content/music";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import type { FloatingSurfaceOrigin } from "@/lib/motion/interaction";
 import { resolvePublicMintMetrics } from "@/lib/social/mintInteractions";
@@ -237,7 +236,7 @@ export function MintCard(props: MintCardProps) {
             {mint.mentions.length > 0 && <p className="mt-2 text-sm font-bold" style={{ color: theme.primary }}>{mint.mentions.map((mention) => `@${mention.username}`).join(" ")}</p>}
             {mint.hashtags.length > 0 && <p className="mt-2 text-sm font-bold" style={{ color: theme.primary }}>{mint.hashtags.map((tag) => `#${tag}`).join(" ")}</p>}
             {taggedOrganizations.length > 0 && <p className="mt-3 text-xs font-semibold text-slate-500">With {taggedOrganizations.map((tagged) => tagged.name).join(", ")}</p>}
-            {(mint.location || mint.music) && <div className="mt-3 space-y-1 text-xs text-slate-500">{mint.location && <p>⌖ {mint.location.label}</p>}{mint.music && (getMusicExternalUrl(mint.music) ? <a href={getMusicExternalUrl(mint.music) ?? undefined} target="_blank" rel="noreferrer" className="inline-flex font-semibold hover:underline">♫ {mint.music.trackTitle} · {mint.music.artist}</a> : <p>♫ {mint.music.trackTitle} · {mint.music.artist}</p>)}</div>}
+            {mint.location && <p className="mt-3 text-xs text-slate-500">⌖ {mint.location.label}</p>}
 
             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 pt-2" data-public-mint-metrics>
               {publicMetrics.map((metric) => <CompactMetric key={metric.kind} label={metric.label} />)}

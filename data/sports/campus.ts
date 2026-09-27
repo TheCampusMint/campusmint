@@ -117,11 +117,11 @@ export const defaultSportsEntitlement: SportsEntitlement = {
 
 const footballSource: SportsDataSource = {
   sourceName: "Texas A&M Athletics · 2026 football schedule",
-  sourceUrl: "https://12thman.com/news/2025/12/11/2026-football-schedule-announced",
+  sourceUrl: "https://12thman.com/sports/football/schedule/season/2026",
   season: "2026",
-  verifiedAt: "2026-09-10",
-  lastFetchedAt: "2026-09-10T12:00:00-05:00",
-  staleAfter: "2026-09-12T14:00:00-05:00",
+  verifiedAt: "2026-09-27T23:15:00Z",
+  lastFetchedAt: "2026-09-27T23:15:00Z",
+  staleAfter: "2026-09-27T23:20:00Z",
 };
 
 const basketballSource: SportsDataSource = {
@@ -164,7 +164,7 @@ const texasAmFootballGames: readonly CampusScheduleGame[] = [
     date: "2026-09-05T18:00:00-05:00", dateLabel: "Sep 5", timeLabel: "6:00 PM CT",
     homeAway: "home", location: "Kyle Field", network: "ESPN", status: "final",
     campusScore: 50, opponentScore: 0, liveDetail: null, result: "W",
-    sourceGameId: "tamu-missouri-state-2026-09-05",
+    sourceGameId: "3590",
     scheduleSourceUrl: "https://12thman.com/sports/football/schedule",
     boxScoreSourceUrl: "https://12thman.com/documents/ec53897d-8a81-4352-b0e9-80e8e97ed36b.pdf",
     lastUpdated: "2026-09-05T22:30:00-05:00",
@@ -202,10 +202,10 @@ const texasAmFootballGames: readonly CampusScheduleGame[] = [
       ],
     },
   },
-  scheduledGame("football", { id: "tamu-fb-arizona-state", opponentName: "Arizona State", date: "2026-09-12T11:00:00-05:00", dateLabel: "Sep 12", timeLabel: "11:00 AM CT", homeAway: "home", location: "Kyle Field", network: "ABC" }),
-  scheduledGame("football", { id: "tamu-fb-kentucky", opponentName: "Kentucky", date: "2026-09-19T14:30:00-05:00", dateLabel: "Sep 19", timeLabel: "2:30 PM CT", homeAway: "home", location: "Kyle Field", network: "ESPN / ESPN2" }),
-  scheduledGame("football", { id: "tamu-fb-lsu", opponentName: "LSU", date: "2026-09-26", dateLabel: "Sep 26", timeLabel: "TBA", homeAway: "away", location: "Tiger Stadium", network: null }),
-  scheduledGame("football", { id: "tamu-fb-arkansas", opponentName: "Arkansas", date: "2026-10-03", dateLabel: "Oct 3", timeLabel: "TBA", homeAway: "home", location: "Kyle Field", network: null }),
+  { id: "tamu-fb-arizona-state", sport: "football", opponentName: "Arizona State", date: "2026-09-12T11:00:00-05:00", dateLabel: "Sep 12", timeLabel: "11:00 AM CT", homeAway: "home", location: "Kyle Field", network: "ABC", status: "final", result: "W", campusScore: 48, opponentScore: 20, liveDetail: null, sourceGameId: "3593", scheduleSourceUrl: footballSource.sourceUrl, lastUpdated: footballSource.lastFetchedAt },
+  { id: "tamu-fb-kentucky", sport: "football", opponentName: "Kentucky", date: "2026-09-19T14:30:00-05:00", dateLabel: "Sep 19", timeLabel: "2:30 PM CT", homeAway: "home", location: "Kyle Field", network: "ESPN", status: "final", result: "L", campusScore: 21, opponentScore: 31, liveDetail: null, sourceGameId: "3591", scheduleSourceUrl: footballSource.sourceUrl, lastUpdated: footballSource.lastFetchedAt },
+  { id: "tamu-fb-lsu", sport: "football", opponentName: "LSU", date: "2026-09-26T18:30:00-05:00", dateLabel: "Sep 26", timeLabel: "6:30 PM CT", homeAway: "away", location: "Tiger Stadium", network: "ABC", status: "final", result: "L", campusScore: 6, opponentScore: 35, liveDetail: null, sourceGameId: "3592", scheduleSourceUrl: footballSource.sourceUrl, lastUpdated: footballSource.lastFetchedAt },
+  scheduledGame("football", { id: "tamu-fb-arkansas", opponentName: "Arkansas", date: "2026-10-03T18:00:00-05:00", dateLabel: "Oct 3", timeLabel: "6:00 PM CT", homeAway: "home", location: "Kyle Field", network: null }),
   scheduledGame("football", { id: "tamu-fb-missouri", opponentName: "Missouri", date: "2026-10-10", dateLabel: "Oct 10", timeLabel: "TBA", homeAway: "away", location: "Faurot Field", network: null }),
   scheduledGame("football", { id: "tamu-fb-citadel", opponentName: "The Citadel", date: "2026-10-17T12:00:00-05:00", dateLabel: "Oct 17", timeLabel: "12:00 PM CT", homeAway: "home", location: "Kyle Field", network: "SEC Network+" }),
   scheduledGame("football", { id: "tamu-fb-alabama", opponentName: "Alabama", date: "2026-10-24", dateLabel: "Oct 24", timeLabel: "TBA", homeAway: "away", location: "Bryant–Denny Stadium", network: null }),
@@ -299,7 +299,7 @@ const texasAmPrograms: CampusAthleticsProfile["programs"] = {
     schedulePublished: true,
     games: texasAmFootballGames,
     source: footballSource,
-    record: "1–0",
+    record: "2–2",
   },
   basketball: {
     sport: "basketball",

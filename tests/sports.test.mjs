@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { parseOfficialFootballSchedule, updateOfficialFootballProgram } from "../lib/sports/officialFootball.ts";
 
 import {
   defaultSportsEntitlement,
@@ -122,9 +123,11 @@ test("80. Texas A&M football home and away metadata is correct", () => {
   ]);
 });
 
-test("81. future games contain no invented result while the completed opener is final", () => {
-  const [opener, ...futureGames] = tamu.programs.football.games;
+test("81. future games contain no invented result while four official results are final", () => {
+  const [opener] = tamu.programs.football.games;
+  const futureGames = tamu.programs.football.games.slice(4);
   assert.deepEqual([opener.status, opener.result, opener.campusScore, opener.opponentScore], ["final", "W", 50, 0]);
+  assert.deepEqual(tamu.programs.football.games.slice(1, 4).map(({ result, campusScore, opponentScore }) => [result, campusScore, opponentScore]), [["W", 48, 20], ["L", 21, 31], ["L", 6, 35]]);
   for (const game of futureGames) {
     assert.equal(game.status, "scheduled");
     assert.equal(game.result, null);
@@ -133,14 +136,14 @@ test("81. future games contain no invented result while the completed opener is 
   }
 });
 
-test("91. Sep 10 date-aware state identifies Arizona State as the next verified game", () => {
-  const auditTime = Date.parse("2026-09-10T12:00:00-05:00");
+test("91. Sep 27 date-aware state identifies Arkansas as the next verified game", () => {
+  const auditTime = Date.parse("2026-09-27T12:00:00-05:00");
   const opener = tamu.programs.football.games[0];
-  const next = tamu.programs.football.games[1];
+  const next = tamu.programs.football.games[4];
   assert.equal(resolveCampusGameState(opener, tamu.programs.football.source, auditTime), "final");
-  assert.equal(next.opponentName, "Arizona State");
+  assert.equal(next.opponentName, "Arkansas");
   assert.equal(resolveCampusGameState(next, tamu.programs.football.source, auditTime), "scheduled");
-  assert.equal(tamu.programs.football.record, "1–0");
+  assert.equal(tamu.programs.football.record, "2–2");
 });
 
 test("92. current AP board resolves Texas A&M at No. 10", () => {
@@ -224,4 +227,74 @@ test("90. every campus has exactly three explicit sports with provenance", () =>
       assert.ok(program.source.verifiedAt);
     }
   }
+});
+
+const officialGameMarkup = ({ index = 0, id = "101", opponent = "Example University", date = "2026-09-12T11:00:00-05:00", result = "W, <span>Win</span> 24-17", venue = "home" } = {}) => `
+  <div name="scheduleBeforeScheduledEvent${index}"></div>
+  <div class="schedule-event-date schedule-event-date--venue-${venue}"><time datetime="${date}" class="schedule-event-date__day">Sep 12</time><time class="schedule-event-date__clock">11:00 AM</time></div>
+  <strong class="schedule-event-default__name schedule-event-default__name--current">Texas A&amp;M</strong>
+  <strong class="schedule-event-default__name"><span>(#12)</span> ${opponent}</strong>
+  <span class="schedule-event-default__venue">Kyle Field</span>
+  ${result ? `<div class="schedule-event-item-result__label">${result}</div>` : ""}
+  <div entity-id="${id}" entity-name="schedule-events"></div>
+  <a href="/boxscore/${id}" class="schedule-event-box-score-link">Stats</a>
+  <div name="scheduleAfterScheduledEvent${index}"></div>`;
+const officialScheduleMarkup = (...games) => `<h1 class="schedule-hero__title"><span>2026</span> Football Schedule</h1>${games.join("")}`;
+const verificationTime = new Date("2026-09-27T12:00:00Z");
+
+test("official provider parses source-backed results, rankings, dates, and opponent orientation", () => {
+  const [game] = parseOfficialFootballSchedule(officialScheduleMarkup(officialGameMarkup({ venue: "away", result: "L, <span>Loss</span> 6-35" })), "2026", verificationTime);
+  assert.equal(game.opponentName, "Example University");
+  assert.equal(game.homeAway, "away");
+  assert.equal(game.status, "final");
+  assert.deepEqual([game.result, game.campusScore, game.opponentScore], ["L", 6, 35]);
+  assert.equal(game.boxScoreSourceUrl, "https://12thman.com/boxscore/101");
+});
+
+test("a past game without an explicit result remains pending, with no invented scores", () => {
+  const [game] = parseOfficialFootballSchedule(officialScheduleMarkup(officialGameMarkup({ result: "" })), "2026", verificationTime);
+  assert.equal(game.status, "verification_pending");
+  assert.equal(game.campusScore, null);
+  assert.equal(game.opponentScore, null);
+});
+
+test("an unpublished or malformed source fails closed instead of reporting fresh scores", () => {
+  assert.throws(() => parseOfficialFootballSchedule("Access denied", "2026", verificationTime), /season/);
+  assert.throws(() => parseOfficialFootballSchedule(officialScheduleMarkup(), "2026", verificationTime), /format/);
+  assert.throws(() => parseOfficialFootballSchedule(officialScheduleMarkup(officialGameMarkup()), "2027", verificationTime), /season/);
+  assert.throws(() => parseOfficialFootballSchedule(officialScheduleMarkup(officialGameMarkup({ result: "W, Win 3-20" })), "2026", verificationTime), /disagree/);
+  assert.throws(() => parseOfficialFootballSchedule(officialScheduleMarkup(officialGameMarkup({ result: "Unknown result" })), "2026", verificationTime), /verified/);
+});
+
+test("duplicate games cannot change the season record", () => {
+  assert.throws(() => parseOfficialFootballSchedule(officialScheduleMarkup(officialGameMarkup(), officialGameMarkup({ index: 1 })), "2026", verificationTime), /duplicate/);
+});
+
+test("refresh preserves stable game identity and existing verified participant details", () => {
+  const games = parseOfficialFootballSchedule(officialScheduleMarkup(officialGameMarkup()), "2026", verificationTime);
+  const detail = { scopeLabel: "Verified", sourceUrl: "https://12thman.com/boxscore/101", sourceName: "Official", statGroups: [] };
+  const previous = { ...tamu.programs.football, games: [{ ...games[0], id: "existing-id", detail }] };
+  const refreshed = updateOfficialFootballProgram(previous, games, "2026", verificationTime);
+  assert.equal(refreshed.games[0].id, "existing-id");
+  assert.equal(refreshed.games[0].detail, detail);
+  assert.equal(refreshed.record, "1–0");
+  assert.equal(refreshed.source.lastFetchedAt, verificationTime.toISOString());
+  assert.equal(Date.parse(refreshed.source.staleAfter) - verificationTime.getTime(), 300_000);
+});
+
+test("partial or regressed provider data does not replace a verified schedule", () => {
+  const games = parseOfficialFootballSchedule(officialScheduleMarkup(officialGameMarkup()), "2026", verificationTime);
+  assert.throws(() => updateOfficialFootballProgram(tamu.programs.football, games, "2026", verificationTime), /incomplete/);
+  const previous = { ...tamu.programs.football, games };
+  const unverified = parseOfficialFootballSchedule(officialScheduleMarkup(officialGameMarkup({ result: "" })), "2026", verificationTime);
+  assert.throws(() => updateOfficialFootballProgram(previous, unverified, "2026", verificationTime), /previously verified/);
+  assert.equal(previous.games[0].status, "final");
+});
+
+test("an official reschedule updates kickoff without losing the existing game identity", () => {
+  const games = parseOfficialFootballSchedule(officialScheduleMarkup(officialGameMarkup({ result: "", date: "2026-10-04T11:00:00-05:00" })), "2026", verificationTime);
+  const previous = { ...tamu.programs.football, games: [{ ...games[0], id: "existing-game", date: "2026-10-03T11:00:00-05:00" }] };
+  const refreshed = updateOfficialFootballProgram(previous, games, "2026", verificationTime);
+  assert.equal(refreshed.games[0].id, "existing-game");
+  assert.equal(refreshed.games[0].date, "2026-10-04T11:00:00-05:00");
 });

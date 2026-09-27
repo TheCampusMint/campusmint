@@ -4,11 +4,34 @@ This document records work that must not be represented as live until its extern
 
 ## Production Mint media
 
-- The application now uses the authenticated `/api/mintz` contract for non-development accounts. The server validates media, uploads to the private `mint-media` bucket, inserts ownership/content rows, and returns short-lived signed URLs only after the saved record can be read back.
-- Apply migrations `01600`–`02000` before exercising the new persistence and authorization paths in a deployed environment. No migration push is performed by this patch.
-- Images are browser-optimized to WebP when that reduces bytes. MP4/WebM are validated and uploaded, but no transcoder, thumbnail worker, streaming rendition pipeline, or cross-browser production video test exists. Video must be treated as not live-tested.
-- A scheduler must invoke `/api/mintz/cleanup` with `Authorization: Bearer $CRON_SECRET`. Until that worker is scheduled and monitored, expired records are hidden but object deletion is not operationally guaranteed.
+- Non-development accounts publish through authenticated `/api/mintz` preparation and finalization requests. Preparation grants short-lived signed upload access to owner-scoped paths in the private `mint-media` bucket; the browser sends file bytes directly to Supabase Storage. Only metadata passes through the application host, avoiding its request-body limit for large videos.
+- Finalization verifies the signed, owner-bound upload ticket, stored object path, byte size, MIME type, and file signature before inserting content/ownership rows. It returns success with signed playback URLs only after the saved Mint can be read back. Development accounts still use local fixtures and do not prove production posting works.
+- Migrations `01600`–`02000` and working Supabase public/server configuration are prerequisites for posting. Migration `20260927002100_profile_persistence.sql` is additionally required for the account/profile changes in this release. Verify the target database's migration history during release; a Git commit or website deployment does not apply database migrations by itself.
+- Launch limits remain six media items, 12 MB per image, 100 MB per video, and 150 MB total. The default photo preparation fits the longest edge to 2048 pixels; the opt-in 4K/HD setting raises that to 3840 pixels. Preparation preserves aspect ratio and never enlarges small images. WebP conversion is used when it reduces bytes. The setting does not add a video transcoder or override file-size limits.
+- MP4/WebM uploads are supported, but no transcoder, thumbnail worker, adaptive streaming pipeline, or completed cross-browser production video playback matrix exists. Storage acceptance alone does not guarantee that every phone can decode a particular video codec.
+- Abandoned staged uploads receive cleanup jobs due after 24 hours; upload tickets expire after two hours. Successful publication cancels staged cleanup, and the existing worker checks published references before removing staged objects.
+- `/api/mintz/cleanup` also expires content and processes the wider media cleanup queue. **No cleanup cron is scheduled by this release**: `vercel.json` schedules only Events and Sports. Authorized manual or existing maintenance must invoke this worker with `Authorization: Bearer $CRON_SECRET` (or the configured `CAMPUS_DATA_SYNC_SECRET` fallback). Until cleanup is deliberately scheduled and monitored, abandoned uploads and expired media may remain in storage and incur storage costs; expired posts are hidden from the feed.
 - Exact Premium limits, quotas, original-media retention, and billing entitlements are undefined and remain inactive.
+
+## Saved Drafts
+
+- The composer exposes a Drafts section with reopen and delete actions plus an explicit Save draft action. Draft metadata and selected `File` objects are stored in IndexedDB under the current account identity; reopening restores composer fields and media previews.
+- Failed publication attempts save a draft for retry. Successful publication removes the reopened draft when local cleanup succeeds; a local deletion error does not turn an already published Mint into a failed publish.
+- Drafts are private to that browser/device and are not synchronized through Supabase. Clearing site data, browser storage eviction, or unavailable storage can remove or prevent saving drafts. Storage errors are surfaced while leaving the composer open. Migrated older drafts that stored filenames only ask the user to reselect the media.
+
+## Account and identity persistence
+
+- Student signup collects First name, Last name, and Username separately. A person entering only a first name keeps an empty last name; the application must not invent a duplicated surname. Migration `02100` permits that empty value and adds persisted editable profile details.
+- Authenticated profile edits use the owner-scoped `/api/account/profile` endpoint and wait for database confirmation. Sign-in hydration reads the saved profile instead of treating browser-local edits as account persistence. Transient account-loading failures must remain retryable rather than restarting setup or replacing the saved identity.
+- Automated tests cover profile normalization and request/response behavior. They do not replace a real account sign-out/sign-in check on the deployed database or a separate-device restoration check.
+
+## Football results and refresh
+
+- Texas A&M football uses the official `https://12thman.com/sports/football/schedule/season/{year}` schedule as its provider. The parser accepts explicit source-backed results, updates the season record and kickoff information, and retains stable game IDs and existing verified participant details. It does not infer a final score or live status from elapsed time.
+- Authenticated `/api/sports` reads refresh Texas A&M football when its provider snapshot is at least five minutes old. The Sports screen polls while visible and refreshes when the tab regains focus. A daily Vercel cron calls `/api/sports/refresh` at 06:37 UTC using `CRON_SECRET` (with `CAMPUS_DATA_SYNC_SECRET` as the route's fallback); the deployed environment must configure a secret for cron authentication. The existing authorized snapshot-push POST endpoint remains available.
+- Successful fetches are stored in `sports_program_snapshots`. Migration `20260927002200_sports_snapshot_server_access.sql` grants the server permission to read, insert, and update these snapshots; direct browser access remains restricted. Provider failures, malformed/partial schedules, or a missing previously verified final retain the old snapshot and its original freshness timestamps. The screen reports refresh failures. This is schedule/result refresh, not a licensed realtime play-by-play feed.
+- The bundled fallback was checked against the official source on September 27, 2026: Texas A&M's record is 2–2, including Arizona State 48–20, Kentucky 21–31, and LSU 6–35. Other university programs and poll boards retain their own sources and timestamps; the football refresh does not make those datasets current.
+- Provider parsing was checked against fetched official HTML and automated tests cover malformed data, missing results, duplicates, rescheduling, and stable identity. A successful local parser/test run does not establish that production cron authentication, database writes, and subsequent authenticated reads all succeeded; verify those after deployment.
 
 ## Creator authorization
 
@@ -52,7 +75,7 @@ This document records work that must not be represented as live until its extern
 - Mint comments, comment replies, reactions, and Direct Mint conversations currently use the existing device-local development stores. They are optimistic local interactions, not server realtime or cross-device persistence.
 - Direct Mint attachment previews use user-selected browser files/data URLs with a 4 MB preview cap. Camera uses an explicit file-input capture hint; it does not request camera permission on load or claim native Photos access.
 - Direct Mint GIF entry accepts a user-selected GIF file. The Campus sticker choices are labeled development fixtures. No licensed GIF or sticker catalog is connected.
-- Emoji uses normal text plus a small inline shortcut row. Music remains the labeled fictional provider-ready development catalog already documented by the picker.
+- Emoji uses normal text plus a small inline shortcut row. Music attachment controls and track displays are removed from Notes and posts pending provider rights. New Mint submissions ignore music metadata; historical records and audio inside uploaded videos are retained.
 - Mint sharing uses Web Share when available, then clipboard/copy fallback. Campus location attachment remains an explicit campus-entity or manual selection; precise device geolocation is not silently requested.
 
 ## Moderation and support

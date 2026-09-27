@@ -2,6 +2,24 @@ import { NextResponse } from "next/server";
 
 import { configuredUniversityIds, type UniversityId } from "@/data/universities";
 import { createSupabaseAdminClient, hasSupabaseServerConfig } from "@/lib/supabase/server";
+import { refreshCampusSports, type SportsSnapshot } from "@/lib/sports/refresh";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+export async function GET(request: Request) {
+  const expected = process.env.CRON_SECRET ?? process.env.CAMPUS_DATA_SYNC_SECRET;
+  if (!expected || request.headers.get("authorization") !== `Bearer ${expected}`) return NextResponse.json({ ok: false }, { status: 401 });
+  if (!hasSupabaseServerConfig()) return NextResponse.json({ ok: false, message: "Sports storage is not configured." }, { status: 503 });
+  const { data, error } = await createSupabaseAdminClient().from("sports_program_snapshots").select("payload,fetched_at,verified_at,stale_after").eq("university_id", "tamu").eq("dataset_key", "campus-athletics").maybeSingle();
+  if (error) return NextResponse.json({ ok: false, message: "Sports storage is unavailable." }, { status: 503 });
+  try {
+    const snapshot = await refreshCampusSports("tamu", data as SportsSnapshot | null, true);
+    return NextResponse.json({ ok: true, universityId: "tamu", refreshedAt: snapshot?.fetched_at }, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return NextResponse.json({ ok: false, message: "The official football schedule could not be refreshed. The previous verified snapshot was retained." }, { status: 502 });
+  }
+}
 
 const record = (value: unknown): Record<string, unknown> | null => typeof value === "object" && value !== null ? value as Record<string, unknown> : null;
 const httpsUrl = (value: unknown) => typeof value === "string" && /^https:\/\//.test(value);

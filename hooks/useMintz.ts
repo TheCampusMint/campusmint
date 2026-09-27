@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   createDevelopmentMintComments,
@@ -8,8 +8,18 @@ import {
 } from "@/data/development/mintz";
 import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import type { LocalMintMediaSelection } from "@/lib/content/localMintMedia";
+import { publishMint } from "@/lib/content/publishMint";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { resolveContentStatus } from "@/lib/content/expiration";
 import { validateCommentAttachment } from "@/lib/content/commentMedia";
+import {
+  readMintDrafts,
+  removeMintDraft,
+  upsertMintDraft,
+  type MintDraft,
+  type MintDraftInput,
+} from "@/lib/content/mintDrafts";
+import { deleteStoredMintDraft, listStoredMintDrafts, storeMintDraft } from "@/lib/content/mintDraftStore";
 import { canRepostComment } from "@/lib/social/commentRanking";
 import {
   migrateMintInteractionState,
@@ -49,7 +59,7 @@ import type {
   SocialCommentLike,
   SocialCommentRepost,
 } from "@/types/mint";
-import type { MintFeedResponse, MintPublishResponse } from "@/types/mintPersistence";
+import type { MintFeedResponse } from "@/types/mintPersistence";
 import type { CampusMintUser } from "@/types/profile";
 
 function localId(prefix: string) {
@@ -73,6 +83,10 @@ function interactionStorageKey(userId: string) {
 
 function feedStorageKey(userId: string) {
   return `campusmint:mint-feed:${userId}:v1`;
+}
+
+function readLegacyDrafts(userId: string) {
+  try { return readMintDrafts(window.localStorage, userId); } catch { return []; }
 }
 
 export function useMintz(currentUserId: string) {
@@ -103,6 +117,34 @@ export function useMintz(currentUserId: string) {
   const [shares, setShares] = useState<MintShare[]>([]);
   const [reports, setReports] = useState<ContentReport[]>([]);
   const [pendingNotifications, setPendingNotifications] = useState<PendingContentNotification[]>([]);
+  const [draftState, setDraftState] = useState<{ userId: string; drafts: MintDraft[] }>({ userId: "", drafts: [] });
+  const draftLoadRef = useRef<{ userId: string; promise: Promise<MintDraft[]> } | null>(null);
+  const drafts = draftState.userId === currentUserId ? draftState.drafts : [];
+
+  useEffect(() => {
+    let cancelled = false;
+    const promise = (async () => {
+      try {
+        let stored = await listStoredMintDrafts(currentUserId);
+        const legacy = readLegacyDrafts(currentUserId).filter((draft) => !stored.some((item) => item.id === draft.id));
+        for (const draft of legacy) {
+          try { await storeMintDraft(draft, []); } catch {
+            // A full device must not hide drafts already read successfully.
+            // Legacy text stays available in this list for a later retry.
+          }
+        }
+        stored = [...stored, ...legacy].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+        return stored;
+      } catch {
+        return readLegacyDrafts(currentUserId);
+      }
+    })();
+    draftLoadRef.current = { userId: currentUserId, promise };
+    void promise.then((stored) => {
+      if (!cancelled) setDraftState({ userId: currentUserId, drafts: stored });
+    });
+    return () => { cancelled = true; };
+  }, [currentUserId]);
 
   useLayoutEffect(() => {
     try {
@@ -216,6 +258,30 @@ export function useMintz(currentUserId: string) {
     void loadPersistedMintz();
   }
 
+  async function saveDraft(input: MintDraftInput, media: readonly LocalMintMediaSelection[] = []) {
+    // Complete migration first: a late hydration result must not overwrite a
+    // freshly saved draft, or restore legacy metadata over its attached files.
+    const initialDrafts = draftLoadRef.current?.userId === currentUserId ? await draftLoadRef.current.promise : [];
+    const saved = upsertMintDraft(draftState.userId === currentUserId ? drafts : initialDrafts, currentUserId, input)[0];
+    await storeMintDraft(saved, media);
+    setDraftState((current) => draftLoadRef.current?.userId !== currentUserId ? current : ({ userId: currentUserId, drafts: [saved, ...(current.userId === currentUserId ? current.drafts : initialDrafts).filter((draft) => draft.id !== saved.id)] }));
+    return saved;
+  }
+
+  async function deleteDraft(draftId: string) {
+    if (draftLoadRef.current?.userId === currentUserId) await draftLoadRef.current.promise;
+    await deleteStoredMintDraft(currentUserId, draftId);
+    // Remove migrated metadata too, so a deleted legacy draft cannot reappear.
+    try {
+      const legacy = readLegacyDrafts(currentUserId);
+      window.localStorage.setItem(`campusmint:mint-drafts:${currentUserId}:v1`, JSON.stringify(removeMintDraft(legacy, draftId)));
+    } catch {
+      // IndexedDB deletion succeeded; blocked legacy storage must not leave a
+      // phantom row visible or turn a completed publication into a failure.
+    }
+    setDraftState((current) => current.userId === currentUserId ? { ...current, drafts: removeMintDraft(current.drafts, draftId) } : current);
+  }
+
   const mintz = useMemo(() => storedMintz
     .filter((mint) => (mint.developmentFeedGeneration ?? 0) <= refreshGeneration)
     .map((mint) => ({
@@ -265,8 +331,7 @@ export function useMintz(currentUserId: string) {
       return { ok: true as const, mint: createLocalMint(input), message: null };
     }
 
-    const formData = new FormData();
-    formData.set("payload", JSON.stringify({
+    const payload = {
       requestId,
       caption: input.caption,
       postType: input.postType,
@@ -287,17 +352,20 @@ export function useMintz(currentUserId: string) {
         height: selection.media.height,
         durationSeconds: selection.media.durationSeconds,
       })),
-    }));
-    selections.forEach((selection) => formData.append("media", selection.file, selection.file.name));
+    };
 
     try {
-      const response = await fetch("/api/mintz", { method: "POST", body: formData });
-      const result = await response.json().catch(() => null) as MintPublishResponse | null;
-      if (!response.ok || !result?.ok) {
+      const result = await publishMint(payload, selections.map((selection) => selection.file), (destination, file) =>
+        createSupabaseBrowserClient().storage.from("mint-media").uploadToSignedUrl(destination.storagePath, destination.token, file, {
+          contentType: file.type,
+          cacheControl: "31536000",
+        }),
+      );
+      if (!result.ok) {
         return {
           ok: false as const,
-          message: result && !result.ok ? result.message : "We couldn't publish your Mint. Your draft is still here—try again.",
-          retryable: result && !result.ok ? result.retryable : true,
+          message: result.message,
+          retryable: result.retryable,
         };
       }
       setStoredMintz((current) => [result.mint, ...current.filter((mint) => mint.id !== result.mint.id)]);
@@ -601,11 +669,14 @@ export function useMintz(currentUserId: string) {
     shares,
     reports,
     pendingNotifications,
+    drafts,
     persistedAuthors,
     persistedMintzLoading,
     persistenceError,
     refreshMintz,
     createMint,
+    saveDraft,
+    deleteDraft,
     registerPrivateAppreciation,
     togglePublicEndorsement,
     addComment,

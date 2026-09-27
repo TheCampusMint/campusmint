@@ -7,6 +7,7 @@ import {
   developmentUsers,
 } from "@/data/development/users";
 import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
+import { normalizeProfileUpdate, persistProfile, profileValuesFromRow } from "@/lib/auth/profilePersistence";
 import {
   getFriendshipStatus as findFriendshipStatus,
   getNextFriendshipStatus,
@@ -160,7 +161,7 @@ export function useProfiles() {
     const current = users.find(
       (user) =>
         user.account.id ===
-        currentUser.account.id,
+        CURRENT_DEVELOPMENT_USER_ID,
     );
 
     if (!current) return;
@@ -169,7 +170,7 @@ export function useProfiles() {
       DEVELOPMENT_PROFILE_STORAGE_KEY,
       JSON.stringify(current),
     );
-  }, [currentUser.account.id, developmentProfileHydrated, users]);
+  }, [developmentProfileHydrated, users]);
 
   function getUserById(userId: string) {
     return users.find((user) => user.account.id === userId) ?? null;
@@ -201,11 +202,24 @@ export function useProfiles() {
   }
 
 
-  function updateCurrentProfile(patch: EditableProfilePatch) {
+  async function updateCurrentProfile(patch: EditableProfilePatch) {
     const currentProfile = users.find((candidate) => candidate.account.id === currentUser.account.id);
+    if (!currentProfile || currentProfile.account.id === EMPTY_SESSION_USER.account.id) {
+      return { ok: false, error: "Sign in to save your profile." } as const;
+    }
     const username = patch.username ?? currentProfile?.profile.username ?? "";
     const usernameResult = isUsernameAvailable(username, users, currentUser.account.id);
     if (!usernameResult.valid) return { ok: false, error: usernameResult.error } as const;
+
+    const merged = { ...currentProfile.profile, ...patch, username };
+    const normalized = normalizeProfileUpdate(merged);
+    if (!normalized.ok) return { ok: false, error: normalized.message } as const;
+    let savedProfile = profileValuesFromRow(normalized.update);
+    if (!currentProfile.account.isDevelopment) {
+      const result = await persistProfile(savedProfile);
+      if (!result.ok) return result;
+      savedProfile = result.profile;
+    }
 
     setUsers((currentUsers) => currentUsers.map((user) =>
       user.account.id === currentUser.account.id
@@ -213,13 +227,12 @@ export function useProfiles() {
             ...user,
             profile: {
               ...user.profile,
-              ...patch,
-              username,
-              usernameNormalized: usernameResult.normalized,
+              ...savedProfile,
               updatedAt: new Date().toISOString(),
             },
           }
-        : user));
+          : user));
+
     return { ok: true, error: null } as const;
   }
 

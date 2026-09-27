@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { configuredUniversityIds, type UniversityId } from "@/data/universities";
 import { userRoleOptions, type UserRole } from "@/data/userRoles";
 import { isStudentSmsVerificationRequired } from "@/lib/auth/studentSmsPolicy";
+import { profileValuesFromRow } from "@/lib/auth/profilePersistence";
 import { createSupabaseServerClient, hasSupabasePublicConfig } from "@/lib/supabase/server";
 import { accountCapabilityValues, type AccountCapability } from "@/types/accountCapabilities";
 import type { AccountSessionResponse, BrandSessionProfile, CreatorSessionProfile } from "@/types/accountSession";
@@ -24,18 +25,30 @@ function response(body: AccountSessionResponse, status = 200) {
   return NextResponse.json(body, { status, headers: noStore });
 }
 
+function unavailable() {
+  return response({ ok: false, message: "We couldn't load your saved account. Please try again." }, 503);
+}
+
 export async function GET() {
   if (!hasSupabasePublicConfig()) return response({ ok: true, configured: false, authenticated: false });
   try {
     const supabase = await createSupabaseServerClient();
     const { data: { user }, error } = await supabase.auth.getUser();
-    if (error || !user) return response({ ok: true, configured: true, authenticated: false });
+    if (error) {
+      // A network/auth service outage is not proof that the user signed out.
+      if (error.name === "AuthSessionMissingError" || error.status === 401 || error.status === 403) {
+        return response({ ok: true, configured: true, authenticated: false });
+      }
+      return unavailable();
+    }
+    if (!user) return response({ ok: true, configured: true, authenticated: false });
     const metadataAccountType = user.app_metadata?.account_type;
     const accountType = metadataAccountType === "brand" || metadataAccountType === "creator" ? metadataAccountType : "student";
-    const { data: capabilityRows } = await supabase.from("account_capabilities")
+    const { data: capabilityRows, error: capabilityError } = await supabase.from("account_capabilities")
       .select("capability")
       .eq("user_id", user.id)
       .is("revoked_at", null);
+    if (capabilityError) return unavailable();
     const capabilities = (capabilityRows ?? []).flatMap((row) =>
       accountCapabilityValues.includes(row.capability as AccountCapability)
         ? [row.capability as AccountCapability]
@@ -44,10 +57,11 @@ export async function GET() {
     const canUseCampusTester = capabilities.includes("owner_campus_tester");
 
     if (accountType === "creator") {
-      const [{ data: creator }, { data: application }] = await Promise.all([
+      const [{ data: creator, error: creatorError }, { data: application, error: applicationError }] = await Promise.all([
         supabase.from("creator_profiles").select("id,user_id,display_name,username,bio,badge_tint").eq("user_id", user.id).maybeSingle(),
         supabase.from("creator_applications").select("id,platform,external_handle,status,control_status").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
+      if (creatorError || applicationError) return unavailable();
       if (!creator) return response({ ok: true, configured: true, authenticated: true, accountType, capabilities, onboardingComplete: false, creator: null, canUseCampusTester });
       const creatorProfile: CreatorSessionProfile = {
         id: creator.id,
@@ -69,9 +83,10 @@ export async function GET() {
     }
 
     if (accountType === "brand") {
-      const { data: brand } = await supabase.from("brand_profiles")
+      const { data: brand, error: brandError } = await supabase.from("brand_profiles")
         .select("id,user_id,display_name,username,bio,website_url,contact_email,business_category,verification_status,brand_channels(id,name,handle,description,status)")
         .eq("user_id", user.id).maybeSingle();
+      if (brandError) return unavailable();
       if (!brand) return response({ ok: true, configured: true, authenticated: true, accountType, capabilities, onboardingComplete: false, brand: null, canUseCampusTester });
       const channelValue = brand.verification_status === "verified"
         ? (Array.isArray(brand.brand_channels) ? brand.brand_channels[0] : brand.brand_channels)
@@ -86,7 +101,7 @@ export async function GET() {
     }
 
     const smsRequired = isStudentSmsVerificationRequired();
-    const [{ data: identity }, { data: profile }, { data: privacy }, { data: creator }, { data: application }, { data: phoneState }] = await Promise.all([
+    const [{ data: identity, error: identityError }, { data: profile, error: profileError }, { data: privacy, error: privacyError }, { data: creator, error: creatorError }, { data: application, error: applicationError }, { data: phoneState, error: phoneError }] = await Promise.all([
       supabase.from("profile_identities").select("user_id,university_id,role,verified_student,verified_alumni,created_at,updated_at").eq("user_id", user.id).maybeSingle(),
       supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
       supabase.from("profile_privacy_settings").select("*").eq("user_id", user.id).maybeSingle(),
@@ -94,8 +109,9 @@ export async function GET() {
       supabase.from("creator_applications").select("id,platform,external_handle,status,control_status").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       smsRequired
         ? supabase.from("phone_verification_states").select("verified_at,status").eq("user_id", user.id).maybeSingle()
-        : Promise.resolve({ data: null }),
+        : Promise.resolve({ data: null, error: null }),
     ]);
+    if (identityError || profileError || privacyError || creatorError || applicationError || phoneError) return unavailable();
     const studentPhoneVerified = Boolean(phoneState?.verified_at && phoneState.status === "verified");
     const dualCreator: CreatorSessionProfile | null = creator ? {
       id: creator.id,
@@ -127,14 +143,8 @@ export async function GET() {
         createdAt: identity.created_at, updatedAt: identity.updated_at,
       },
       profile: {
-        id: profile.user_id, accountId: profile.user_id, username: profile.username,
-        usernameNormalized: profile.username_normalized, firstName: profile.first_name,
-        lastName: profile.last_name, displayName: profile.display_name,
-        photo: { kind: "initials", placeholderId: profile.profile_photo_placeholder, storagePath: profile.profile_photo_storage_path },
-        bio: profile.bio, major: profile.major, academicArea: profile.major,
-        graduationYear: profile.graduation_year, classIds: [], clubIds: [], interests: profile.interests ?? [],
-        hometown: profile.hometown, instagram: profile.instagram, linkedin: profile.linkedin,
-        portfolioUrl: profile.portfolio_url, personalWebsite: profile.personal_website,
+        ...profileValuesFromRow(profile),
+        id: profile.user_id, accountId: profile.user_id,
         createdAt: profile.created_at, updatedAt: profile.updated_at,
       },
       privacy: {

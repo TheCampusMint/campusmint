@@ -12,8 +12,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { MusicPicker } from "@/components/music/MusicPicker";
-import { SelectedMusicTrack } from "@/components/music/SelectedMusicTrack";
 import { CloseButton } from "@/components/ui/CloseButton";
 import { sampleEvents } from "@/data/events";
 import { developmentOrganizations } from "@/data/organizations";
@@ -44,13 +42,14 @@ import {
   type LocalMintMediaSelection,
 } from "@/lib/content/localMintMedia";
 import { canPostAsOrganization } from "@/lib/organizationPermissions";
+import type { MintDraft, MintDraftInput } from "@/lib/content/mintDrafts";
+import { restoreMintDraftMedia } from "@/lib/content/mintDraftStore";
 import { useModalLayer } from "@/hooks/useModalLayer";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { motion } from "@/lib/motion/interaction";
 import type {
   ContentLocation,
   EventContentData,
-  MusicMetadata,
   SocialContentPrivacy,
   SocialPostType,
   OrganizationContentAudience,
@@ -78,11 +77,15 @@ type CreateContentFlowProps = {
   mediaPreparing?: boolean;
   onChooseMedia?: () => void;
   onClearMedia?: () => void;
+  onRestoreMedia?: (media: LocalMintMediaSelection[]) => void;
+  drafts?: MintDraft[];
+  onSaveDraft?: (input: MintDraftInput, media: readonly LocalMintMediaSelection[]) => Promise<MintDraft>;
+  onDeleteDraft?: (draftId: string) => Promise<void>;
 };
 
-const fieldClass = "mt-1 min-w-0 max-w-full w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base sm:text-sm";
+const fieldClass = "mt-1 min-w-0 max-w-full w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-elevated)] px-3 py-2.5 text-base text-[var(--app-text-primary)] placeholder:text-[var(--app-text-secondary)] outline-none transition focus:border-[var(--app-accent)] focus:ring-2 focus:ring-[var(--app-accent)]/30 sm:text-sm";
 
-export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose, organizationMemberships, organizationRoles, defaultCommentsEnabled = true, highQualityUploads = false, selectedMedia, mediaError, mediaPreparing = false, onChooseMedia, onClearMedia }: CreateContentFlowProps) {
+export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose, organizationMemberships, organizationRoles, defaultCommentsEnabled = true, highQualityUploads = false, selectedMedia, mediaError, mediaPreparing = false, onChooseMedia, onClearMedia, onRestoreMedia, drafts = [], onSaveDraft, onDeleteDraft }: CreateContentFlowProps) {
   const internalFileInputRef = useRef<HTMLInputElement>(null);
   const captionTextareaRef = useRef<HTMLTextAreaElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
@@ -114,17 +117,20 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
   const [taggedOrganizationId, setTaggedOrganizationId] = useState("");
   const [organizationAudience, setOrganizationAudience] = useState<OrganizationContentAudience>("public");
-  const [selectedMusic, setSelectedMusic] = useState<MusicMetadata | null>(null);
-  const [musicPickerOpen, setMusicPickerOpen] = useState(false);
+  const [draftsOpen, setDraftsOpen] = useState(false);
+  const [activeDraftId, setActiveDraftId] = useState<string | undefined>(undefined);
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const restoredUrlsRef = useRef<string[]>([]);
 
   const requestClose = useCallback(() => {
-    if (closing || submitting) return;
+    if (closing || submitting || draftBusy) return;
     setClosing(true);
     closeTimerRef.current = window.setTimeout(
       onClose,
       reducedMotion ? 0 : motion.duration.fast,
     );
-  }, [closing, onClose, reducedMotion, submitting]);
+  }, [closing, onClose, reducedMotion, submitting, draftBusy]);
 
   const closeAfterPublish = useCallback(() => {
     setClosing(true);
@@ -137,6 +143,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   useModalLayer(dialogRef, requestClose);
 
   useEffect(() => () => {
+    restoredUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     if (closeTimerRef.current !== null) {
       window.clearTimeout(closeTimerRef.current);
     }
@@ -306,15 +313,105 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     setInternalMediaError(null);
   }
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (submitting) return;
-    setSubmitError(null);
-
-    if (!network) {
-      setSubmitError("A verified campus network is required to publish.");
+  async function openDraft(draft: MintDraft) {
+    if (draftBusy || submitting || activeMediaPreparing) return;
+    setDraftBusy(true);
+    let restored: LocalMintMediaSelection[];
+    try {
+      restored = await restoreMintDraftMedia(viewer.account.id, draft.id);
+    } catch {
+      setSubmitError("This draft could not be opened. Try again without closing the composer.");
+      setDraftBusy(false);
       return;
     }
+    restoredUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    restoredUrlsRef.current = restored.flatMap((item) => item.media.url ? [item.media.url] : []);
+    if (controlledMedia) onRestoreMedia?.(restored);
+    else setInternalMedia(restored);
+    publishRequestIdRef.current = draft.publishRequestId ?? globalThis.crypto.randomUUID();
+    setActiveDraftId(draft.id);
+    setCaption(draft.caption);
+    setPostType(draft.postType);
+    setCommentsEnabled(draft.commentsEnabled);
+    setPrivacy(draft.privacy);
+    setDurationHours(draft.durationHours);
+    setLocationChoice(draft.locationChoice);
+    setCustomLocation(draft.customLocation);
+    setExistingEventId(draft.existingEventId);
+    setEventTitle(draft.eventTitle);
+    setEventDate(draft.eventDate);
+    setEventStartTime(draft.eventStartTime);
+    setEventEndTime(draft.eventEndTime);
+    setEventLocation(draft.eventLocation);
+    setEventLocationDetails(draft.eventLocationDetails);
+    setEventDescription(draft.eventDescription);
+    setSelectedOrganizationId(draft.selectedOrganizationId);
+    setTaggedOrganizationId(draft.taggedOrganizationId);
+    setOrganizationAudience(draft.organizationAudience);
+    setMentionQuery(null);
+    setSubmitError(null);
+    setDraftsOpen(false);
+    setDraftNotice(draft.mediaCount > restored.length
+      ? `This older draft saved file names only. Reselect ${draft.mediaFileNames.join(", ") || "your media"} before publishing.`
+      : "Draft reopened.");
+    setDraftBusy(false);
+  }
+
+  async function saveCurrentDraft() {
+    if (!onSaveDraft || draftBusy || activeMediaPreparing) return false;
+    const hasContent = Boolean(
+      caption.trim() ||
+      activeMedia.length > 0 ||
+      eventTitle.trim() ||
+      eventDescription.trim() ||
+      existingEventId,
+    );
+    if (!hasContent) {
+      setSubmitError("Add text, an event detail, or media before saving a draft.");
+      return false;
+    }
+    setDraftBusy(true);
+    try {
+    const saved = await onSaveDraft({
+      id: activeDraftId,
+      publishRequestId: publishRequestIdRef.current,
+      caption,
+      postType,
+      commentsEnabled,
+      privacy,
+      durationHours,
+      locationChoice,
+      customLocation,
+      existingEventId,
+      eventTitle,
+      eventDate,
+      eventStartTime,
+      eventEndTime,
+      eventLocation,
+      eventLocationDetails,
+      eventDescription,
+      selectedOrganizationId,
+      taggedOrganizationId,
+      organizationAudience,
+      mediaFileNames: activeMedia.map((item) => item.fileName),
+      mediaCount: activeMedia.length,
+    }, activeMedia);
+    setActiveDraftId(saved.id);
+    setSubmitError(null);
+    setDraftNotice("Draft and media saved on this device for your account.");
+    return true;
+    } catch {
+      setSubmitError("Your draft could not be saved on this device. Free some storage and retry; your work is still open.");
+      return false;
+    } finally {
+      setDraftBusy(false);
+    }
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (submitting || draftBusy) return;
+    setSubmitError(null);
 
     const hasEventDetails =
       postType === "event" &&
@@ -380,7 +477,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       mentions: mentionMatches,
       taggedUserIds: [],
       location,
-      music: selectedMusic,
+      music: null,
       expiresAt,
       commentsEnabled,
       // Retained only for old stored records; traditional Like totals are not public.
@@ -395,8 +492,19 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     }, activeMedia, publishRequestIdRef.current);
     setSubmitting(false);
     if (!result.ok) {
-      setSubmitError(result.message ?? "We couldn't publish your Mint. Your draft is still here—try again.");
+      // Keep a durable copy when the server rejects or interrupts a publish;
+      // the composer preview is not itself a persisted draft.
+      const draftSaved = await saveCurrentDraft();
+      const publishError = result.message ?? "We couldn't publish your Mint. Your draft is still here—try again.";
+      setSubmitError(draftSaved || !onSaveDraft ? publishError : `${publishError} This device could not save a backup draft. Keep the composer open and retry.`);
       return;
+    }
+    if (activeDraftId) {
+      try { await onDeleteDraft?.(activeDraftId); } catch {
+        // The post is already saved remotely. A device cleanup error must not
+        // turn a successful publish into another publish attempt.
+      }
+      setActiveDraftId(undefined);
     }
     closeAfterPublish();
   }
@@ -419,7 +527,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       <section
         ref={dialogRef}
         tabIndex={-1}
-        className={`cm-panel-sheet mx-auto max-h-[calc(100dvh-0.35rem)] w-full min-w-0 max-w-xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-t-[2rem] bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-5 shadow-2xl sm:max-h-[90dvh] sm:max-w-3xl sm:rounded-2xl sm:p-7 ${
+        className={`cm-panel-sheet cm-create-composer mx-auto max-h-[calc(100dvh-0.35rem)] w-full min-w-0 max-w-xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-t-[2rem] bg-[var(--app-surface)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-5 text-[var(--app-text-primary)] shadow-none sm:max-h-[90dvh] sm:max-w-3xl sm:rounded-2xl sm:p-7 ${
           closing ? "is-closing" : ""
         }`}
         style={{ WebkitOverflowScrolling: "touch" }}
@@ -427,7 +535,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
         aria-modal="true"
         aria-labelledby="create-content-title"
       >
-        <div className="sticky -top-5 z-30 -mx-4 -mt-5 flex items-start justify-between gap-4 border-b border-slate-100 bg-white/95 px-4 pb-3 pt-5 backdrop-blur-xl sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0">
+        <div className="sticky -top-5 z-30 -mx-4 -mt-5 flex items-start justify-between gap-4 border-b border-[var(--app-border)] bg-[var(--app-surface)] px-4 pb-3 pt-5 sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0">
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: theme.primary }}>
               {viewer.account.isDevelopment ? "Local development flow" : "Campus Mint publishing"}
@@ -443,9 +551,68 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
           />
         </div>
 
+        <section className="mt-5 rounded-2xl bg-[var(--app-surface-elevated)] p-3" aria-labelledby="mint-drafts-title">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 id="mint-drafts-title" className="text-sm font-black text-[var(--app-text-primary)]">Drafts</h3>
+              <p className="mt-0.5 text-xs text-[var(--app-text-secondary)]">Saved on this device, including photos and videos.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDraftsOpen((current) => !current)}
+              aria-expanded={draftsOpen}
+              className="rounded-full px-3 py-2 text-xs font-black text-[var(--app-text-primary)] hover:bg-[var(--app-accent-soft)]"
+            >
+              {draftsOpen ? "Hide" : `View ${drafts.length || ""} drafts`.replace("  ", " ")}
+            </button>
+          </div>
+          {draftsOpen && (
+            <div className="mt-3 space-y-2" role="list">
+              {drafts.length === 0 ? (
+                <p className="rounded-xl bg-[var(--app-surface)] px-3 py-3 text-xs text-[var(--app-text-secondary)]">No saved drafts yet.</p>
+              ) : drafts.map((draft) => (
+                <div key={draft.id} role="listitem" className="flex items-center gap-3 rounded-xl bg-[var(--app-surface)] px-3 py-2.5">
+                  <button type="button" disabled={draftBusy || submitting || activeMediaPreparing} onClick={() => void openDraft(draft)} className="min-w-0 flex-1 text-left disabled:opacity-50">
+                    <span className="block truncate text-sm font-bold text-[var(--app-text-primary)]">
+                      {draft.caption.trim() || (draft.postType === "event" ? draft.eventTitle.trim() : "Untitled draft")}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-[var(--app-text-secondary)]">
+                      {new Date(draft.updatedAt).toLocaleDateString()} · {draft.mediaCount > 0 ? `${draft.mediaCount} media item${draft.mediaCount === 1 ? "" : "s"}` : "Text"}
+                    </span>
+                  </button>
+                  {onDeleteDraft && (
+                    <button
+                      type="button"
+                      disabled={draftBusy || submitting}
+                      onClick={async () => {
+                        setDraftBusy(true);
+                        try {
+                          await onDeleteDraft(draft.id);
+                          if (activeDraftId === draft.id) setActiveDraftId(undefined);
+                        } catch { setSubmitError("This draft could not be deleted. Try again."); }
+                        finally { setDraftBusy(false); }
+                      }}
+                      className="rounded-full px-2 py-1 text-xs font-bold text-[var(--app-text-secondary)] hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text-primary)]"
+                      aria-label={`Delete ${draft.caption.trim() || "untitled"} draft`}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {draftNotice && (
+          <p role="status" className="mt-3 rounded-xl bg-[var(--app-surface-elevated)] px-3 py-2 text-xs font-semibold text-[var(--app-text-secondary)]">
+            {draftNotice}
+          </p>
+        )}
+
         <form onSubmit={submit} className="mt-6 space-y-6">
-          <fieldset className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
-            <legend className="px-2 text-sm font-black text-slate-900">
+          <fieldset className="rounded-2xl bg-[var(--app-surface-elevated)] p-4 sm:p-5">
+            <legend className="px-2 text-sm font-black text-[var(--app-text-primary)]">
               Media
             </legend>
             <input
@@ -459,14 +626,14 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-slate-800">
+                <p className="text-sm font-bold text-[var(--app-text-primary)]">
                   {activeMediaPreparing
                     ? "Preparing your selection…"
                     : activeMedia.length > 0
                       ? `${activeMedia.length} media item${activeMedia.length === 1 ? "" : "s"} selected`
                       : "Text-only Mint"}
                 </p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
+                <p className="mt-1 text-xs leading-5 text-[var(--app-text-secondary)]">
                   {viewer.account.isDevelopment
                     ? "Development accounts keep media in this browser session."
                     : "Photos are optimized before upload. Your Mint is saved before this composer closes."}
@@ -478,7 +645,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                   <button
                     type="button"
                     onClick={clearMedia}
-                    className="rounded-full px-3 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
+                    className="rounded-full px-3 py-2 text-xs font-bold text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)]"
                   >
                     Use text only
                   </button>
@@ -487,7 +654,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                   type="button"
                   onClick={chooseMedia}
                   disabled={activeMediaPreparing}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 disabled:cursor-wait disabled:opacity-60"
+                  className="rounded-full bg-[var(--app-surface)] px-4 py-2 text-xs font-black text-[var(--app-text-primary)]  disabled:cursor-wait disabled:opacity-60"
                 >
                   {activeMedia.length > 0 ? "Replace media" : "Add photos or videos"}
                 </button>
@@ -499,7 +666,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                 {activeMedia.map((item) => (
                   <figure
                     key={item.media.id}
-                    className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white"
+                    className="min-w-0 overflow-hidden rounded-xl bg-[var(--app-surface)]"
                   >
                     <div className="relative aspect-square overflow-hidden bg-slate-950">
                       {item.media.type === "image" ? (
@@ -508,7 +675,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                           alt={`Selected media preview: ${item.fileName}`}
                           fill
                           sizes="(max-width: 640px) 50vw, 14rem"
-                          className="object-cover"
+                          className="object-contain"
                           unoptimized
                         />
                       ) : (
@@ -517,11 +684,11 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                           controls
                           playsInline
                           preload="metadata"
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-contain"
                         />
                       )}
                     </div>
-                    <figcaption className="truncate px-2 py-1.5 text-[10px] font-semibold text-slate-500">
+                    <figcaption className="truncate px-2 py-1.5 text-[10px] font-semibold text-[var(--app-text-secondary)]">
                       {item.fileName}
                     </figcaption>
                   </figure>
@@ -532,7 +699,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
             {activeMediaError && (
               <p
                 role="alert"
-                className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800"
+                className="mt-3 rounded-xl bg-[var(--app-surface-elevated)] px-3 py-2 text-xs font-semibold text-[var(--app-danger)]"
               >
                 {activeMediaError}
               </p>
@@ -540,7 +707,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
           </fieldset>
 
           <fieldset>
-            <legend className="font-bold text-slate-900">Mint type</legend>
+            <legend className="font-bold text-[var(--app-text-primary)]">Mint type</legend>
             <div className="mt-3 grid grid-cols-3 gap-3">
               {(["personal", "event", "club"] as SocialPostType[]).map(
                 (value) => (
@@ -548,24 +715,17 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                     key={value}
                     type="button"
                     onClick={() => setPostType(value)}
-                    className="rounded-xl border p-3 text-sm font-bold capitalize sm:p-4"
+                    className="rounded-xl p-3 text-sm font-bold capitalize  sm:p-4"
                     style={{
                       borderColor:
                         postType === value
-                          ? value === "event"
-                            ? "#059669"
-                            : value === "club"
-                              ? "#f97316"
-                              : theme.primary
-                          : "#e2e8f0",
+                          ? "var(--app-accent)"
+                          : "var(--app-border)",
                       color:
                         postType === value
-                          ? value === "event"
-                            ? "#047857"
-                            : value === "club"
-                              ? "#c2410c"
-                              : theme.primary
-                          : "#475569",
+                          ? "var(--app-accent)"
+                          : "var(--app-text-secondary)",
+                      backgroundColor: postType === value ? "var(--app-accent-soft)" : "transparent",
                     }}
                   >
                     {value}
@@ -575,12 +735,12 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
             </div>
           </fieldset>
 
-          {postType === "event" && <fieldset className="cm-content-swap rounded-2xl border-2 border-emerald-500 bg-emerald-50 p-5"><legend className="px-2 font-black uppercase tracking-wide text-emerald-800">Event details · 24H</legend><label className="block text-sm font-bold text-emerald-950">Existing Campus Mint Event<select value={existingEventId} onChange={(event) => setExistingEventId(event.target.value)} className={fieldClass}><option value="">Informal/custom event</option>{availableEvents.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>{!existingEventId && <><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold text-emerald-950">Event title<input value={eventTitle} onChange={(event) => setEventTitle(event.target.value)} className={fieldClass} /></label><label className="text-sm font-black uppercase text-emerald-950">When · Date<input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} className={fieldClass} /></label><label className="text-sm font-black uppercase text-emerald-950">When · Start time<input type="time" value={eventStartTime} onChange={(event) => setEventStartTime(event.target.value)} className={fieldClass} /></label><label className="text-sm font-bold text-emerald-950">End time (optional)<input type="time" value={eventEndTime} onChange={(event) => setEventEndTime(event.target.value)} className={fieldClass} /></label><label className="text-sm font-black uppercase text-emerald-950">Where<input value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} className={fieldClass} placeholder="Venue or general location" /></label><label className="text-sm font-bold text-emerald-950">Location details<input value={eventLocationDetails} onChange={(event) => setEventLocationDetails(event.target.value)} className={fieldClass} /></label></div><label className="mt-4 block text-sm font-bold text-emerald-950">Add details<textarea value={eventDescription} onChange={(event) => setEventDescription(event.target.value)} rows={3} className={fieldClass} /></label></>}</fieldset>}
+          {postType === "event" && <fieldset className="cm-content-swap rounded-2xl bg-[var(--app-accent-soft)] p-5"><legend className="px-2 font-black uppercase tracking-wide text-[var(--app-accent)]">Event details · 24H</legend><label className="block text-sm font-bold text-[var(--app-text-primary)]">Existing Campus Mint Event<select value={existingEventId} onChange={(event) => setExistingEventId(event.target.value)} className={fieldClass}><option value="">Informal/custom event</option>{availableEvents.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>{!existingEventId && <><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold text-[var(--app-text-primary)]">Event title<input value={eventTitle} onChange={(event) => setEventTitle(event.target.value)} className={fieldClass} /></label><label className="text-sm font-black uppercase text-[var(--app-text-primary)]">When · Date<input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} className={fieldClass} /></label><label className="text-sm font-black uppercase text-[var(--app-text-primary)]">When · Start time<input type="time" value={eventStartTime} onChange={(event) => setEventStartTime(event.target.value)} className={fieldClass} /></label><label className="text-sm font-bold text-[var(--app-text-primary)]">End time (optional)<input type="time" value={eventEndTime} onChange={(event) => setEventEndTime(event.target.value)} className={fieldClass} /></label><label className="text-sm font-black uppercase text-[var(--app-text-primary)]">Where<input value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} className={fieldClass} placeholder="Venue or general location" /></label><label className="text-sm font-bold text-[var(--app-text-primary)]">Location details<input value={eventLocationDetails} onChange={(event) => setEventLocationDetails(event.target.value)} className={fieldClass} /></label></div><label className="mt-4 block text-sm font-bold text-[var(--app-text-primary)]">Add details<textarea value={eventDescription} onChange={(event) => setEventDescription(event.target.value)} rows={3} className={fieldClass} /></label></>}</fieldset>}
 
-          {postType === "club" && <fieldset className="cm-content-swap rounded-2xl border border-slate-200 bg-slate-50 p-5"><legend className="px-2 font-black uppercase tracking-wide text-slate-800">Official club identity</legend>{postableOrganizations.length ? <><label className="block text-sm font-bold text-slate-800">Select Club<select required value={selectedOrganizationId} onChange={(event) => setSelectedOrganizationId(event.target.value)} className={fieldClass}><option value="">Choose an organization</option>{postableOrganizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}</select></label>{selectedOrganization && <p className="mt-3 rounded-xl bg-white p-3 text-xs leading-5 text-slate-600">Publishing as <span className="font-black text-slate-900">{selectedOrganization.name}</span>. The Mint stores only its organization ID.</p>}<label className="mt-4 block text-sm font-bold text-slate-800">Club content audience<select value={organizationAudience} onChange={(event) => setOrganizationAudience(event.target.value as OrganizationContentAudience)} className={fieldClass}><option value="public">Public club content</option><option value="members">Members only</option></select></label></> : <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">You do not hold a leader, officer, or approved publishing role for a club at this university. Create Personal content and tag a club instead.</p>}</fieldset>}
+          {postType === "club" && <fieldset className="cm-content-swap rounded-2xl bg-[var(--app-surface-elevated)] p-5"><legend className="px-2 font-black uppercase tracking-wide text-[var(--app-text-primary)]">Official club identity</legend>{postableOrganizations.length ? <><label className="block text-sm font-bold text-[var(--app-text-primary)]">Select Club<select required value={selectedOrganizationId} onChange={(event) => setSelectedOrganizationId(event.target.value)} className={fieldClass}><option value="">Choose an organization</option>{postableOrganizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}</select></label>{selectedOrganization && <p className="mt-3 rounded-xl bg-[var(--app-surface)] p-3 text-xs leading-5 text-[var(--app-text-secondary)]">Publishing as <span className="font-black text-[var(--app-text-primary)]">{selectedOrganization.name}</span>. The Mint stores only its organization ID.</p>}<label className="mt-4 block text-sm font-bold text-[var(--app-text-primary)]">Club content audience<select value={organizationAudience} onChange={(event) => setOrganizationAudience(event.target.value as OrganizationContentAudience)} className={fieldClass}><option value="public">Public club content</option><option value="members">Members only</option></select></label></> : <p className="rounded-xl bg-[var(--app-surface-elevated)] p-3 text-sm text-[var(--app-text-primary)]">You do not hold a leader, officer, or approved publishing role for a club at this university. Create Personal content and tag a club instead.</p>}</fieldset>}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="relative text-sm font-bold text-slate-700 sm:col-span-2">
+            <label className="relative text-sm font-bold text-[var(--app-text-primary)] sm:col-span-2">
               Caption or text
               <textarea
                 ref={captionTextareaRef}
@@ -612,7 +772,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                 }
               />
               {mentionQuery !== null && mentionSuggestions.length > 0 && (
-                <span className="absolute inset-x-0 top-full z-20 mt-1 block overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-xl">
+                <span className="absolute inset-x-0 top-full z-20 mt-1 block overflow-hidden rounded-2xl bg-[var(--app-surface-elevated)] p-1">
                   {mentionSuggestions.map((candidate) => (
                     <button
                       key={candidate.account.id}
@@ -629,10 +789,10 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                         setMentionQuery(null);
                         window.requestAnimationFrame(() => captionTextareaRef.current?.focus());
                       }}
-                      className="block w-full rounded-xl px-3 py-2 text-left text-xs hover:bg-slate-50"
+                      className="block w-full rounded-xl px-3 py-2 text-left text-xs hover:bg-[var(--app-accent-soft)]"
                     >
                       <strong>@{candidate.profile.username}</strong>
-                      <span className="ml-2 font-normal text-slate-500">
+                      <span className="ml-2 font-normal text-[var(--app-text-secondary)]">
                         {candidate.profile.displayName}
                       </span>
                     </button>
@@ -642,7 +802,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
             </label>
 
             {postType === "club" && (
-              <label className="text-sm font-bold text-slate-700">
+              <label className="text-sm font-bold text-[var(--app-text-primary)]">
                 Location
                 <select
                   value={locationChoice}
@@ -658,7 +818,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
               </label>
             )}
             {locationChoice === "custom" && postType === "club" && (
-              <label className="text-sm font-bold text-slate-700">
+              <label className="text-sm font-bold text-[var(--app-text-primary)]">
                 Custom location
                 <input
                   value={customLocation}
@@ -668,7 +828,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
               </label>
             )}
             {postType !== "club" && (
-              <label className="text-sm font-bold text-slate-700">
+              <label className="text-sm font-bold text-[var(--app-text-primary)]">
                 Tag a club (optional)
                 <select
                   value={taggedOrganizationId}
@@ -682,7 +842,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                 </select>
               </label>
             )}
-            <label className="text-sm font-bold text-slate-700">
+            <label className="text-sm font-bold text-[var(--app-text-primary)]">
               Duration
               <select
                 value={postType === "event" ? "24" : durationHours}
@@ -699,7 +859,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                 )}
               </select>
             </label>
-            <label className="text-sm font-bold text-slate-700">
+            <label className="text-sm font-bold text-[var(--app-text-primary)]">
               Mint privacy
               <select
                 value={privacy}
@@ -714,15 +874,11 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
             </label>
           </div>
 
-          <fieldset className="rounded-2xl bg-slate-50 p-4">
-            <legend className="px-1 text-sm font-bold text-slate-700">Music (optional)</legend>
-            {selectedMusic ? <SelectedMusicTrack track={selectedMusic} onChange={() => setMusicPickerOpen(true)} onRemove={() => setSelectedMusic(null)} /> : <button type="button" onClick={() => setMusicPickerOpen(true)} className="mt-1 flex w-full items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700"><span>♫ Add Music</span><span aria-hidden="true">›</span></button>}
-          </fieldset>
-          <div className="flex flex-wrap gap-5"><label className="text-sm font-semibold"><input type="checkbox" className="mr-2" checked={commentsEnabled} onChange={(event) => setCommentsEnabled(event.target.checked)} />Comments enabled</label></div>
-          {submitError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{submitError}</p>}
-          <div className="flex gap-3"><button type="button" onClick={requestClose} disabled={submitting} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold disabled:cursor-wait disabled:opacity-50">Cancel</button><button type="submit" disabled={submitting || activeMediaPreparing} className="flex-1 rounded-xl px-4 py-3 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60" style={{ backgroundColor: postType === "event" ? "#059669" : theme.primary }}>{submitting ? "Publishing…" : submitError ? "Retry Publish" : "Publish Mint"}</button></div>
+
+          <div className="flex flex-wrap gap-5"><label className="text-sm font-semibold"><input type="checkbox" className="mr-2 accent-[var(--app-accent)]" checked={commentsEnabled} onChange={(event) => setCommentsEnabled(event.target.checked)} />Comments enabled</label></div>
+          {submitError && <p role="alert" className="rounded-xl bg-[var(--app-surface-elevated)] p-3 text-sm font-semibold text-[var(--app-danger)]">{submitError}</p>}
+          <div className="flex flex-wrap gap-3"><button type="button" onClick={requestClose} disabled={submitting || draftBusy} className="rounded-full px-4 py-3 text-sm font-bold disabled:cursor-wait disabled:opacity-50">Cancel</button>{onSaveDraft && <button type="button" onClick={() => void saveCurrentDraft()} disabled={submitting || activeMediaPreparing || draftBusy} className="rounded-full px-4 py-3 text-sm font-bold text-[var(--app-text-primary)] disabled:cursor-wait disabled:opacity-50">Save draft</button>}<button type="submit" disabled={submitting || activeMediaPreparing || draftBusy} className="min-w-32 flex-1 rounded-xl px-4 py-3 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>{submitting ? "Publishing…" : submitError ? "Retry Publish" : "Publish Mint"}</button></div>
         </form>
-        <MusicPicker open={musicPickerOpen} selected={selectedMusic} onSelect={setSelectedMusic} onClose={() => setMusicPickerOpen(false)} />
       </section>
     </div>,
     document.body,

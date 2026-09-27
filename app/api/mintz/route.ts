@@ -8,24 +8,17 @@ import type { MintFeedResponse, MintPublishResponse } from "@/types/mintPersiste
 import type { CampusMintUser, ProfilePrivacySettings } from "@/types/profile";
 import type { AccountCapability } from "@/types/accountCapabilities";
 import { launchPublishedMediaPolicy } from "@/lib/content/mediaPolicy";
+import { mintMediaFormats as mediaMimeTypes, matchesMintMediaSignature, validateMintStoredObject, validateMintUploadFiles, type MintUploadObject } from "@/lib/content/mintUploadPolicy";
+import { createMintUploadTicket, verifyMintUploadTicket } from "@/lib/content/mintUploadTicket";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const noStore = { "Cache-Control": "private, no-store" };
 const maxMediaItems = launchPublishedMediaPolicy.maxItemsPerMint;
-const maxImageBytes = launchPublishedMediaPolicy.maxImageBytes;
-const maxVideoBytes = launchPublishedMediaPolicy.maxVideoBytes;
 const maxRequestMediaBytes = launchPublishedMediaPolicy.maxRequestBytes;
 const signedUrlLifetimeSeconds = 60 * 60;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const mediaMimeTypes = new Map([
-  ["image/jpeg", { type: "image" as const, extension: "jpg", maximum: maxImageBytes }],
-  ["image/png", { type: "image" as const, extension: "png", maximum: maxImageBytes }],
-  ["image/webp", { type: "image" as const, extension: "webp", maximum: maxImageBytes }],
-  ["video/mp4", { type: "video" as const, extension: "mp4", maximum: maxVideoBytes }],
-  ["video/webm", { type: "video" as const, extension: "webm", maximum: maxVideoBytes }],
-]);
 
 const defaultPrivacy: ProfilePrivacySettings = {
   bio: "everyone", major: "students_only", graduationYear: "students_only",
@@ -149,25 +142,6 @@ function parseEventData(value: unknown): EventContentData | null {
   };
 }
 
-function parseMusic(value: unknown): MusicMetadata | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-  const provider = record.provider;
-  if (provider !== "development" && provider !== "licensed_provider" && provider !== "spotify" && provider !== "apple_music") return null;
-  const trackId = cleanString(record.trackId, 300);
-  const trackTitle = cleanString(record.trackTitle, 300);
-  const artist = cleanString(record.artist, 300);
-  if (!trackId || !trackTitle || !artist) return null;
-  return {
-    provider,
-    trackId,
-    trackTitle,
-    artist,
-    artworkUrl: nullableString(record.artworkUrl, 1000),
-    previewUrl: nullableString(record.previewUrl, 1000),
-  };
-}
-
 function parseMediaMetadata(value: unknown): ValidatedPublishPayload["mediaMetadata"] {
   if (!Array.isArray(value)) return [];
   return value.slice(0, maxMediaItems).map((item) => {
@@ -230,7 +204,8 @@ function validatePayload(value: unknown): { value: ValidatedPublishPayload | nul
       hashtags: [...new Set(hashtags)],
       mentionedUserIds,
       taggedUserIds: uuidArray(raw.taggedUserIds, 30),
-      music: parseMusic(raw.music),
+      // Music attachment is unavailable until provider rights are in place.
+      music: null,
       mediaMetadata: parseMediaMetadata(raw.mediaMetadata),
     },
     message: null,
@@ -498,6 +473,38 @@ async function removeUploadedMedia(admin: ReturnType<typeof createSupabaseAdminC
   if (error) logFailure("orphaned media cleanup failed", error);
 }
 
+async function verifyUploadedObject(admin: ReturnType<typeof createSupabaseAdminClient>, item: MintUploadObject): Promise<UploadedMedia> {
+  const bucket = admin.storage.from("mint-media");
+  const { data: info, error: infoError } = await bucket.info(item.storagePath);
+  if (infoError || !info) throw new Error("A media upload is incomplete. Retry publishing.");
+  const { data: download, error: downloadError } = await bucket.createSignedUrl(item.storagePath, 60);
+  if (downloadError || !download) throw new Error("The uploaded media could not be checked. Retry publishing.");
+  // The URL comes only from our private bucket. Read a small prefix even if a
+  // storage proxy ignores Range; never buffer a full 100 MB video in this route.
+  const response = await fetch(download.signedUrl, {
+    headers: { Range: "bytes=0-511" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok || !response.body) throw new Error("The uploaded media could not be checked. Retry publishing.");
+  const reader = response.body.getReader();
+  const prefix = new Uint8Array(512);
+  let length = 0;
+  try {
+    while (length < prefix.length) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = value.subarray(0, prefix.length - length);
+      prefix.set(chunk, length);
+      length += chunk.length;
+    }
+  } finally {
+    await reader.cancel();
+  }
+  validateMintStoredObject(item, info, prefix.subarray(0, length));
+  return { ...item, mediaType: mediaMimeTypes.get(item.mimeType)!.type };
+}
+
 export async function GET() {
   if (!hasSupabasePublicConfig() || !hasSupabaseServerConfig()) {
     return json<MintFeedResponse>({ ok: false, message: "Mint publishing is not configured." }, 503);
@@ -522,22 +529,42 @@ export async function POST(request: Request) {
   const { data: { user }, error: userError } = await session.auth.getUser();
   if (userError || !user) return json<MintPublishResponse>({ ok: false, message: "Sign in again before publishing.", retryable: false }, 401);
 
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch {
-    return json<MintPublishResponse>({ ok: false, message: "The Mint upload could not be read.", retryable: true }, 400);
-  }
   let rawPayload: unknown;
+  let files: File[] = [];
+  let action: "prepare" | "publish" = "publish";
+  let declaredFiles: unknown = [];
+  let uploadTicket: unknown;
   try {
-    rawPayload = JSON.parse(String(formData.get("payload") ?? ""));
+    if (request.headers.get("content-type")?.includes("application/json")) {
+      const body = await request.json();
+      if (!body || typeof body !== "object" || (body.action !== "prepare" && body.action !== "publish")) throw new Error("Invalid action");
+      action = body.action;
+      rawPayload = body.payload;
+      declaredFiles = body.files;
+      uploadTicket = body.uploadTicket;
+    } else {
+      // Retain compatibility with older tabs for small uploads. New clients send
+      // binary data directly to Storage so the hosting request limit cannot reject it.
+      const formData = await request.formData();
+      rawPayload = JSON.parse(String(formData.get("payload") ?? ""));
+      files = formData.getAll("media").filter((value): value is File => value instanceof File);
+    }
   } catch {
     return json<MintPublishResponse>({ ok: false, message: "The Mint draft is invalid.", retryable: false }, 400);
   }
   const parsed = validatePayload(rawPayload);
   if (!parsed.value) return json<MintPublishResponse>({ ok: false, message: parsed.message ?? "The Mint draft is invalid.", retryable: false }, 400);
   const payload = parsed.value;
-  const files = formData.getAll("media").filter((value): value is File => value instanceof File);
+  let directMedia: MintUploadObject[] = [];
+  let preparedFiles: ReturnType<typeof validateMintUploadFiles> = [];
+  try {
+    if (action === "prepare") preparedFiles = validateMintUploadFiles(declaredFiles);
+    else if (uploadTicket !== undefined) {
+      directMedia = verifyMintUploadTicket(uploadTicket, user.id, payload.requestId, process.env.SUPABASE_SERVICE_ROLE_KEY!).files;
+    }
+  } catch (error) {
+    return json<MintPublishResponse>({ ok: false, message: error instanceof Error ? error.message : "The media upload is invalid.", retryable: true }, 400);
+  }
   if (files.length > maxMediaItems) return json<MintPublishResponse>({ ok: false, message: `Choose no more than ${maxMediaItems} media items.`, retryable: false }, 413);
   let totalBytes = 0;
   for (const file of files) {
@@ -547,7 +574,7 @@ export async function POST(request: Request) {
     totalBytes += file.size;
   }
   if (totalBytes > maxRequestMediaBytes) return json<MintPublishResponse>({ ok: false, message: "The selected media exceeds the 150 MB total upload limit.", retryable: false }, 413);
-  if (files.length === 0 && !payload.caption && !payload.eventData?.title && !payload.eventData?.description) {
+  if (files.length + directMedia.length + preparedFiles.length === 0 && !payload.caption && !payload.eventData?.title && !payload.eventData?.description) {
     return json<MintPublishResponse>({ ok: false, message: "Add text or media before publishing.", retryable: false }, 400);
   }
 
@@ -594,6 +621,27 @@ export async function POST(request: Request) {
       if (!publishingRole) return json<MintPublishResponse>({ ok: false, message: "You are not authorized to publish for that Club.", retryable: false }, 403);
     }
 
+    if (action === "prepare") {
+      const prepared = createMintUploadTicket(user.id, payload.requestId, preparedFiles, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+      // Queue cleanup before granting upload access. The 24-hour delay is well
+      // beyond the two-hour ticket lifetime, so abandoned uploads cannot race a
+      // still-authorized finalize. The worker rechecks published references too.
+      if (prepared.files.length > 0) {
+        const { error } = await admin.from("media_cleanup_jobs").insert(prepared.files.map((item) => ({
+          bucket_id: "mint-media",
+          storage_path: item.storagePath,
+          due_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        })));
+        if (error) throw error;
+      }
+      const destinations = await Promise.all(prepared.files.map(async (item) => {
+        const { data, error } = await admin.storage.from("mint-media").createSignedUploadUrl(item.storagePath, { upsert: false });
+        if (error || !data) throw error ?? new Error("Upload authorization failed");
+        return { storagePath: item.storagePath, sortOrder: item.sortOrder, token: data.token };
+      }));
+      return json({ ok: true, upload: { ticket: prepared.ticket, files: destinations } });
+    }
+
     const attemptId = crypto.randomUUID();
     const uploaded: UploadedMedia[] = [];
     let locationId: string | null = null;
@@ -605,8 +653,16 @@ export async function POST(request: Request) {
       if (locationId) await admin.from("content_locations").delete().eq("id", locationId);
     };
     try {
+      if (directMedia.length > 0) {
+        // Signed paths bind the objects to this account and request. Re-check
+        // stored bytes/MIME, rather than trusting the browser's claimed metadata.
+        uploaded.push(...await Promise.all(directMedia.map((item) => verifyUploadedObject(admin, item))));
+      }
       for (const [sortOrder, file] of files.entries()) {
         const accepted = mediaMimeTypes.get(file.type)!;
+        if (!matchesMintMediaSignature(new Uint8Array(await file.slice(0, 512).arrayBuffer()), file.type)) {
+          throw new Error("A selected file does not contain a supported photo or video.");
+        }
         const storagePath = `${user.id}/${payload.requestId}/${attemptId}/${sortOrder}-${crypto.randomUUID()}.${accepted.extension}`;
         const { error: uploadError } = await admin.storage.from("mint-media").upload(storagePath, file, {
           contentType: file.type,
@@ -719,10 +775,20 @@ export async function POST(request: Request) {
         await rollbackDatabase();
         throw new Error("The saved Mint could not be reloaded.");
       }
+      if (directMedia.length > 0) {
+        const { error } = await admin.from("media_cleanup_jobs").delete()
+          .eq("bucket_id", "mint-media").is("content_id", null)
+          .in("storage_path", directMedia.map((item) => item.storagePath));
+        // The worker protects referenced objects if this best-effort removal fails.
+        if (error) logFailure("staged media cleanup cancellation failed", error);
+      }
       return json<MintPublishResponse>({ ok: true, mint, author, deduplicated: false }, 201);
     } catch (error) {
       await rollbackDatabase();
-      await removeUploadedMedia(admin, uploaded.map((item) => item.storagePath));
+      // A simultaneous finalize/retry can share the same signed objects. Never
+      // delete them here: another request may have just committed their Mint.
+      // Failed direct uploads stay private for retry and later orphan cleanup.
+      if (directMedia.length === 0) await removeUploadedMedia(admin, uploaded.map((item) => item.storagePath));
       throw error;
     }
   } catch (error) {
