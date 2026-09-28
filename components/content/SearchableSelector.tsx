@@ -25,7 +25,7 @@ export function SearchableSelector({ label, value, options, onChange, placeholde
       <input id={id} role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={`${id}-options`}
         aria-activedescendant={open && matches[active] ? `${id}-${active}` : undefined}
         value={open ? query : selected?.label ?? ""} placeholder={placeholder ?? `Search ${label.toLocaleLowerCase()}`}
-        className="min-w-0 flex-1 bg-transparent py-3 text-base outline-none sm:text-sm"
+        className="cm-composer-field min-w-0 flex-1 bg-transparent py-3 text-base outline-none sm:text-sm"
         onFocus={() => { setOpen(true); setQuery(""); setActive(0); }}
         onChange={(event) => { setQuery(event.target.value); setActive(0); setOpen(true); }}
         onKeyDown={(event) => {

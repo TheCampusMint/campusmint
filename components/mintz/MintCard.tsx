@@ -218,9 +218,10 @@ export function MintCard(props: MintCardProps) {
               {mint.isDevelopment && <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-slate-500">Demo</span>}
             </div>
 
-            {(mint.postType === "event" || organization) && (
+            {(mint.postType === "event" || organization || taggedOrganizations.length > 0) && (
               <div className="mt-3 flex flex-wrap items-center gap-2 sm:mt-4">
                 {mint.postType === "event" && <EventMintBadge eventStartAt={eventStartAt} eventEndAt={eventEndAt} currentTime={currentTime} timeZone={eventTimeZone} />}
+                {taggedOrganizations.map((club) => <span key={club.id} className="cm-context-club rounded-full px-2.5 py-1 text-xs font-semibold">{club.name}</span>)}
                 {organization && <ClubMintBadge membershipStatus={props.organizationMembershipStatus} onMembershipAction={readOnly ? undefined : props.onOrganizationMembershipAction} />}
               </div>
             )}

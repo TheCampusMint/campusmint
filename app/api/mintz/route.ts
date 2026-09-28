@@ -688,6 +688,15 @@ export async function POST(request: Request) {
       if (organizations?.length !== payload.taggedOrganizationIds.length) return json<MintPublishResponse>({ ok: false, message: "A selected Club is no longer available. Update your Club attachment.", retryable: false }, 400);
     }
 
+    const attachedClubs = [...new Set([...payload.taggedOrganizationIds, ...(payload.organizationId ? [payload.organizationId] : [])])];
+    if (attachedClubs.length) {
+      const memberships = await admin.from("organization_memberships").select("organization_id")
+        .eq("user_id", user.id).in("organization_id", attachedClubs).in("status", ["member", "officer", "leader"]);
+      if (memberships.error) throw memberships.error;
+      const joined = new Set((memberships.data ?? []).map((row) => row.organization_id));
+      if (attachedClubs.some((id) => !joined.has(id))) return json<MintPublishResponse>({ ok: false, message: "Join the Club and wait for acceptance before attaching its badge.", retryable: false }, 403);
+    }
+
     if (payload.eventData?.eventId) {
       const accessibleCampuses = universities[identity.university_id as UniversityId]?.accessibleCampuses ?? [];
       const { data: event, error: eventError } = await admin.from("campus_events")

@@ -78,6 +78,7 @@ export type MarketplaceListing = {
   campusNetworkId: CampusNetworkId;
   title: string;
   description: string;
+  brand?: string;
   category: MarketplaceCategory;
   condition: MarketplaceCondition;
   askingPrice: number;
@@ -99,6 +100,7 @@ export type NewMarketplaceListingInput = Pick<
   MarketplaceListing,
   "title" | "description" | "category" | "condition" | "askingPrice" | "negotiable" | "pickupArea" | "deliveryAvailable" | "sportsTicket"
 > & {
+  brand?: string;
   photo?: Pick<MarketplacePhoto, "url" | "alt" | "isDevelopmentPlaceholder">;
 };
 

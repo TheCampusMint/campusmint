@@ -13,6 +13,7 @@ function route({ authenticated = true, configured = true, campus = "tamu", failT
   const tables = {
     profile_identities: [{ user_id: "owner", university_id: campus }, { user_id: "another-student", university_id: "other" }],
     organizations: [club, { ...club, id: "other-campus-club", university_id: "other" }, { ...club, id: "pending-club", official_status: "pending" }, { ...club, id: "fixture-club", is_development: true }, { ...club, id: "archived-club", status: "archived" }, { ...club, id: "unconfirmed-club", confidence_level: "pending" }],
+    organization_memberships: [{ organization_id: club.id, user_id: "owner", status: "member" }],
     organization_roles: [{ organization_id: club.id, user_id: "another-student", can_publish: true }],
     campus_events: [event, { ...event, id: "nearby-event", campus_id: "nearby" }, { ...event, id: "other-campus-event", campus_id: "other" }, { ...event, id: "cancelled-event", status: "cancelled" }],
   };
@@ -87,4 +88,13 @@ test("unknown campus returns an empty catalog and query errors do not masquerade
     assert.equal(response.status, 503);
     assert.equal((await response.json()).ok, false);
   }
+});
+
+test("only accepted membership grants a Club badge choice", async () => {
+  for (const status of ["requested", "rejected", "left"]) {
+    const app = route(); app.tables.organization_memberships[0].status = status;
+    assert.deepEqual((await (await app.get()).json()).clubs, []);
+  }
+  const app = route(); app.tables.organization_memberships[0].user_id = "someone-else";
+  assert.deepEqual((await (await app.get()).json()).clubs, []);
 });

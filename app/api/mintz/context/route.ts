@@ -17,7 +17,7 @@ export async function GET() {
     const campus = identity.data?.university_id as UniversityId | undefined;
     const headers = { "Cache-Control": "private, no-store" };
     if (!campus || !universities[campus]) return NextResponse.json({ ok: true, clubs: [], events: [] }, { headers });
-    const [clubs, roles, events] = await Promise.all([
+    const [clubs, roles, events, memberships] = await Promise.all([
       admin.from("organizations").select("id,name").eq("university_id", campus).eq("status", "active").eq("is_development", false)
         .in("confidence_level", ["official", "community_verified"]).in("official_status", ["university_verified", "community_verified"]).order("name").limit(500),
       admin.from("organization_roles").select("organization_id").eq("user_id", user.id).eq("can_publish", true),
@@ -25,11 +25,13 @@ export async function GET() {
         .in("status", ["scheduled", "updated"])
         .or(`ends_at.gt.${new Date().toISOString()},and(ends_at.is.null,starts_at.gt.${new Date().toISOString()})`)
         .order("starts_at").limit(250),
+      admin.from("organization_memberships").select("organization_id").eq("user_id", user.id).in("status", ["member", "officer", "leader"]),
     ]);
-    if (clubs.error || roles.error || events.error) throw clubs.error ?? roles.error ?? events.error;
+    if (clubs.error || roles.error || events.error || memberships.error) throw clubs.error ?? roles.error ?? events.error ?? memberships.error;
+    const joined = new Set((memberships.data ?? []).map((row) => row.organization_id));
     const publishable = new Set((roles.data ?? []).map((row) => row.organization_id));
     return NextResponse.json({ ok: true,
-      clubs: (clubs.data ?? []).map((row) => ({ id: row.id, name: row.name, canPublish: publishable.has(row.id) })),
+      clubs: (clubs.data ?? []).filter((row) => joined.has(row.id)).map((row) => ({ id: row.id, name: row.name, canPublish: publishable.has(row.id) })),
       events: (events.data ?? []).map((row) => ({ id: row.id, title: row.title, startAt: row.starts_at, location: row.location_name })),
     }, { headers });
   } catch { return NextResponse.json({ ok: false, message: "Club and event choices are temporarily unavailable." }, { status: 503 }); }

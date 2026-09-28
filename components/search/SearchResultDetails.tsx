@@ -7,7 +7,7 @@ import { useCampusPreview } from "@/components/developer/CampusPreviewContext";
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 import { DiningLocationDetail } from "@/components/dining/DiningLocationDetail";
 import { EventMomentEventDetail } from "@/components/events/EventMomentEventDetail";
-import { MarketplaceDetailModal } from "@/components/marketplace/MarketplaceDetailModal";
+import { QuickListingDetail } from "@/components/marketplace/QuickListingDetail";
 import { ProfilesHub } from "@/components/profile/ProfilesHub";
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
 import { diningLocations } from "@/data/discovery/dining";
@@ -300,53 +300,8 @@ export function SearchResultDetails({
       return null;
     }
 
-    const activeOffer = marketplace.offers.find(
-      (offer) =>
-        offer.listingId === listing.id &&
-        offer.buyerId === marketplace.currentUserId &&
-        offer.status === "offer_sent",
-    );
-
     if (typeof document === "undefined") return null;
-
-    return createPortal(
-      <MarketplaceDetailModal
-        listing={listing}
-        theme={theme}
-        currentUserId={marketplace.currentUserId}
-        saved={marketplace.savedListingIds.includes(listing.id)}
-        activeOffer={activeOffer}
-        messages={marketplace.messages.filter(
-          (message) => message.listingId === listing.id,
-        )}
-        alreadyReported={marketplace.reports.some(
-          (report) => report.listingId === listing.id,
-        )}
-        onClose={close}
-        closeLabel={closeLabel}
-        initialPanel={detail.panel ?? "none"}
-        onToggleSaved={() => marketplace.toggleSaved(listing.id)}
-        onSendOffer={(amount, note) =>
-          marketplace.sendOffer(listing.id, amount, note)
-        }
-        onWithdrawOffer={marketplace.withdrawOffer}
-        onSendMessage={(body) => marketplace.sendMessage(listing.id, body)}
-        onReport={(reason, details) =>
-          marketplace.reportListing(listing.id, reason, details)
-        }
-        onBlockSeller={() => {
-          marketplace.blockSeller(listing.sellerId);
-          close();
-        }}
-        onUpdateStatus={(status) =>
-          marketplace.updateListingStatus(listing.id, status)
-        }
-        onOpenSellerProfile={(userId) => {
-          push({ kind: "profile", id: userId });
-        }}
-      />,
-      document.body,
-    );
+    return createPortal(<QuickListingDetail listing={listing} currentUserId={marketplace.currentUserId} onClose={close} onStatusChange={async () => { if (listing.isDevelopment) marketplace.updateListingStatus(listing.id, listing.status === "sold" ? "active" : "sold"); else await marketplace.refresh(); }} />, document.body);
   }
 
   return null;

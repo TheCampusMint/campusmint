@@ -320,7 +320,7 @@ export function BottomBubbleNav({
       aria-label="Campus Mint primary navigation"
       className="pointer-events-none fixed bottom-[max(0.6rem,env(safe-area-inset-bottom))] left-1/2 z-50 origin-bottom"
       style={{
-        width: dots ? "4.25rem" : compact ? "min(calc(100vw - 4rem), 19rem)" : "min(calc(100vw - 3rem), 21.75rem)",
+        width: dots ? "4.25rem" : compact ? "min(calc(100vw - 4rem), 17.75rem)" : "min(calc(100vw - 3rem), 19rem)",
         transform: "translateX(-50%)",
         transition: reducedMotion
           ? "none"

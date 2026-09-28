@@ -252,7 +252,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
     profiles.currentUser.account.onboardingCompletedAt;
   const clearAuthenticatedProfile = profiles.clearAuthenticatedUser;
   const hydrateAuthenticatedProfile = profiles.hydrateAuthenticatedUser;
-  const marketplace = useMarketplace();
+  const marketplace = useMarketplace(currentUserId);
   const mintz = useMintz(currentUserId, developerUniversityOverride);
   const directMint = useDirectMint(currentUserId);
   const eventMoments = useEventMoments();

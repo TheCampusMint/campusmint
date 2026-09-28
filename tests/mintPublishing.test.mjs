@@ -291,12 +291,19 @@ test("Club discussion context persists canonical IDs/names and rejects unavailab
   const organization = { id: organizationId, name: "Astronomy Club", university_id: "tamu", status: "active", is_development: false, official_status: "university_verified", confidence_level: "official" };
   const app = routeHarness();
   app.rows.organizations = [organization];
+  app.rows.organization_memberships = [{ user_id: userId, organization_id: organizationId, status: "member" }];
   const response = await app.request({ action: "publish", payload: { ...payload, caption: "When is the next meeting?", taggedOrganizationIds: [organizationId], taggedOrganizations: [{ id: organizationId, name: "Spoofed club" }] } });
   assert.equal(response.status, 201);
   const { mint } = await response.json();
   assert.deepEqual(mint.taggedOrganizationIds, [organizationId]);
   assert.deepEqual(mint.taggedOrganizations, [{ id: organizationId, name: "Astronomy Club" }]);
   assert.equal(mint.organizationId, null, "discussing a Club does not claim its official publishing identity");
+  for (const status of ["requested", "rejected", "left"]) {
+    const denied = routeHarness(); denied.rows.organizations = [organization];
+    denied.rows.organization_memberships = [{ user_id: userId, organization_id: organizationId, status }];
+    assert.equal((await denied.request({ action: "publish", payload: { ...payload, taggedOrganizationIds: [organizationId] } })).status, 403);
+    assert.equal(denied.rows.social_content?.length ?? 0, 0);
+  }
   for (const patch of [{ id: randomUUID() }, { university_id: "texas" }, { status: "archived" }, { is_development: true }, { official_status: "pending" }, { confidence_level: "pending" }]) {
     const invalid = routeHarness();
     invalid.rows.organizations = [{ ...organization, ...patch }];

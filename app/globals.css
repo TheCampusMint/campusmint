@@ -606,3 +606,21 @@ summary {
   outline: 2px solid var(--app-accent);
   outline-offset: 2px;
 }
+
+/* Quiet composer fields keep keyboard focus without decorative outlines. */
+.cm-create-composer .cm-composer-field {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.cm-create-composer textarea.cm-composer-field { background: transparent; }
+.cm-create-composer fieldset { border: 0; min-inline-size: 0; padding: 0; }
+.cm-composer-reveal { animation: composer-reveal 240ms ease-out both; }
+@keyframes composer-reveal {
+  from { opacity: 0; max-height: 0; transform: translateY(-6px); overflow: hidden; }
+  to { opacity: 1; max-height: 40rem; transform: translateY(0); }
+}
+.cm-context-club { color: var(--app-text-primary); background: linear-gradient(105deg, #dc872e26, #dc872e12); }
+.cm-context-event { color: var(--app-text-primary); background: linear-gradient(105deg, #399b6d26, #399b6d12); }
+.cm-context-club.is-selected { background: linear-gradient(105deg, #dc872e55, #dc872e26); }
+.cm-context-event.is-selected { background: linear-gradient(105deg, #399b6d55, #399b6d26); }
+@media (prefers-reduced-motion: reduce) { .cm-composer-reveal { animation: none; } }

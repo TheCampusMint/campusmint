@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { developmentMarketplaceListings } from "@/data/marketplace";
 import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
@@ -24,7 +24,26 @@ function sessionId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function useMarketplace() {
+export function useMarketplace(accountId = currentSessionSellerId) {
+  const currentUserId = areDevelopmentFixturesEnabled() ? currentSessionSellerId : accountId;
+  const accountRef = useRef(accountId);
+  useEffect(() => { accountRef.current = accountId; }, [accountId]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [remote, setRemote] = useState<{ accountId: string; listings: MarketplaceListing[] } | null>(null);
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    if (areDevelopmentFixturesEnabled() || !/^[0-9a-f-]{36}$/i.test(accountId)) return;
+    const response = await fetch("/api/marketplace", { cache: "no-store", signal });
+    const payload = await response.json();
+    if (signal?.aborted || accountRef.current !== accountId) return;
+    if (!response.ok) { setRemote(null); setLoadError(payload.message ?? "Couldn’t load Sell."); return; }
+    setRemote({ accountId, listings: payload.listings }); setLoadError(null);
+  }, [accountId]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const load = () => { void refresh(controller.signal).catch(() => { if (!controller.signal.aborted) setLoadError("Couldn’t load Sell. Try again."); }); };
+    load(); window.addEventListener("focus", load);
+    return () => { controller.abort(); window.removeEventListener("focus", load); };
+  }, [refresh]);
   const [listings, setListings] = useState<MarketplaceListing[]>(
     areDevelopmentFixturesEnabled() ? developmentMarketplaceListings : [],
   );
@@ -43,9 +62,9 @@ export function useMarketplace() {
     const listing: MarketplaceListing = {
       ...listingInput,
       id,
-      sellerId: currentSessionSellerId,
+      sellerId: currentUserId,
       seller: {
-        id: currentSessionSellerId,
+        id: currentUserId,
         firstName: "Student",
         universityId,
         verificationStatus: areDevelopmentFixturesEnabled() ? "development_placeholder" : "verified_student",
@@ -71,6 +90,14 @@ export function useMarketplace() {
     };
     setListings((current) => [listing, ...current]);
     return listing;
+  }
+
+  async function publishListing(input: NewMarketplaceListingInput, universityId: UniversityId, requestId: string) {
+    if (areDevelopmentFixturesEnabled()) { addListing(input, universityId); return; }
+    const response = await fetch("/api/marketplace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...input, requestId }) });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.message ?? "Your listing wasn’t posted. Try again.");
+    await refresh();
   }
 
   function toggleSaved(listingId: string) {
@@ -119,8 +146,11 @@ export function useMarketplace() {
   }
 
   return {
-    currentUserId: currentSessionSellerId,
-    listings,
+    currentUserId,
+    listings: areDevelopmentFixturesEnabled() ? listings : remote?.accountId === accountId ? remote.listings : [],
+    loadError,
+    refresh,
+    publishListing,
     savedListingIds,
     offers,
     messages,

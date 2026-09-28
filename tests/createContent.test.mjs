@@ -47,7 +47,7 @@ test("plain community posts need no media and media posts preserve their content
 test("Create Mint says Duration, preserves privacy, and retains media selection", () => {
   assert.match(createSource, />\s*Duration\s*</);
   assert.doesNotMatch(createSource, />\s*Expiration\s*</);
-  assert.match(createSource, /Mint privacy/);
+  assert.match(createSource, /aria-label="Privacy"/);
   assert.match(createSource, /prepareLocalMintMedia/);
   assert.match(createSource, /accept="image\/\*,video\/\*"/);
   assert.doesNotMatch(createSource, /Show like count|Hide like count/i);
@@ -84,4 +84,14 @@ test("legacy Spotify and Apple Music links still migrate without remaining the c
   );
   assert.doesNotMatch(createSource, /MusicPicker|SelectedMusicTrack|Add Music|Music \(optional\)/);
   assert.doesNotMatch(createSource, /open\.spotify\.com link|music\.apple\.com link/i);
+});
+
+const { composerProgress, hasComposerText } = await import("../lib/content/composerProgress.ts");
+test("composer stays compact for whitespace and reveals optional choices in order", () => {
+  for (const value of ["", " ", "\n\t", "\u200B\uFEFF"]) assert.equal(hasComposerText(value), false);
+  for (const value of ["hello", "0", "!", "😀", "#"]) assert.equal(hasComposerText(value), true);
+  assert.equal(composerProgress(false, true, true), 0);
+  assert.equal(composerProgress(true, false, false), 1);
+  assert.equal(composerProgress(true, true, false), 2);
+  assert.equal(composerProgress(true, true, true), 3);
 });

@@ -1,6 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import { MintLeafIcon } from "@/components/icons/MintLeafIcon";
+import { PlacePicker } from "@/components/content/PlacePicker";
+import { composerProgress, hasComposerText } from "@/lib/content/composerProgress";
 import {
   useCallback,
   useEffect,
@@ -109,9 +112,11 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [postType, setPostType] = useState<SocialPostType>("personal");
-  const [composerKind, setComposerKind] = useState<ComposerKind | null>(null);
+  const [composerKind, setComposerKind] = useState<ComposerKind | null>("post");
   const [eventMode, setEventMode] = useState<"rollcall" | "host">("rollcall");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [privacyChosen, setPrivacyChosen] = useState(false);
+  const [durationChosen, setDurationChosen] = useState(false);
   const [contextKind, setContextKind] = useState<"club" | "event" | "location" | "settings" | null>(null);
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
@@ -123,7 +128,8 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   const [caption, setCaption] = useState("");
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [commentsEnabled, setCommentsEnabled] = useState(defaultCommentsEnabled);
-  const [privacy, setPrivacy] = useState<SocialContentPrivacy>("account");
+  const [privacy, setPrivacy] = useState<SocialContentPrivacy>("public");
+  const personalDurationRef = useRef("permanent");
   const [durationHours, setDurationHours] = useState<string>("permanent");
   const [locationChoice, setLocationChoice] = useState("none");
   const [customLocation, setCustomLocation] = useState("");
@@ -242,7 +248,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       : [];
 
   const availableOrganizations = viewer.account.isDevelopment
-    ? developmentClubs.map((organization) => ({ id: organization.id, name: organization.name, canPublish: Boolean(organizationActor && canPostAsOrganization(organizationActor, organization, organizationMemberships, organizationRoles)) }))
+    ? developmentClubs.filter((organization) => organizationMemberships.some((membership) => membership.organizationId === organization.id && membership.userId === viewer.account.id && ["member", "officer", "leader"].includes(membership.status))).map((organization) => ({ id: organization.id, name: organization.name, canPublish: Boolean(organizationActor && canPostAsOrganization(organizationActor, organization, organizationMemberships, organizationRoles)) }))
     : contextCatalog?.clubs ?? [];
   const postableOrganizations = availableOrganizations.filter((organization) => organization.canPublish);
   const selectedOrganization = postableOrganizations.find((organization) => organization.id === selectedOrganizationId) ?? null;
@@ -290,7 +296,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     }
     return {
       eventId: null,
-      title: eventTitle.trim() || null,
+      title: eventTitle.trim() || caption.trim().slice(0, 120) || null,
       eventStartAt,
       eventEndAt,
       timeZone: eventTimeZone,
@@ -365,17 +371,18 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     publishRequestIdRef.current = attempt.requestId;
     attemptedIntentRef.current = attempt.intent;
     setActiveDraftId(draft.id);
-    setCaption(draft.caption);
+    setCaption(draft.caption || draft.pollQuestion || "");
+    setPrivacyChosen(true); setDurationChosen(true);
     setPostType(draft.postType);
     setComposerKind(draft.composerKind ?? (draft.postType === "event" ? "event" : "post"));
     setEventMode(draft.eventMode ?? (draft.postType === "event" && !draft.existingEventId ? "host" : "rollcall"));
     setPollQuestion(draft.pollQuestion ?? "");
     setPollOptions(draft.pollOptions ?? ["", ""]);
     setMoreOpen(false);
-    setContextKind(draft.taggedOrganizationId ? "club" : draft.existingEventId ? "event" : null);
+    setContextKind(draft.taggedOrganizationId || draft.selectedOrganizationId ? "club" : draft.postType === "event" || draft.existingEventId ? "event" : null);
     setCommentsEnabled(draft.commentsEnabled);
     setPrivacy(draft.privacy);
-    setDurationHours(draft.durationHours);
+    setDurationHours(draft.postType === "event" ? String(EVENT_CONTENT_DURATION_HOURS) : draft.durationHours);
     setLocationChoice(draft.locationChoice);
     setCustomLocation(draft.customLocation);
     setExistingEventId(draft.existingEventId);
@@ -462,7 +469,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (submitting || draftBusy || activeMediaPreparing || !composerKind) return;
+    if (submitting || draftBusy || activeMediaPreparing || !composerKind || !ready) return;
     setSubmitError(null);
 
     const hasEventDetails = Boolean(existingEventId || (postType === "event" && (eventTitle.trim() || eventDescription.trim())));
@@ -471,8 +478,8 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       setSubmitError("Add a question and at least two choices.");
       return;
     }
-    if (postType === "event" && !existingEventId && (!eventTitle.trim() || !eventDate || !eventStartTime || !eventLocation.trim())) {
-      setSubmitError("Add your event title, date, time, and place.");
+    if (postType === "event" && !existingEventId && !eventLocation.trim()) {
+      setSubmitError("Select a location to confirm your event’s address.");
       return;
     }
     if (composerKind === "event" && eventMode === "rollcall" && !existingEventId) {
@@ -549,7 +556,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       organizationAudience: postType === "club" ? organizationAudience : "public",
       privacy,
       isDevelopment: viewer.account.isDevelopment,
-    }, activeMedia, publishRequestIdRef.current);
+    }, activeMedia, publishRequestIdRef.current).catch(() => ({ ok: false, message: "Couldn’t reach Campus Mint. Your work is still here; try again." }));
     setSubmitting(false);
     if (!result.ok) {
       // Keep a durable copy when the server rejects or interrupts a publish;
@@ -575,25 +582,27 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   }));
 
   const busy = submitting || draftBusy || activeMediaPreparing;
-  const ready = composerKind === "poll"
-    ? Boolean(pollQuestion.trim() && pollOptions.filter((option) => option.trim()).length >= 2)
-    : composerKind === "event" && eventMode === "host"
-      ? Boolean(eventTitle.trim() && eventDate && eventStartTime && eventLocation.trim())
-      : composerKind === "event"
-        ? Boolean(existingEventId)
-        : Boolean(caption.trim() || media.length || existingEventId);
   const clubOptions = availableOrganizations.map((club) => ({ id: club.id, label: club.name }));
   const eventOptions = availableEvents.map((event) => ({ id: event.id, label: event.title, detail: `${new Date(event.startAt).toLocaleDateString()} · ${event.location}` }));
 
-  function chooseKind(kind: ComposerKind) {
-    setComposerKind(kind);
-    setDraftsOpen(false);
-    setMoreOpen(false);
-    setSubmitError(null);
-    if (kind === "event" && eventMode === "host") setExistingEventId("");
-    setPostType(kind === "event" && eventMode === "host" ? "event" : selectedOrganizationId && kind !== "event" ? "club" : "personal");
-    if (kind === "event" && !caption.trim()) setCaption("Who’s going?");
-    window.requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLTextAreaElement | HTMLInputElement>("[data-composer-input]")?.focus());
+  const hasContent = hasComposerText(caption) || media.length > 0 || (composerKind === "poll" && hasComposerText(pollQuestion));
+  const progress = composerProgress(hasContent, privacyChosen, durationChosen);
+  const ready = hasContent && (composerKind !== "poll" || (hasComposerText(pollQuestion) && pollOptions.filter((option) => hasComposerText(option)).length >= 2)) && (postType !== "event" || Boolean(existingEventId || eventLocation.trim())) && (contextKind !== "club" || Boolean(taggedOrganizationId || selectedOrganizationId));
+  function insertToken(token: string) {
+    const field = captionTextareaRef.current;
+    const caret = field?.selectionStart ?? caption.length;
+    const prefix = caret > 0 && !/\s/.test(caption[caret - 1]) ? " " : "";
+    const next = caption.slice(0, caret) + prefix + token + caption.slice(field?.selectionEnd ?? caret);
+    setCaption(next); if (composerKind === "poll") setPollQuestion(next);
+    setMentionQuery(token === "@" ? "" : null);
+    requestAnimationFrame(() => { field?.focus(); field?.setSelectionRange(caret + prefix.length + 1, caret + prefix.length + 1); });
+  }
+  function toggleContext(kind: "club" | "event") {
+    const next = contextKind === kind ? null : kind;
+    setContextKind(next); setTaggedOrganizationId(""); setSelectedOrganizationId(""); setExistingEventId("");
+    setPostType(next === "event" ? "event" : "personal"); setEventMode("host");
+    if (next === "event") { personalDurationRef.current = durationHours; setDurationHours(String(EVENT_CONTENT_DURATION_HOURS)); }
+    else if (contextKind === "event") setDurationHours(personalDurationRef.current);
   }
 
   return createPortal(
@@ -602,120 +611,62 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
       <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="create-content-title"
         className={`cm-panel-sheet cm-create-composer flex max-h-full w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-[1.75rem] bg-[var(--app-surface)] text-[var(--app-text-primary)] ${closing ? "is-closing" : ""}`}>
-        <header className="flex shrink-0 items-center gap-3 px-5 pb-3 pt-4">
-          {composerKind && <button type="button" aria-label="Back to post types" disabled={busy} onClick={() => setComposerKind(null)} className="rounded-full py-2 pr-1 text-xl">←</button>}
-          <h2 id="create-content-title" className="min-w-0 flex-1 text-lg font-bold">{draftsOpen ? "Drafts" : composerKind === "poll" ? "New poll" : composerKind === "event" ? "Share an event" : composerKind ? "New post" : "Create"}</h2>
-          {!draftsOpen && <button type="button" disabled={busy} onClick={() => setDraftsOpen(true)} className="rounded-full px-2 py-2 text-xs font-semibold text-[var(--app-accent)]">Drafts{drafts.length > 0 ? ` (${drafts.length})` : ""}</button>}
-          <CloseButton onClick={requestClose} data-initial-focus label="Close Create Mint" />
+        <header className="flex shrink-0 items-center justify-between px-5 pt-3">
+          <h2 id="create-content-title" className="sr-only">{draftsOpen ? "Drafts" : "Create Mint"}</h2>
+          <button type="button" disabled={busy} onClick={() => setDraftsOpen(!draftsOpen)} className="rounded-full py-2 text-xs text-[var(--app-text-secondary)]">{draftsOpen ? "Back" : `Drafts${drafts.length ? ` (${drafts.length})` : ""}`}</button>
+          <CloseButton onClick={requestClose} label="Close Create Mint" />
         </header>
-        <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pb-4" style={{ WebkitOverflowScrolling: "touch" }}>
-          {draftsOpen ? <section aria-label="Saved drafts" className="space-y-2">
-            <p className="mb-3 text-xs text-[var(--app-text-secondary)]">Saved on this device, including your photos and videos.</p>
-            {drafts.length === 0 && <p className="py-6 text-sm text-[var(--app-text-secondary)]">No drafts yet.</p>}
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
+          {draftsOpen ? <section aria-label="Saved drafts" className="space-y-2 py-3">
+            <p className="text-xs text-[var(--app-text-secondary)]">Saved on this device, including media.</p>
+            {drafts.length === 0 && <p className="py-6 text-sm">No drafts yet.</p>}
             {drafts.map((draft) => <div key={draft.id} className="flex items-center gap-3 rounded-2xl bg-[var(--app-surface-elevated)] p-3">
-              <button type="button" disabled={busy} onClick={() => void openDraft(draft)} className="min-w-0 flex-1 rounded-xl text-left">
-                <span className="block truncate text-sm font-semibold">{draft.pollQuestion?.trim() || draft.caption.trim() || draft.eventTitle.trim() || "Untitled draft"}</span>
-                <span className="text-xs text-[var(--app-text-secondary)]">{new Date(draft.updatedAt).toLocaleDateString()} · {draft.mediaCount ? `${draft.mediaCount} attachment${draft.mediaCount === 1 ? "" : "s"}` : "Text"}</span>
-              </button>
-              {onDeleteDraft && <button type="button" disabled={busy} aria-label={`Delete ${draft.caption.trim() || "untitled"} draft`} className="rounded-full p-2 text-xs text-[var(--app-text-secondary)]"
-                onClick={async () => { setDraftBusy(true); try { await onDeleteDraft(draft.id); if (activeDraftId === draft.id) setActiveDraftId(undefined); } catch { setSubmitError("Couldn’t delete this draft. Try again."); } finally { setDraftBusy(false); } }}>Delete</button>}
+              <button type="button" disabled={busy} onClick={() => void openDraft(draft)} className="min-w-0 flex-1 rounded-xl text-left"><span className="block truncate text-sm font-semibold">{draft.pollQuestion?.trim() || draft.caption.trim() || draft.eventTitle.trim() || "Untitled draft"}</span><span className="text-xs text-[var(--app-text-secondary)]">{new Date(draft.updatedAt).toLocaleDateString()} · {draft.mediaCount} attachments</span></button>
+              {onDeleteDraft && <button type="button" disabled={busy} aria-label="Delete draft" className="rounded-full p-2 text-sm" onClick={async () => { setDraftBusy(true); try { await onDeleteDraft(draft.id); } catch { setSubmitError("Couldn’t delete this draft."); } finally { setDraftBusy(false); } }}>×</button>}
             </div>)}
-            <button type="button" onClick={() => setDraftsOpen(false)} className="rounded-full py-2 text-sm font-semibold text-[var(--app-accent)]">Back to composer</button>
-          </section> : !composerKind ? <div className="space-y-1 pb-2">
-            {([
-              { id: "post", symbol: "Aa", label: "Post", detail: "A thought, a question, photos or video" },
-              { id: "poll", symbol: "☷", label: "Poll", detail: "Let your campus weigh in" },
-              { id: "event", symbol: "↗", label: "Event", detail: "See who’s going or plan something" },
-            ] as const).map((choice) => <button key={choice.id} type="button" onClick={() => chooseKind(choice.id)} className="flex w-full items-center gap-4 rounded-2xl px-2 py-4 text-left hover:bg-[var(--app-accent-soft)]">
-              <span aria-hidden="true" className="w-8 text-center text-xl font-semibold text-[var(--app-accent)]">{choice.symbol}</span>
-              <span><strong className="block text-base">{choice.label}</strong><span className="block text-xs text-[var(--app-text-secondary)]">{choice.detail}</span></span>
-            </button>)}
-          </div> : <form id="mint-composer-form" onSubmit={submit}>
-            <fieldset disabled={busy} className="min-w-0 space-y-4 disabled:pointer-events-none disabled:opacity-70">
-            <legend className="sr-only">Post details</legend>
-            <input ref={internalFileInputRef} type="file" accept="image/*,video/*" multiple hidden onChange={(event) => void selectInternalMedia(event)} />
-            <input ref={cameraInputRef} type="file" accept="image/*,video/*" capture="environment" hidden onChange={(event) => void selectInternalMedia(event)} />
-            {composerKind === "event" && <div className="flex gap-2 text-sm">
-              {([ ["rollcall", "Event roll call"], ["host", "New event"] ] as const).map(([mode, label]) => <button key={mode} type="button" aria-pressed={eventMode === mode}
-                onClick={() => { setEventMode(mode); setPostType(mode === "host" ? "event" : "personal"); setExistingEventId(""); }}
-                className={`rounded-full px-3 py-2 font-semibold ${eventMode === mode ? "bg-[var(--app-accent-soft)] text-[var(--app-accent)]" : "text-[var(--app-text-secondary)]"}`}>{label}</button>)}
-            </div>}
-            {composerKind === "poll" && <fieldset className="space-y-2">
-              <legend className="sr-only">Poll question and choices</legend>
-              <label className="block"><span className="sr-only">Poll question</span><textarea data-composer-input required maxLength={280} value={pollQuestion} onChange={(event) => setPollQuestion(event.target.value)} placeholder="Ask your campus…" rows={2} className="w-full resize-none bg-transparent py-2 text-lg outline-none" /></label>
-              {pollOptions.map((option, index) => <div key={index} className="flex items-center gap-2">
-                <label className="min-w-0 flex-1"><span className="sr-only">Choice {index + 1}</span><input required={index < 2} maxLength={100} value={option} onChange={(event) => setPollOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} className={fieldClass} placeholder={`Choice ${index + 1}`} /></label>
-                {index >= 2 && <button type="button" aria-label={`Remove choice ${index + 1}`} className="rounded-full p-2 text-xl" onClick={() => setPollOptions((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</button>}
-              </div>)}
-              {pollOptions.length < 6 && <button type="button" className="rounded-full py-2 text-xs font-semibold text-[var(--app-accent)]" onClick={() => setPollOptions((current) => [...current, ""])}>+ Add choice</button>}
-            </fieldset>}
-            {composerKind === "event" && eventMode === "rollcall" && <SearchableSelector label="Event" value={existingEventId} options={eventOptions} loading={contextLoading} onChange={setExistingEventId} placeholder="Search campus events" />}
-            {composerKind === "event" && eventMode === "host" && <fieldset className="grid grid-cols-2 gap-3">
-              <legend className="sr-only">New event details</legend>
-              <label className="col-span-2 text-xs font-semibold text-[var(--app-text-secondary)]">Event title<input data-composer-input required value={eventTitle} onChange={(event) => setEventTitle(event.target.value)} placeholder="What’s happening?" className={fieldClass} /></label>
-              <label className="text-xs font-semibold text-[var(--app-text-secondary)]">Date<input required type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} className={fieldClass} /></label>
-              <label className="text-xs font-semibold text-[var(--app-text-secondary)]">Time<input required type="time" value={eventStartTime} onChange={(event) => setEventStartTime(event.target.value)} className={fieldClass} /></label>
-              <label className="col-span-2 text-xs font-semibold text-[var(--app-text-secondary)]">Place<input required value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} placeholder="Where are we meeting?" className={fieldClass} /></label>
-            </fieldset>}
-            {(composerKind !== "poll" || caption) && <div className="relative">
-              <label><span className="sr-only">Caption or text</span><textarea ref={captionTextareaRef} data-composer-input
-                required={composerKind === "post" && media.length === 0 && !existingEventId} value={caption}
-                onChange={(event) => { setCaption(event.target.value); setMentionQuery(getActiveMentionQuery(event.target.value, event.target.selectionStart)); }}
-                onSelect={(event) => setMentionQuery(getActiveMentionQuery(event.currentTarget.value, event.currentTarget.selectionStart))}
-                rows={composerKind === "post" ? 4 : 2} className="w-full resize-none bg-transparent py-2 text-base leading-relaxed outline-none placeholder:text-[var(--app-text-secondary)]"
-                placeholder={media.length ? "Add a caption…" : composerKind === "event" ? "Say a little more (optional)…" : "What’s on your mind?"} /></label>
-              {mentionQuery !== null && mentionSuggestions.length > 0 && <div className="rounded-2xl bg-[var(--app-surface-elevated)] p-1">
-                {mentionSuggestions.map((candidate) => <button key={candidate.account.id} type="button" onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => { const caret = captionTextareaRef.current?.selectionStart ?? caption.length; setCaption(insertMentionAtCaret(caption, caret, candidate.profile.usernameNormalized)); setMentionQuery(null); window.requestAnimationFrame(() => captionTextareaRef.current?.focus()); }}
-                  className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--app-accent-soft)]">@{candidate.profile.username}<span className="ml-2 text-xs text-[var(--app-text-secondary)]">{candidate.profile.displayName}</span></button>)}
-              </div>}
-            </div>}
-            {activeMedia.length > 0 && <div>
-              <div className="flex gap-2 overflow-x-auto pb-1">{activeMedia.map((item) => <figure key={item.media.id} className="relative h-36 w-40 shrink-0 overflow-hidden rounded-2xl bg-[var(--app-surface-elevated)]">
-                {item.media.type === "image" ? <Image src={item.media.url ?? ""} alt={`Selected media preview: ${item.fileName}`} fill sizes="160px" className="object-contain" unoptimized /> : <video src={item.media.url ?? undefined} controls playsInline preload="metadata" className="h-full w-full object-contain" />}
-              </figure>)}</div>
-              <button type="button" onClick={clearMedia} className="rounded-full py-2 text-xs font-semibold text-[var(--app-text-secondary)]">Remove media</button>
-            </div>}
-            {activeMediaPreparing && <p role="status" className="text-xs text-[var(--app-text-secondary)]">Preparing your media…</p>}
-            {activeMediaError && <p role="alert" className="text-sm text-[var(--app-danger)]">{activeMediaError}</p>}
-            {moreOpen && <div id="composer-extras" className="space-y-4 rounded-2xl bg-[var(--app-surface-elevated)] p-3">
-              <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold text-[var(--app-accent)]">
-                <button type="button" disabled={busy} onClick={chooseMedia} className="rounded-full py-2">Photos / video</button>
-                <button type="button" disabled={busy} onClick={() => { if (cameraInputRef.current) { cameraInputRef.current.value = ""; cameraInputRef.current.click(); } }} className="rounded-full py-2">Camera</button>
-                <button type="button" aria-pressed={contextKind === "club"} onClick={() => setContextKind(contextKind === "club" ? null : "club")} className="rounded-full py-2">Club</button>
-                {composerKind !== "event" && <button type="button" aria-pressed={contextKind === "event"} onClick={() => setContextKind(contextKind === "event" ? null : "event")} className="rounded-full py-2">Event</button>}
-                <button type="button" aria-pressed={contextKind === "location"} onClick={() => setContextKind(contextKind === "location" ? null : "location")} className="rounded-full py-2">Location</button>
-                <button type="button" aria-pressed={contextKind === "settings"} onClick={() => setContextKind(contextKind === "settings" ? null : "settings")} className="rounded-full py-2">Post settings</button>
-                {onSaveDraft && <button type="button" disabled={busy} onClick={() => void saveCurrentDraft()} className="rounded-full py-2">Save draft</button>}
+          </section> : <form id="mint-composer-form" onSubmit={submit}>
+            <fieldset disabled={busy} className="min-w-0 disabled:pointer-events-none disabled:opacity-70">
+              <legend className="sr-only">Post details</legend>
+              <input ref={internalFileInputRef} type="file" accept="image/*,video/*" multiple hidden onChange={(event) => void selectInternalMedia(event)} />
+              <input ref={cameraInputRef} type="file" accept="image/*,video/*" capture="environment" hidden onChange={(event) => void selectInternalMedia(event)} />
+              <div className="flex items-start gap-2">
+                <label className="min-w-0 flex-1"><span className="sr-only">Text here</span><textarea ref={captionTextareaRef} data-initial-focus data-composer-input value={caption} maxLength={composerKind === "poll" ? 280 : 5000}
+                  onChange={(event) => { setCaption(event.target.value); if (composerKind === "poll") setPollQuestion(event.target.value); setMentionQuery(getActiveMentionQuery(event.target.value, event.target.selectionStart)); }}
+                  onSelect={(event) => setMentionQuery(getActiveMentionQuery(event.currentTarget.value, event.currentTarget.selectionStart))}
+                  rows={3} className="cm-composer-field block min-h-24 w-full resize-none rounded-xl bg-transparent py-3 text-base leading-relaxed placeholder:text-[var(--app-text-secondary)]" placeholder="Text here" /></label>
+                <div className="flex shrink-0 items-center pt-2">
+                  <button type="button" onClick={chooseMedia} aria-label="Add photo or video" className="rounded-full p-2 text-[var(--app-accent)]"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8" cy="9" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 6"/></svg></button>
+                  <button type="button" aria-label="More post options" aria-expanded={moreOpen} aria-controls="composer-extras" onClick={() => setMoreOpen(!moreOpen)} className="rounded-full p-2 text-[var(--app-text-secondary)]"><svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4"><path d="m5 8 5 5 5-5"/></svg></button>
+                </div>
               </div>
-              {contextKind === "club" && <SearchableSelector label="Tag a club (optional)" value={taggedOrganizationId} options={clubOptions} loading={contextLoading} onChange={setTaggedOrganizationId} placeholder="Search clubs" />}
-              {contextKind === "event" && composerKind !== "event" && <SearchableSelector label="Attach an event" value={existingEventId} options={eventOptions} loading={contextLoading} onChange={setExistingEventId} placeholder="Search campus events" />}
-              {contextKind === "location" && <label className="block text-xs font-semibold">Location<input value={customLocation} onChange={(event) => { setLocationChoice("custom"); setCustomLocation(event.target.value); }} placeholder="A campus spot or meeting place" className={fieldClass} /></label>}
-              {contextKind === "settings" && <div className="space-y-3">
-                <label className="block text-xs font-semibold">Mint privacy<select value={privacy} onChange={(event) => setPrivacy(event.target.value as SocialContentPrivacy)} className={fieldClass}><option value="account">Use account privacy</option><option value="public">Public across Campus Mint</option><option value="connections">Connections only</option><option value="private">Only me</option></select></label>
-                <label className="block text-xs font-semibold">Duration<select value={postType === "event" ? "24" : durationHours} disabled={postType === "event"} onChange={(event) => setDurationHours(event.target.value)} className={fieldClass}>{postType === "event" ? <option value="24">24 hours</option> : personalDurationOptions.map((option) => <option key={option.hours} value={option.hours}>{option.label}</option>)}</select></label>
-                {postableOrganizations.length > 0 && composerKind !== "event" && <SearchableSelector label="Post as a club" value={selectedOrganizationId} options={postableOrganizations.map((club) => ({ id: club.id, label: club.name }))} onChange={(id) => { setSelectedOrganizationId(id); setPostType(id ? "club" : "personal"); }} placeholder="Post as yourself" />}
-                {postType === "club" && <label className="block text-xs font-semibold">Club audience<select value={organizationAudience} onChange={(event) => setOrganizationAudience(event.target.value as OrganizationContentAudience)} className={fieldClass}><option value="public">Everyone</option><option value="members">Club members</option></select></label>}
-                <label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={commentsEnabled} onChange={(event) => setCommentsEnabled(event.target.checked)} className="accent-[var(--app-accent)]" />Allow replies</label>
+              <div className="flex gap-1"><button type="button" aria-label="Add hashtag" onClick={() => insertToken("#")} className="rounded-full px-2 py-1 text-sm text-[var(--app-text-secondary)]">#</button><button type="button" aria-label="Mention someone" onClick={() => insertToken("@")} className="rounded-full px-2 py-1 text-sm text-[var(--app-text-secondary)]">@</button></div>
+              {mentionQuery !== null && mentionSuggestions.length > 0 && <div className="rounded-2xl bg-[var(--app-surface-elevated)] p-1">{mentionSuggestions.map((candidate) => <button key={candidate.account.id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { const next = insertMentionAtCaret(caption, captionTextareaRef.current?.selectionStart ?? caption.length, candidate.profile.usernameNormalized); setCaption(next); if (composerKind === "poll") setPollQuestion(next); setMentionQuery(null); captionTextareaRef.current?.focus(); }} className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--app-accent-soft)]">@{candidate.profile.username}<span className="ml-2 text-xs text-[var(--app-text-secondary)]">{candidate.profile.displayName}</span></button>)}</div>}
+              {moreOpen && <div id="composer-extras" className="cm-composer-reveal my-2 flex flex-wrap gap-4 rounded-2xl bg-[var(--app-surface-elevated)] px-3 py-2 text-sm">
+                <button type="button" aria-pressed={composerKind === "poll"} onClick={() => { setComposerKind(composerKind === "poll" ? "post" : "poll"); setPollQuestion(caption.slice(0, 280)); if (composerKind !== "poll") setCaption(caption.slice(0, 280)); setMoreOpen(false); }} className="rounded-full py-1">{composerKind === "poll" ? "Remove poll" : "Poll"}</button>
+                <button type="button" onClick={() => cameraInputRef.current?.click()} className="rounded-full py-1">Camera</button>
+                {onSaveDraft && <button type="button" onClick={() => void saveCurrentDraft()} className="rounded-full py-1">Save draft</button>}
               </div>}
-            </div>}
-            {!moreOpen && (taggedOrganizationId || (existingEventId && composerKind !== "event") || customLocation || (postType === "club" && selectedOrganization)) && <div className="flex flex-wrap gap-2 text-xs text-[var(--app-accent)]">
-              {postType === "club" && selectedOrganization && <span>Posting as {selectedOrganization.name}</span>}
-              {taggedOrganizationId && <span>↗ {availableOrganizations.find((club) => club.id === taggedOrganizationId)?.name ?? "Club attached"}</span>}
-              {existingEventId && composerKind !== "event" && <span>↗ {availableEvents.find((event) => event.id === existingEventId)?.title ?? "Event attached"}</span>}
-              {customLocation && <span>⌖ {customLocation}</span>}
-            </div>}
-            {contextError && ((composerKind === "event" && eventMode === "rollcall") || contextKind === "club" || contextKind === "event") && <p role="status" className="text-xs text-[var(--app-text-secondary)]">Club and event choices couldn’t load. <button type="button" onClick={() => { setContextLoading(true); setContextError(false); setContextAttempt((attempt) => attempt + 1); }} className="rounded-full font-semibold text-[var(--app-accent)]">Retry</button></p>}
+              {composerKind === "poll" && <div className="cm-composer-reveal space-y-2 py-3" aria-label="Poll choices">
+                {pollOptions.map((option, index) => <div key={index} className="flex items-center gap-2"><input aria-label={`Choice ${index + 1}`} value={option} maxLength={100} onChange={(event) => setPollOptions((current) => current.map((item, i) => i === index ? event.target.value : item))} placeholder={`Choice ${index + 1}`} className={fieldClass + " cm-composer-field"}/>{index > 1 && <button type="button" aria-label={`Remove choice ${index + 1}`} onClick={() => setPollOptions((current) => current.filter((_, i) => i !== index))} className="rounded-full p-2">×</button>}</div>)}
+                {pollOptions.length < 6 && <button type="button" onClick={() => setPollOptions((current) => [...current, ""])} className="rounded-full py-1 text-xs text-[var(--app-accent)]">+ Choice</button>}
+              </div>}
+              {activeMedia.length > 0 && <div className="py-3"><div className="flex gap-2 overflow-x-auto">{activeMedia.map((item) => <figure key={item.media.id} className="relative h-36 w-40 shrink-0 overflow-hidden rounded-2xl bg-[var(--app-surface-elevated)]">{item.media.type === "image" ? <Image src={item.media.url ?? ""} alt={`Selected media: ${item.fileName}`} fill sizes="160px" className="object-contain" unoptimized /> : <video src={item.media.url ?? undefined} controls playsInline className="h-full w-full object-contain" />}</figure>)}</div><button type="button" onClick={clearMedia} className="rounded-full py-2 text-xs text-[var(--app-text-secondary)]">Remove media</button></div>}
+              {activeMediaPreparing && <p role="status" className="text-xs">Preparing media…</p>}
+              {activeMediaError && <p role="alert" className="text-sm text-[var(--app-danger)]">{activeMediaError}</p>}
+              {progress >= 1 && <div className="cm-composer-reveal pt-3"><label className="sr-only" htmlFor="composer-privacy">Privacy</label><select id="composer-privacy" aria-label="Privacy" value={privacyChosen ? privacy : ""} onChange={(event) => { setPrivacy(event.target.value as SocialContentPrivacy); setPrivacyChosen(true); }} className={fieldClass + " cm-composer-field"}><option value="" disabled>Privacy · Public</option>{privacy === "account" && <option value="account">Profile default</option>}<option value="public">Public</option><option value="connections">Connections</option><option value="private">Only me</option></select></div>}
+              {progress >= 2 && <div className="cm-composer-reveal pt-2"><label className="sr-only" htmlFor="composer-duration">Duration</label><select id="composer-duration" aria-label="Duration" disabled={postType === "event"} value={durationChosen ? durationHours : ""} onChange={(event) => { setDurationHours(event.target.value); setDurationChosen(true); }} className={fieldClass + " cm-composer-field"}><option value="" disabled>Duration · Permanent</option>{personalDurationOptions.map((option) => <option key={option.hours} value={option.hours}>{option.label}</option>)}</select></div>}
+              {progress >= 3 && <div className="cm-composer-reveal space-y-3 pt-4">
+                <div className="flex gap-2">{([ ["event", "Event"], ["club", "Club"] ] as const).map(([kind, label]) => <button key={kind} type="button" aria-pressed={contextKind === kind} onClick={() => toggleContext(kind)} className={`cm-context-${kind} rounded-full px-4 py-1.5 text-sm font-semibold ${contextKind === kind ? "is-selected" : ""}`}>{label}</button>)}</div>
+                {contextKind === "club" && <><SearchableSelector label="Club" value={taggedOrganizationId || selectedOrganizationId} options={clubOptions} loading={contextLoading} onChange={(id) => { setTaggedOrganizationId(id); setSelectedOrganizationId(""); setPostType("personal"); }} placeholder="Your joined clubs" />{!contextLoading && !clubOptions.length && <p className="text-xs text-[var(--app-text-secondary)]">Join a club to attach its badge.</p>}</>}
+                {contextKind === "event" && <><p className="text-xs text-[var(--app-text-secondary)]">Event posts last 24 hours.</p><PlacePicker universityId={configuredUniversityId} value={eventLocation} onChange={setEventLocation} /><details className="text-xs text-[var(--app-text-secondary)]"><summary className="cursor-pointer rounded-full py-1">Link a campus event</summary><SearchableSelector label="Campus event" value={existingEventId} options={eventOptions} loading={contextLoading} onChange={setExistingEventId} /></details></>}
+                {contextError && (contextKind === "club" || contextKind === "event") && <button type="button" onClick={() => { setContextLoading(true); setContextError(false); setContextAttempt((attempt) => attempt + 1); }} className="text-xs text-[var(--app-accent)]">Couldn’t load choices. Retry</button>}
+              </div>}
             </fieldset>
           </form>}
           {draftNotice && <p role="status" className="mt-3 text-xs text-[var(--app-personal)]">{draftNotice}</p>}
           {submitError && <p role="alert" className="mt-3 text-sm text-[var(--app-danger)]">{submitError}</p>}
         </div>
-        {composerKind && !draftsOpen && <footer className="flex shrink-0 items-center gap-3 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-          <button type="button" disabled={busy} aria-label={moreOpen ? "Hide optional post options" : "Add to your post"} aria-expanded={moreOpen} aria-controls="composer-extras" onClick={() => setMoreOpen((open) => !open)} className="rounded-full px-2 py-1 text-3xl font-light text-[var(--app-accent)]">{moreOpen ? "−" : "+"}</button>
-          <span className="min-w-0 flex-1 text-xs text-[var(--app-text-secondary)]">{privacy === "private" ? "Only you" : privacy === "connections" ? "Your connections" : privacy === "public" ? "Public" : "Your account audience"}</span>
-          <button type="submit" form="mint-composer-form" disabled={busy || !ready} className="rounded-full bg-[var(--app-accent)] px-6 py-2.5 text-sm font-bold text-[var(--app-accent-contrast)] disabled:opacity-45">{submitting ? "Posting…" : "Post"}</button>
-        </footer>}
+        {!draftsOpen && <footer className="flex shrink-0 justify-end px-5 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-1"><button type="submit" form="mint-composer-form" aria-label={submitting ? "Publishing" : "Publish"} title="Publish" disabled={busy || !ready} className="flex h-11 w-11 items-center justify-center rounded-full bg-transparent text-[#52a77d] disabled:opacity-30"><MintLeafIcon className="!h-7 !w-7" /><span className="sr-only">{submitting ? "Publishing…" : "Publish"}</span></button></footer>}
       </section>
     </div>, document.body,
   );
