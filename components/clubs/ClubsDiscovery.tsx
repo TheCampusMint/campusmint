@@ -49,16 +49,11 @@ export function ClubsDiscovery({
       : null;
   return (
     <div className="space-y-5">
-      <div className="px-1"><p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Find your people</p><h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Clubs</h1><p className="mt-2 text-sm text-slate-600">Organization identity, membership requests, and official group access still use the existing club system.</p></div>
+      <div className="px-1"><p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Find your people</p><h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Clubs</h1></div>
       {!configuredUniversityId && (
         <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-8 text-center">
-          <h2 className="font-black text-slate-900">
-            Clubs are not configured yet
-          </h2>
-          <p className="mt-2 text-sm text-slate-500">
-            Campus-specific clubs for {theme.shortName} will
-            appear once university metadata is configured.
-          </p>
+          <h2 className="font-black text-slate-900">No clubs yet</h2>
+
         </div>
       )}
 

@@ -42,7 +42,7 @@ export function CampusDataDebugPanel({ universityId, localPendingCount }: {
           ))}
         </div>
         <div className="space-y-2">
-          {sources.length === 0 && <p className="text-sm text-slate-600">No sources are registered for this university yet.</p>}
+          {sources.length === 0 && <p className="text-sm text-slate-600">No sources yet</p>}
           {sources.map((source) => (
             <div key={source.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-3 text-sm">
               <div>

@@ -57,13 +57,13 @@ export function ExistingAccountSignIn({ onBack, onComplete }: { onBack: () => vo
         <h1 className="mt-3 text-4xl font-black tracking-[-.045em]">{step === "email" ? "Welcome back" : "Check your email"}</h1>
         {step === "email" ? (
           <form onSubmit={submitEmail} className="mt-8 space-y-4">
-            <p className="text-sm leading-6 text-[var(--app-text-secondary,#725d63)]">Use the email already connected to your Student, Brand, or Creator account.</p>
+            <p className="text-sm leading-6 text-[var(--app-text-secondary,#725d63)]">Your account email</p>
             <input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className={inputClass} />
             <button disabled={pending} className="w-full rounded-full bg-[var(--app-accent,#6f1d2c)] px-5 py-3.5 font-black text-[var(--app-accent-contrast,#fff)] disabled:opacity-50">{pending ? "Sending…" : "Email me a sign-in code"}</button>
           </form>
         ) : (
           <form onSubmit={submitCode} className="mt-8 space-y-4">
-            <p className="text-sm leading-6 text-[var(--app-text-secondary,#725d63)]">Enter the six-digit code sent to <strong>{email}</strong>.</p>
+            <p className="text-sm leading-6 text-[var(--app-text-secondary,#725d63)]">Code sent to <strong>{email}</strong>.</p>
             <input required type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} aria-label="Verification code" className={`${inputClass} text-center text-2xl font-black tracking-[.24em]`} />
             <button disabled={pending || code.length !== 6 || expired} className="w-full rounded-full bg-[var(--app-accent,#6f1d2c)] px-5 py-3.5 font-black text-[var(--app-accent-contrast,#fff)] disabled:opacity-50">{pending ? "Signing in…" : expired ? "Code expired" : "Sign in"}</button>
             <button type="button" disabled={pending || resendSeconds > 0} onClick={() => { void sendCode(); }} className="w-full rounded-full border border-[var(--app-border,#dccdd1)] px-5 py-3 text-sm font-black disabled:opacity-50">{resendSeconds > 0 ? `Resend in ${resendSeconds}s` : "Resend code"}</button>

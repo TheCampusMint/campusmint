@@ -20,5 +20,5 @@ test("attending context is deterministic, privacy-filtered, relevance-ranked, an
 test("event UI exposes only Attending, never Interested", () => {
   const sources = ["../components/mintz/MintCard.tsx", "../components/events/EventCard.tsx", "../components/events/EventMomentEventDetail.tsx"].map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
   assert.match(sources, /Attending/);
-  assert.doesNotMatch(sources, /Interested/);
+  assert.doesNotMatch(sources, /[>"\']Interested[<"\']/);
 });

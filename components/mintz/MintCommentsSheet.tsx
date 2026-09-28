@@ -657,7 +657,7 @@ export function MintCommentsSheet({
               Post
             </button>
           </div>
-          <p className="mt-1 px-2 text-[9px] text-slate-400">Comments in this preview stay on this device.</p>
+          <p className="mt-1 px-2 text-[9px] text-slate-400">Preview only · this device</p>
         </form>
       </section>
     </div>

@@ -190,10 +190,7 @@ export function CreateStoryModal({
                 {getCampusName(currentUser.universityId)}
               </option>
             </select>
-            <span className="mt-1 block text-xs text-slate-500">
-              You can post only as your selected university. Cross-campus access
-              does not allow impersonation.
-            </span>
+
           </label>
 
           <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">

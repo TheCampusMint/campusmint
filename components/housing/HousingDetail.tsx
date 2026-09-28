@@ -19,7 +19,7 @@ export function HousingDetail({ housing, onClose }: { housing: HousingEntity; on
             {housing.units.length ? <div className="mt-3 space-y-3">{housing.units.map((unit) => {
               const rate = housing.rates.find((item) => item.unitType.includes(unit.name) || item.unitType.includes("2-bed or 4-bed")) ?? housing.rates[0];
               return <div key={unit.id} className="rounded-xl border border-slate-200 p-3"><p className="font-semibold text-slate-900">{unit.name}</p><p className="mt-1 text-sm text-slate-500">{unit.bedroomCount ?? "—"} bedrooms · {unit.bathroomCount ?? "—"} bathrooms</p>{rate && <p className="mt-2 text-sm font-semibold text-slate-900">{new Intl.NumberFormat("en-US", { style: "currency", currency: rate.currency, maximumFractionDigits: 0 }).format(rate.amount)} / {rate.cadence} <span className="font-normal text-slate-500">({rate.termLabel})</span></p>}</div>;
-            })}</div> : <p className="mt-2 text-sm text-slate-500">Unit configurations and current rates are unavailable. Confirm them with the listed source.</p>}
+            })}</div> : <p className="mt-2 text-sm text-slate-500">Rates unavailable</p>}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -38,8 +38,8 @@ export function HousingDetail({ housing, onClose }: { housing: HousingEntity; on
           <div className="mt-5 rounded-2xl bg-slate-50 p-4">
             <p className="text-sm font-semibold text-slate-900">Campus Mint housing categories</p>
             <div className="mt-3 flex flex-wrap gap-2">{housingReviewCategories.map((category) => <span key={category} className="rounded-full bg-white px-2.5 py-1 text-xs text-slate-600 shadow-sm">{category}</span>)}</div>
-            <button type="button" disabled className="mt-4 w-full cursor-not-allowed rounded-xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-500">Sign in to write a verified review</button>
-            <p className="mt-2 text-xs leading-5 text-slate-500">Review submission is disabled until authenticated, verified accounts are available.</p>
+            <button type="button" disabled className="mt-4 w-full cursor-not-allowed rounded-xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-500">Reviews coming soon</button>
+
           </div>
         </div>
       </div>

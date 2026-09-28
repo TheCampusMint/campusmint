@@ -569,3 +569,9 @@ test("Event Mint slots retain centralized end-soonest urgency ordering", () => {
   assert.deepEqual(eventIds, ["soon", "late"]);
   assert.ok(ranked.some((candidate) => candidate.id === "personal"));
 });
+
+test('content feedback cannot hide the viewer’s own posts',()=>{
+ const viewer=user('viewer','tamu');const own=mint('own',viewer);own.hashtags=['cats'];
+ const ranked=rankNormalMintFeed([own],state(viewer,[viewer],{preferences:[{mintId:'other',authorId:'other',topics:['cats'],weight:0,reason:'content',updatedAt:new Date(NOW).toISOString()}]}));
+ assert.deepEqual(ranked.map(m=>m.id),['own']);
+});

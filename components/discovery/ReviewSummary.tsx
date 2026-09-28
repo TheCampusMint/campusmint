@@ -31,7 +31,7 @@ export function ReviewSummary({ external, campusMint, compact = false }: ReviewS
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Campus Mint reviews</p>
         <p className="mt-1 text-sm">
           {campusMint.reviewCount === 0 ? (
-            <span className="font-medium text-slate-500">No reviews yet · 0 reviews</span>
+            <span className="font-medium text-slate-500">No reviews yet</span>
           ) : (
             <><RatingValue rating={campusMint.rating} /><span className="ml-2 text-xs text-slate-500">{campusMint.reviewCount.toLocaleString("en-US")} reviews</span></>
           )}

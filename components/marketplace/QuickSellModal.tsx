@@ -6,7 +6,7 @@ import { useModalLayer } from "@/hooks/useModalLayer";
 import { parseQuickListing, quickListingInput } from "@/lib/marketplace/listing";
 import type { NewMarketplaceListingInput } from "@/types/marketplace";
 
-export function QuickSellModal({ onClose, onPublish }: { onClose: () => void; onPublish: (input: NewMarketplaceListingInput, requestId: string) => Promise<void> }) {
+export function QuickSellModal({ areaLabel, onClose, onPublish }: { areaLabel?: string; onClose: () => void; onPublish: (input: NewMarketplaceListingInput, requestId: string) => Promise<void> }) {
   const dialog = useRef<HTMLElement>(null);
   const requestId = useRef(crypto.randomUUID());
   const lastInput = useRef("");
@@ -18,6 +18,7 @@ export function QuickSellModal({ onClose, onPublish }: { onClose: () => void; on
     const data = new FormData(event.currentTarget);
     try {
       const input = quickListingInput(parseQuickListing({ title: data.get("title"), brand: data.get("brand"), askingPrice: Number(data.get("price")), condition: data.get("condition"), pickupArea: data.get("pickupArea") }));
+      input.shareNearbyArea = data.get("shareNearbyArea") === "on";
       const signature = JSON.stringify(input);
       if (lastInput.current && lastInput.current !== signature) requestId.current = crypto.randomUUID();
       lastInput.current = signature;
@@ -35,7 +36,7 @@ export function QuickSellModal({ onClose, onPublish }: { onClose: () => void; on
         <div className="grid grid-cols-2 gap-3"><label className="block text-xs">Price ($)<input name="price" type="number" inputMode="decimal" required min={0} max={999999} step="0.01" placeholder="0.00" className={field}/></label><label className="block text-xs">Brand <span className="text-[var(--app-text-secondary)]">(optional)</span><input name="brand" maxLength={80} className={field}/></label></div>
         <label className="block text-xs">Condition<select name="condition" defaultValue="Good" className={field}><option value="New">New</option><option value="Like New">Used – Like New</option><option value="Good">Used</option></select></label>
         <label className="block text-xs">Meetup location<input name="pickupArea" required minLength={2} maxLength={120} placeholder="e.g. Student center" className={field}/></label>
-        <p className="text-xs text-[var(--app-text-secondary)]">Buyers can message you from your listing.</p>
+        <label className="flex items-start gap-2 text-xs"><input type="checkbox" name="shareNearbyArea" className="mt-0.5"/><span>Show nearby · {areaLabel ?? "Near campus"}<span className="mt-1 block text-[var(--app-text-secondary)]">Approximate area · off: only you</span></span></label>
         <div className="flex justify-end"><button disabled={busy} type="submit" className="rounded-full px-4 py-2 font-semibold text-[var(--app-accent)]">{busy ? "Posting…" : "Post item"}</button></div>
       </fieldset>{error && <p role="alert" className="mt-3 text-sm text-[var(--app-danger)]">{error}</p>}</form>
     </section></div>, document.body);

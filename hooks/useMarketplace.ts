@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { Coordinates } from "@/lib/discovery/nearby";
 import { developmentMarketplaceListings } from "@/data/marketplace";
 import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import type { UniversityId } from "@/data/universities";
@@ -26,18 +27,23 @@ function sessionId(prefix: string) {
 
 export function useMarketplace(accountId = currentSessionSellerId) {
   const currentUserId = areDevelopmentFixturesEnabled() ? currentSessionSellerId : accountId;
+  const [nearbyOrigin, setNearbyOrigin] = useState<Coordinates | null>(null);
+  const originRef = useRef(nearbyOrigin);
+  useEffect(() => { originRef.current = nearbyOrigin; }, [nearbyOrigin]);
   const accountRef = useRef(accountId);
   useEffect(() => { accountRef.current = accountId; }, [accountId]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [remote, setRemote] = useState<{ accountId: string; listings: MarketplaceListing[] } | null>(null);
   const refresh = useCallback(async (signal?: AbortSignal) => {
     if (areDevelopmentFixturesEnabled() || !/^[0-9a-f-]{36}$/i.test(accountId)) return;
-    const response = await fetch("/api/marketplace", { cache: "no-store", signal });
+    const origin = nearbyOrigin;
+    const query = origin ? `?lat=${origin.latitude}&lng=${origin.longitude}` : "";
+    const response = await fetch(`/api/marketplace${query}`, { cache: "no-store", signal });
     const payload = await response.json();
-    if (signal?.aborted || accountRef.current !== accountId) return;
+    if (signal?.aborted || accountRef.current !== accountId || originRef.current !== origin) return;
     if (!response.ok) { setRemote(null); setLoadError(payload.message ?? "Couldn’t load Sell."); return; }
     setRemote({ accountId, listings: payload.listings }); setLoadError(null);
-  }, [accountId]);
+  }, [accountId, nearbyOrigin]);
   useEffect(() => {
     const controller = new AbortController();
     const load = () => { void refresh(controller.signal).catch(() => { if (!controller.signal.aborted) setLoadError("Couldn’t load Sell. Try again."); }); };
@@ -146,6 +152,7 @@ export function useMarketplace(accountId = currentSessionSellerId) {
   }
 
   return {
+    setNearbyOrigin,
     currentUserId,
     listings: areDevelopmentFixturesEnabled() ? listings : remote?.accountId === accountId ? remote.listings : [],
     loadError,

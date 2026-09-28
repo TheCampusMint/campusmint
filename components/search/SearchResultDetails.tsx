@@ -133,7 +133,7 @@ export function SearchResultDetails({
     state.history.length > 1 ? "Back" : `Back to ${state.category}`;
 
   if (readOnly && ["profile", "marketplace", "event_moment"].includes(detail.kind)) {
-    return <DiscoveryDetailOverlay label="Campus preview" onClose={close} backLabel={closeLabel}><p className="p-6 text-sm text-[var(--app-text-secondary)]">Exit campus preview to open personal account features.</p></DiscoveryDetailOverlay>;
+    return <DiscoveryDetailOverlay label="Campus preview" onClose={close} backLabel={closeLabel}><p className="p-6 text-sm text-[var(--app-text-secondary)]">Exit campus preview first</p></DiscoveryDetailOverlay>;
   }
 
   if (detail.kind === "profile") {

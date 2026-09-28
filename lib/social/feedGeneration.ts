@@ -69,14 +69,14 @@ export function rankOldMintz(input: { mints: readonly Mint[]; viewerId: string; 
   return [...input.mints].sort((first, second) => (scores.get(second.id) ?? 0) - (scores.get(first.id) ?? 0) || new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime() || first.id.localeCompare(second.id));
 }
 
-export function createFeedGeneration(input: { eligibleMintz: readonly Mint[]; previousEligibleMintIds: readonly string[] | null; pins: readonly MintPin[]; viewerId: string; dwell: readonly MintDwellRecord[]; privateAppreciations: readonly MintPrivateAppreciation[]; publicEndorsements: readonly MintPublicEndorsement[]; generationId: number; now: string }) {
+export function createFeedGeneration(input: { eligibleMintz: readonly Mint[]; previousEligibleMintIds: readonly string[] | null; pins: readonly MintPin[]; viewerId: string; dwell: readonly MintDwellRecord[]; privateAppreciations: readonly MintPrivateAppreciation[]; publicEndorsements: readonly MintPublicEndorsement[]; generationId: number; now: string; networkBoosts?: Readonly<Record<string,number>> }) {
   const eligibleById = new Map(input.eligibleMintz.map((mint) => [mint.id, mint]));
   const pins = input.pins.filter((pin) => pin.userId === input.viewerId && eligibleById.has(pin.mintId)).sort((a, b) => new Date(b.pinnedAt).getTime() - new Date(a.pinnedAt).getTime() || a.mintId.localeCompare(b.mintId));
   const pinnedIds = new Set(pins.map((pin) => pin.mintId));
   const previous = input.previousEligibleMintIds ? new Set(input.previousEligibleMintIds) : null;
   const unpinned = input.eligibleMintz.filter((mint) => !pinnedIds.has(mint.id));
   const newMintz = previous ? unpinned.filter((mint) => !previous.has(mint.id)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || a.id.localeCompare(b.id)) : unpinned;
-  const oldMintz = previous ? rankOldMintz({ mints: unpinned.filter((mint) => previous.has(mint.id)), viewerId: input.viewerId, dwell: input.dwell, privateAppreciations: input.privateAppreciations, publicEndorsements: input.publicEndorsements }) : [];
+  const oldMintz = previous ? rankOldMintz({ mints: unpinned.filter((mint) => previous.has(mint.id)), viewerId: input.viewerId, dwell: input.dwell, privateAppreciations: input.privateAppreciations, publicEndorsements: input.publicEndorsements, networkBoosts: input.networkBoosts }) : [];
   return {
     id: input.generationId,
     createdAt: input.now,

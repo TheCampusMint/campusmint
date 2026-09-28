@@ -1580,7 +1580,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
 
   function sectionContent(section: PrimarySection): ReactNode {
     if (campusPreviewActive && (section === "messages" || section === "profile")) {
-      return <section className="mx-auto max-w-lg py-16 text-center"><h1 className="text-xl font-bold text-[var(--app-text-primary)]">{section === "messages" ? "Messages stay with your account" : "Your profile stays with your campus"}</h1><p className="mt-3 text-sm text-[var(--app-text-secondary)]">Campus preview shows public content. Return to your campus to use your personal account.</p><button type="button" onClick={() => changeUniversity(null)} className="mt-5 rounded-full bg-[var(--app-accent)] px-5 py-2.5 text-sm font-bold text-[var(--app-accent-contrast)]">Use my campus</button></section>;
+      return <section className="mx-auto max-w-lg py-16 text-center"><h1 className="text-xl font-bold text-[var(--app-text-primary)]">{section === "messages" ? "Messages stay with your account" : "Your profile stays with your campus"}</h1><button type="button" onClick={() => changeUniversity(null)} className="mt-5 rounded-full bg-[var(--app-accent)] px-5 py-2.5 text-sm font-bold text-[var(--app-accent-contrast)]">Use my campus</button></section>;
     }
     if (section === "mint") {
       return (
@@ -1766,7 +1766,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
   }
 
   if (sessionError) {
-    return <main className="campus-app-shell flex min-h-dvh items-center justify-center bg-[var(--app-background)] p-6 text-[var(--app-text-primary)]" style={shellStyle}><section className="max-w-md rounded-3xl bg-[var(--app-surface)] p-6"><h1 className="text-xl font-black">Your account couldn&apos;t load</h1><p role="alert" className="mt-3 text-sm text-[var(--app-text-secondary)]">{sessionError}</p><p className="mt-2 text-sm text-[var(--app-text-secondary)]">Retry to restore your session and continue.</p><button type="button" disabled={sessionRefreshing} onClick={() => { void refreshAccountSession(); }} className="mt-5 rounded-full bg-[var(--app-accent)] px-5 py-2.5 text-sm font-bold text-[var(--app-accent-contrast)] disabled:opacity-60">{sessionRefreshing ? "Retrying…" : "Retry"}</button></section></main>;
+    return <main className="campus-app-shell flex min-h-dvh items-center justify-center bg-[var(--app-background)] p-6 text-[var(--app-text-primary)]" style={shellStyle}><section className="max-w-md rounded-3xl bg-[var(--app-surface)] p-6"><h1 className="text-xl font-black">Your account couldn&apos;t load</h1><p role="alert" className="mt-3 text-sm text-[var(--app-text-secondary)]">{sessionError}</p><button type="button" disabled={sessionRefreshing} onClick={() => { void refreshAccountSession(); }} className="mt-5 rounded-full bg-[var(--app-accent)] px-5 py-2.5 text-sm font-bold text-[var(--app-accent-contrast)] disabled:opacity-60">{sessionRefreshing ? "Retrying…" : "Retry"}</button></section></main>;
   }
 
   if (sessionStatus === "checking") {

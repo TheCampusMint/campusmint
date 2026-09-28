@@ -91,7 +91,7 @@ export function DiningHub({ universityId, accessibleCampuses, theme }: DiningHub
       <section className="overflow-hidden rounded-3xl p-7 shadow-sm lg:p-9" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}e6)`, color: theme.secondary }}>
         <p className="text-sm font-semibold uppercase tracking-[0.18em] opacity-75">Campus guide</p>
         <h2 className="mt-3 text-3xl font-bold sm:text-4xl">Find your next meal</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 opacity-85">Official campus dining and clearly sourced local discovery—without made-up ratings, wait times, or popularity.</p>
+
         <div className="mt-6 rounded-2xl bg-white p-2 shadow-lg">
           <label htmlFor="dining-search" className="sr-only">Search dining</label>
           <input id="dining-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search dining halls, coffee, restaurants, or campus…" className="w-full rounded-xl px-4 py-3 text-sm text-slate-950 outline-none placeholder:text-slate-400" />
@@ -120,17 +120,17 @@ export function DiningHub({ universityId, accessibleCampuses, theme }: DiningHub
 
       <div className="flex items-end justify-between gap-4">
         <div><p className="text-sm font-semibold text-slate-500">Dining directory</p><h3 className="mt-1 text-2xl font-bold text-slate-950">{filtered.length} {filtered.length === 1 ? "place" : "places"}</h3></div>
-        <p className="max-w-md text-right text-xs leading-5 text-slate-500">University records are source-backed. Development examples appear only in development mode.</p>
+
       </div>
 
-      {filtered.length ? <div className="grid gap-5 xl:grid-cols-2">{filtered.map((location) => <DiningLocationCard key={location.id} location={location} theme={theme} onViewDetails={setSelected} />)}</div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center"><h3 className="font-semibold text-slate-900">No dining records match</h3><p className="mt-2 text-sm text-slate-500">Try clearing a filter or use live off-campus search below.</p></div>}
+      {filtered.length ? <div className="grid gap-5 xl:grid-cols-2">{filtered.map((location) => <DiningLocationCard key={location.id} location={location} theme={theme} onViewDetails={setSelected} />)}</div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center"><h3 className="font-semibold text-slate-900">No places</h3></div>}
 
       {selected && <DiningLocationDetail location={selected} onClose={() => setSelected(null)} />}
 
       <section className="rounded-3xl border border-slate-200 bg-slate-950 p-6 text-white lg:p-8">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">Optional live provider</p>
         <h3 className="mt-2 text-2xl font-bold">Search nearby places</h3>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">When a server-only Google Places key is configured, this searches live data without persisting provider content. No review text or photo bytes are cached.</p>
+
         <form onSubmit={searchProvider} className="mt-5 flex flex-col gap-3 sm:flex-row">
           <label htmlFor="provider-search" className="sr-only">Search live nearby places</label>
           <input id="provider-search" value={providerQuery} onChange={(event) => setProviderQuery(event.target.value)} placeholder="Try coffee, tacos, or late-night food" className="min-w-0 flex-1 rounded-xl bg-white px-4 py-3 text-sm text-slate-950" />

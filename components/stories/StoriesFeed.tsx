@@ -110,10 +110,7 @@ export function StoriesFeed({
             <h2 className="mt-1 text-3xl font-bold text-slate-950">
               Campus Stories
             </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              Student posts, campus updates, and what is happening right now.
-              Stories disappear 24 hours after posting.
-            </p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Stories last 24 hours.</p>
           </div>
 
           <button
@@ -166,9 +163,7 @@ export function StoriesFeed({
             <h3 className="text-lg font-semibold text-slate-900">
               No stories in this view
             </h3>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Try another filter, campus, or role—or create the first story.
-            </p>
+
           </div>
         )}
       </div>

@@ -34,7 +34,7 @@ export function DiningLocationDetail({ location, onClose }: DiningLocationDetail
             <h4 className="font-semibold text-slate-950">Hours & service</h4>
             {location.regularHours.length ? (
               <ul className="mt-2 space-y-1 text-sm text-slate-600">{location.regularHours.map((hours) => <li key={hours}>{hours}</li>)}</ul>
-            ) : <p className="mt-2 text-sm text-slate-500">Current hours are unavailable. Check the official source before visiting.</p>}
+            ) : <p className="mt-2 text-sm text-slate-500">Hours unavailable</p>}
             {location.specialHours && <p className="mt-2 text-xs text-slate-500">{location.specialHours}</p>}
             <p className="mt-3 text-sm text-slate-500">Wait time: unavailable</p>
             <p className="mt-1 text-sm text-slate-500">Daily recommendation: unavailable</p>
@@ -51,8 +51,8 @@ export function DiningLocationDetail({ location, onClose }: DiningLocationDetail
           <div className="mt-5 rounded-2xl bg-slate-50 p-4">
             <p className="text-sm font-semibold text-slate-900">Campus Mint review categories</p>
             <div className="mt-3 flex flex-wrap gap-2">{reviewCategories.map((category) => <span key={category} className="rounded-full bg-white px-2.5 py-1 text-xs text-slate-600 shadow-sm">{category}</span>)}</div>
-            <button type="button" disabled className="mt-4 w-full cursor-not-allowed rounded-xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-500">Sign in to write a verified review</button>
-            <p className="mt-2 text-xs leading-5 text-slate-500">Review submission remains disabled until authentication and verified-user permissions are connected.</p>
+            <button type="button" disabled className="mt-4 w-full cursor-not-allowed rounded-xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-500">Reviews coming soon</button>
+
           </div>
         </div>
       </div>

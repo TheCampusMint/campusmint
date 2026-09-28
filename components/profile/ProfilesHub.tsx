@@ -50,7 +50,7 @@ export function ProfilesHub({ mode, selectedUserId, viewer, theme, visibleStorie
   }
 
   if (!owner || profiles.isBlocked(owner.account.id)) {
-    return <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center"><h2 className="text-xl font-black text-slate-900">Profile unavailable</h2><p className="mt-2 text-sm text-slate-500">This development profile is missing or blocked.</p>{showBackControl ? <MintLeafBackButton onClick={onBack} aria-label="Go back" tone="minimal" className="mt-5 text-slate-800" /> : null}</div>;
+    return <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center"><h2 className="text-xl font-black text-slate-900">Profile unavailable</h2><p className="mt-2 text-sm text-slate-500">Profile unavailable</p>{showBackControl ? <MintLeafBackButton onClick={onBack} aria-label="Go back" tone="minimal" className="mt-5 text-slate-800" /> : null}</div>;
   }
 
   const friendshipStatus = profiles.getFriendshipStatus(owner.account.id);

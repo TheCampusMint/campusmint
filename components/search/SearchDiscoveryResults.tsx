@@ -14,8 +14,7 @@ import type { Event } from "@/types/event";
 type MarketplaceState = ReturnType<typeof useMarketplace>;
 
 function EmptyResults({ query, category }: { query: string; category: UnifiedSearchState["category"] }) {
-  const label = category === "marketplace" ? "Sell" : category === "food" ? "Food" : "Events";
-  return <div className="rounded-3xl border border-dashed border-[var(--app-border)] bg-[var(--app-surface)] p-9 text-center"><h2 className="font-black text-[var(--app-text-primary)]">{query.trim() ? "No matches yet" : `No ${label.toLocaleLowerCase()} available yet`}</h2><p className="mt-2 text-sm text-[var(--app-text-secondary)]">{query.trim() ? "Try another place, event, item, or keyword." : "New verified results will appear here."}</p></div>;
+  return <div className="rounded-3xl bg-[var(--app-surface)] p-12 text-center text-sm">{query.trim() ? "No matches" : category === "marketplace" ? "No items" : category === "food" ? "No places" : "No events"}</div>;
 }
 
 export function SearchDiscoveryResults({ state, candidates, theme, eventMoments, events, marketplace, viewerId, onOpen }: {

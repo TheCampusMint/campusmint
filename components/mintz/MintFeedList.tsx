@@ -33,6 +33,7 @@ import { rankRelevantEventAttendees } from "@/lib/events/attendingContext";
 import { sampleEvents } from "@/data/events";
 
 type MintFeedListProps = {
+  onNotInterested?: (mint: Mint, reason: import("@/lib/social/feedPreferences").InterestReason) => void;
   mints: Mint[];
   generation?: MintFeedGeneration;
   viewer: CampusMintUser;
@@ -58,6 +59,7 @@ type MintFeedListProps = {
 };
 
 export function MintFeedList({
+  onNotInterested,
   mints,
   generation,
   viewer,
@@ -450,6 +452,8 @@ export function MintFeedList({
               >
                 <div className="w-full">
                   <MintCard
+                      onNotInterested={onNotInterested ? reason => onNotInterested(item,reason) : undefined}
+                      onBlock={() => profiles.blockUser(item.authorId)}
                     mint={item}
                     author={author}
                     viewer={viewer}
@@ -619,12 +623,9 @@ export function MintFeedList({
         ) : (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
             <h3 className="font-bold text-slate-900">
-              No visible Mintz
+              No posts
             </h3>
-            <p className="mt-2 text-sm text-slate-500">
-              This feed has no active content you
-              are permitted to view.
-            </p>
+
           </div>
         )}
         {mints.length > 0 && generation?.refreshed && !hasOldPosts && <div className="px-5 py-9 text-center"><div aria-label="You're all caught up" className="text-sm font-black text-slate-700"><span aria-hidden="true">✓</span><span className="ml-2">You&apos;re all caught up</span></div></div>}

@@ -57,7 +57,8 @@ test("Creator applications begin pending and policy-driven screening never grant
   assert.match(creatorApply, /screening_status: meetsFollowerGuide \? "eligible" : "needs_review"/);
   assert.match(creatorApply, /status: "pending"/);
   assert.doesNotMatch(creatorApply, /account_capabilities.*insert/s);
-  assert.match(creatorOnboarding, /not automatic approval/i);
+  assert.match(creatorOnboarding, /Creator approval required/i);
+  assert.match(creatorOnboarding, /reviewed individually/i);
 });
 
 test("only a capability-authorized human review route can approve and grant Creator capabilities", () => {

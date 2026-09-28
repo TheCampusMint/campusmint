@@ -155,7 +155,7 @@ test("comment sheet supports replies, local persistence honesty, and direct mani
   assert.match(commentsSource, /replyToCommentId/);
   assert.match(commentsSource, />\s*Reply\s*</);
   assert.match(commentsSource, /parentCommentId: replyToCommentId/);
-  assert.match(commentsSource, /stay on this device/);
+  assert.match(commentsSource, /Preview only · this device/);
   assert.match(commentsSource, /useDirectManipulation/);
   assert.match(commentsSource, /data-direct-drag-handle/);
 });

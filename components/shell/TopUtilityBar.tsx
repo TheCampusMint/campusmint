@@ -172,7 +172,7 @@ export function TopUtilityBar({
           <div className="flex flex-wrap items-end justify-end gap-3 rounded-2xl bg-[var(--app-surface)] p-3">
             {developerControls}
           </div>
-          <p className="mt-2 text-right text-xs text-[var(--app-text-secondary)]">View public campus content. Your saved campus stays unchanged.</p>
+
         </div>
       )}
       {campusPreviewLabel && <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 pb-3 pt-1 text-xs sm:px-6" role="status">

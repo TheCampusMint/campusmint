@@ -2,6 +2,8 @@
 
 import { useCallback, useMemo, useState } from "react";
 
+import { useFeedPreferences } from "@/hooks/useFeedPreferences";
+import { learnFeedSignals, preferenceScore } from "@/lib/social/feedPreferences";
 import { FullscreenVideoViewer } from "@/components/mintz/FullscreenVideoViewer";
 import { MintFeedList } from "@/components/mintz/MintFeedList";
 import { developmentOrganizations } from "@/data/organizations";
@@ -73,6 +75,9 @@ export function CampusMintFeed({
   // the hood, but there is no separate Story UI.
   void onCreateStory;
   const allMintz = mintz.mintz;
+  const learned = useMemo(() => learnFeedSignals(allMintz,viewer.account.id,mintz.dwellRecords,mintz.privateAppreciations,mintz.publicEndorsements), [allMintz,viewer.account.id,mintz.dwellRecords,mintz.privateAppreciations,mintz.publicEndorsements]);
+  const preferences = useFeedPreferences(viewer.account.id,learned);
+  const rankingBoosts = Object.fromEntries(allMintz.map(m => [m.id,preferenceScore(m,preferences.signals,mintz.currentTime) + Math.min(120,Math.log2(1+Math.max(0,m.viewCount ?? 0))*10)]));
   const feedUsers = useMemo(() => {
     const byId = new Map(
       [...profiles.users, ...mintz.persistedAuthors].map((user) => [user.account.id, user]),
@@ -84,6 +89,8 @@ export function CampusMintFeed({
   const feedState = useMemo(
     () => ({
       viewer,
+      preferences: preferences.signals,
+      explorationSeed: `${viewer.account.id}:${mintz.refreshGeneration}`,
       users: feedUsers,
       friendships: profiles.friendships,
       follows: profiles.follows,
@@ -106,6 +113,8 @@ export function CampusMintFeed({
     }),
     [
       mintz.currentTime,
+      mintz.refreshGeneration,
+      preferences.signals,
       eventMoments.rsvps,
       events,
       organizations.followedOrganizationIds,
@@ -130,6 +139,7 @@ export function CampusMintFeed({
     cursor: { feedScope, refreshGeneration: mintz.refreshGeneration, feedRevision: mintz.feedRevision },
     generation: createFeedGeneration({
       eligibleMintz: visibleMintz,
+      networkBoosts: rankingBoosts,
       previousEligibleMintIds: null,
       pins: mintz.pins,
       viewerId: viewer.account.id,
@@ -143,6 +153,7 @@ export function CampusMintFeed({
   const nextGenerationState = advanceFeedGeneration(generationState,
     { feedScope, refreshGeneration: mintz.refreshGeneration, feedRevision: mintz.feedRevision }, {
       eligibleMintz: visibleMintz,
+      networkBoosts: rankingBoosts,
       pins: mintz.pins,
       viewerId: viewer.account.id,
       dwell: mintz.dwellRecords,
@@ -218,7 +229,9 @@ export function CampusMintFeed({
         </div>
       )}
 
+      {preferences.syncError && <p role="status" className="text-xs text-[var(--app-text-secondary)]">Saved here · sync retrying</p>}
       <MintFeedList
+        onNotInterested={preferences.dismiss}
         mints={generatedMintz}
         generation={renderedGeneration}
         viewer={viewer}

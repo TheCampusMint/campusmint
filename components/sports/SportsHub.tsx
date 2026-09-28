@@ -106,9 +106,7 @@ function SchedulePanel({ program, currentTime, onOpenGame }: { program: CampusSp
           {program.games.map((game) => <ScheduleRow key={game.id} game={game} program={program} currentTime={currentTime} onOpen={() => onOpenGame(game)} />)}
         </div>
       ) : (
-        <p className="mt-3 rounded-[1.25rem] bg-white px-4 py-6 text-center text-sm text-slate-500">
-          The schedule could not be loaded here. Check the official schedule for current fixtures and results.
-        </p>
+        <p className="mt-3 rounded-[1.25rem] bg-white px-4 py-6 text-center text-sm text-slate-500">Schedule unavailable</p>
       )}
 
       <a
@@ -134,14 +132,14 @@ function GameDetail({ game, program, campusLabel, onBack }: { game: CampusSchedu
       {final && game.campusScore !== null && game.opponentScore !== null && <p className="mt-2 text-xl font-black text-[var(--app-accent)]">{game.result} {game.campusScore}–{game.opponentScore}</p>}
       <p className="mt-2 text-sm text-slate-500">{game.dateLabel}{game.timeLabel ? ` · ${game.timeLabel}` : ""}{game.location ? ` · ${game.location}` : ""}{game.network ? ` · ${game.network}` : ""}</p>
     </header>
-    {!final ? <div className="rounded-[1.5rem] bg-white p-5"><h3 className="font-black text-slate-950">Upcoming game</h3><p className="mt-2 text-sm leading-6 text-slate-500">Participant statistics will appear only after a verified game source reports them. Campus Mint does not infer starters or participants.</p></div> : detail ? <>
+    {!final ? <div className="rounded-[1.5rem] bg-white p-5"><h3 className="font-black text-slate-950">Upcoming game</h3><p className="mt-2 text-sm leading-6 text-slate-500">Statistics unavailable</p></div> : detail ? <>
       <p className="text-xs font-semibold text-slate-500">{detail.scopeLabel}</p>
       {detail.statGroups.map((group) => <section key={group.id} aria-labelledby={`game-stat-${group.id}`} className="rounded-[1.5rem] bg-white p-5">
         <h3 id={`game-stat-${group.id}`} className="text-xs font-black uppercase tracking-[.16em] text-slate-500">{group.label}</h3>
         <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[28rem] border-collapse text-left text-xs"><thead><tr className="border-b border-slate-200 text-[10px] uppercase tracking-wide text-slate-400"><th className="pb-2 pr-4 font-black">Player</th>{group.columns.map((column) => <th key={column} className="pb-2 px-2 text-right font-black">{column}</th>)}</tr></thead><tbody>{group.rows.map((row) => <tr key={row.playerId} className="border-b border-slate-100 last:border-0"><th className="py-3 pr-4 font-bold text-slate-800">{row.playerName}<span className="block text-[9px] font-medium text-slate-400">{row.teamName}</span></th>{row.values.map((value, index) => <td key={`${row.playerId}:${group.columns[index]}`} className="px-2 py-3 text-right font-semibold tabular-nums text-slate-600">{value}</td>)}</tr>)}</tbody></table></div>
       </section>)}
       <a href={detail.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex text-xs font-bold text-[var(--app-accent)] underline underline-offset-4">Official game source</a>
-    </> : <div className="rounded-[1.5rem] bg-white p-5"><h3 className="font-black text-slate-950">Participation details unavailable</h3><p className="mt-2 text-sm leading-6 text-slate-500">The result is verified, but no normalized participation source is available. No players have been inferred.</p></div>}
+    </> : <div className="rounded-[1.5rem] bg-white p-5"><h3 className="font-black text-slate-950">Participation details unavailable</h3><p className="mt-2 text-sm leading-6 text-slate-500">Statistics unavailable</p></div>}
   </section>;
 }
 
@@ -218,9 +216,7 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
     return (
       <section className="rounded-[1.75rem] bg-white p-7 text-center" data-sports-hub>
         <h1 className="text-xl font-black text-slate-950">Campus Sports</h1>
-        <p className="mt-2 text-sm text-slate-500">
-          Athletics data isn&apos;t available for this university yet.
-        </p>
+        <p className="mt-2 text-sm text-slate-500">No sports data yet</p>
       </section>
     );
   }
@@ -271,7 +267,7 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
         </div>
       </header>
 
-      {refreshUnavailable && <p role="status" className="text-xs text-[var(--app-text-secondary)]">Latest scores are unavailable. Check the official schedule for updates.</p>}
+      {refreshUnavailable && <p role="status" className="text-xs text-[var(--app-text-secondary)]">Scores unavailable</p>}
 
       <section
         className="rounded-[1.4rem] bg-white p-4"
@@ -372,7 +368,7 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
         </>
       ) : (
         <div className="rounded-[1.25rem] bg-white p-5 text-center">
-          <p className="text-sm text-slate-500">Verified schedules and results aren&apos;t available from a connected provider yet.</p>
+          <p className="text-sm text-slate-500">Schedule unavailable</p>
           <div className="mt-3 flex flex-wrap justify-center gap-2" aria-label="Configured featured sports">
             {resolvedProfile.featuredSports.map((sportId) => <span key={sportId} className="rounded-full px-3 py-1.5 text-xs font-black text-slate-700">{launchCampusSports.find((sport) => sport.id === sportId)?.label ?? sportId}</span>)}
           </div>
@@ -383,9 +379,7 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] bg-white px-4 py-3">
         <div>
           <p className="text-sm font-black text-slate-950">Sports Plus</p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Deeper campus-team context when verified providers are connected.
-          </p>
+
         </div>
         <span className="rounded-full px-3 py-1.5 text-xs font-black text-slate-600">
           {defaultSportsEntitlement.sportsPlus ? "Active" : "Coming Soon"}

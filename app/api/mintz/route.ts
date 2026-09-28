@@ -337,7 +337,7 @@ async function loadMintFeed(
   const locationIds = (contentRows ?? []).flatMap((row) => row.location_id ? [row.location_id] : []);
   const eventDetailsIds = (contentRows ?? []).flatMap((row) => row.event_details_id ? [row.event_details_id] : []);
 
-  const [mintResult, mediaResult, hashtagResult, mentionResult, tagResult, locationResult, eventResult, membershipResult, followResult, friendshipResult, blockResult, organizationTagResult, authorPrivacyResult] = await Promise.all([
+  const [mintResult, mediaResult, hashtagResult, mentionResult, tagResult, locationResult, eventResult, membershipResult, followResult, friendshipResult, blockResult, organizationTagResult, authorPrivacyResult, viewCountResult] = await Promise.all([
     admin.from("mints").select("content_id,privacy,archived_at").in("content_id", contentIds),
     admin.from("content_media").select("id,content_id,media_type,storage_path,thumbnail_storage_path,width,height,duration_seconds,sort_order,mime_type,byte_size").in("content_id", contentIds).order("sort_order"),
     admin.from("content_hashtags").select("content_id,hashtag_normalized").in("content_id", contentIds),
@@ -351,8 +351,9 @@ async function loadMintFeed(
     admin.from("profile_blocks").select("blocker_id,blocked_id").or(`blocker_id.eq.${viewerId},blocked_id.eq.${viewerId}`),
     admin.from("content_tagged_organizations").select("content_id,organization_id").in("content_id", contentIds),
     admin.from("profiles").select("user_id,social_account_type").in("user_id", [...new Set((contentRows ?? []).map((row) => row.author_id))]),
+    admin.from("feed_view_counts").select("mint_id,view_count").in("mint_id",contentIds),
   ]);
-  for (const result of [mintResult, mediaResult, hashtagResult, mentionResult, tagResult, locationResult, eventResult, membershipResult, followResult, friendshipResult, blockResult, organizationTagResult, authorPrivacyResult]) {
+  for (const result of [mintResult, mediaResult, hashtagResult, mentionResult, tagResult, locationResult, eventResult, membershipResult, followResult, friendshipResult, blockResult, organizationTagResult, authorPrivacyResult, viewCountResult]) {
     if (result.error) throw result.error;
   }
 
@@ -512,7 +513,7 @@ async function loadMintFeed(
       status: row.status,
       privacy: mint.privacy,
       likeCount: 0,
-      viewCount: 0,
+      viewCount: viewCountResult.data?.find(item => item.mint_id === row.id)?.view_count ?? 0,
       commentCount: 0,
       saveCount: 0,
       shareCount: 0,

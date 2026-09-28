@@ -64,7 +64,7 @@ test("Direct Mint exposes honest local attachments, emoji, stickers, and replies
   assert.match(threadSource, /Photo \/ video/);
   assert.match(threadSource, /GIF file/);
   assert.match(threadSource, /Campus stickers · development/);
-  assert.match(threadSource, /stay on this device/);
+  assert.match(threadSource, /Preview only · this device/);
 });
 
 test("profile Notes enforce 150 characters, safe web URLs, and migrate legacy music", () => {

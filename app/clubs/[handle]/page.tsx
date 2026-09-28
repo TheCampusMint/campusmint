@@ -1,40 +1,11 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
-
-import { developmentOrganizations, getOrganizationByHandle } from "@/data/organizations";
-import { sampleEvents } from "@/data/events";
-import { universities } from "@/data/universities";
-import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
-
-export function generateStaticParams() {
-  return (areDevelopmentFixturesEnabled() ? developmentOrganizations : [])
-    .filter((organization) => organization.recordStatus === "active")
-    .map((organization) => ({ handle: organization.handle }));
-}
-
-export default async function ClubHandlePage({ params }: { params: Promise<{ handle: string }> }) {
-  const { handle } = await params;
-  if (!areDevelopmentFixturesEnabled()) notFound();
-  const organization = getOrganizationByHandle(handle);
-  if (!organization || organization.recordStatus !== "active") notFound();
-  const theme = universities[organization.universityId];
-  const events = sampleEvents.filter((event) => event.organizationId === organization.id);
-
-  return (
-    <main className="min-h-dvh bg-slate-50 p-5 text-slate-950 sm:p-8">
-      <article className="cm-onboarding-scene mx-auto max-w-4xl overflow-hidden rounded-3xl bg-white shadow-sm">
-        <header className="p-6 sm:p-8" style={{ backgroundColor: theme.primary, color: theme.secondary }}>
-          <p className="text-xs font-black uppercase tracking-[0.16em] opacity-75">{theme.name}</p>
-          <h1 className="mt-3 text-3xl font-black sm:text-4xl">{organization.name}</h1>
-          <p className="mt-3 text-sm font-bold opacity-85">Club handle · {organization.handle}</p>
-        </header>
-        <div className="space-y-7 p-6 sm:p-8">
-          <section><h2 className="text-lg font-black">About</h2><p className="mt-2 text-sm leading-7 text-slate-600">{organization.fullDescription}</p></section>
-          <dl className="grid gap-4 rounded-2xl bg-slate-50 p-5 sm:grid-cols-2"><div><dt className="text-xs font-black uppercase tracking-wide text-slate-400">Category</dt><dd className="mt-1 font-semibold">{organization.category}</dd></div><div><dt className="text-xs font-black uppercase tracking-wide text-slate-400">Membership</dt><dd className="mt-1 font-semibold capitalize">{organization.membershipType}</dd></div><div><dt className="text-xs font-black uppercase tracking-wide text-slate-400">Meeting location</dt><dd className="mt-1 font-semibold">{organization.meetingLocation}</dd></div><div><dt className="text-xs font-black uppercase tracking-wide text-slate-400">Meeting schedule</dt><dd className="mt-1 font-semibold">{organization.meetingSchedule}</dd></div></dl>
-          <section><h2 className="text-lg font-black">Upcoming Events</h2>{events.length ? <div className="mt-3 grid gap-3 sm:grid-cols-2">{events.map((event) => <article key={event.id} className="rounded-2xl border border-slate-200 p-4"><h3 className="font-bold">{event.title}</h3><p className="mt-2 text-sm text-slate-500">{event.date} · {event.time}</p><p className="mt-1 text-sm text-slate-500">{event.location}</p></article>)}</div> : <p className="mt-2 text-sm text-slate-500">No associated Event records are available.</p>}</section>
-          <Link href="/" className="cm-pressable inline-flex rounded-xl px-4 py-3 text-sm font-bold" style={{ backgroundColor: theme.primary, color: theme.secondary }}>Open Campus Mint</Link>
-        </div>
-      </article>
-    </main>
-  );
+/* eslint-disable @next/next/no-img-element */
+import {notFound} from "next/navigation";
+import {publicClub} from "@/lib/sharing/publicContent";
+import {SharedItem} from "@/components/sharing/SharedItem";
+export const dynamic = "force-dynamic";
+export const metadata = {title:"Shared Club",robots:{index:false,follow:false}};
+export default async function ClubPage({params}:{params:Promise<{handle:string}>}) {
+  const club = await publicClub((await params).handle);
+  if(!club) notFound();
+  return <SharedItem>{club.photo_url && <img src={club.photo_url} alt="" className="w-full rounded-2xl"/>}<h1 className="text-2xl font-bold">{club.name}</h1><p className="whitespace-pre-wrap">{club.full_description || club.short_description}</p><p className="text-sm text-[var(--app-text-secondary)]">{club.meeting_location}<br/>{club.meeting_schedule}</p>{club.website && <a href={club.website} rel="noreferrer" target="_blank" className="text-[var(--app-accent)]">Website ↗</a>}</SharedItem>;
 }

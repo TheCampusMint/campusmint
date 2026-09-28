@@ -63,9 +63,7 @@ export function EventsSection({
               Campus calendar
             </p>
             <h2 className="mt-1 text-3xl font-bold text-slate-950">Events</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Discover events available through your campus access.
-            </p>
+
           </div>
 
           <p className="text-sm font-medium text-slate-500">
@@ -122,9 +120,7 @@ export function EventsSection({
             No {activeCategory === "All" ? "" : `${activeCategory.toLowerCase()} `}
             events yet
           </h3>
-          <p className="mt-2 text-sm text-slate-500">
-            Try another category to see what is happening nearby.
-          </p>
+
         </div>
       )}
     </div>

@@ -67,7 +67,7 @@ export function HousingHub({ universityId, accessibleCampuses, theme }: HousingH
       <section className="overflow-hidden rounded-3xl p-7 shadow-sm lg:p-9" style={{ backgroundColor: theme.accent }}>
         <p className="text-sm font-semibold uppercase tracking-[0.18em]" style={{ color: theme.primary }}>Housing guide</p>
         <h2 className="mt-3 text-3xl font-bold text-slate-950 sm:text-4xl">A clearer place to start</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-700">Compare official campus housing and provider-ready off-campus listings. Unknown rates, amenities, and availability stay unknown.</p>
+
       </section>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
@@ -90,16 +90,16 @@ export function HousingHub({ universityId, accessibleCampuses, theme }: HousingH
             </div>
           </section>
 
-          <div className="flex items-end justify-between gap-4"><div><p className="text-sm font-semibold text-slate-500">{tab === "on_campus" ? "Official university housing" : "Off-campus housing"}</p><h3 className="mt-1 text-2xl font-bold text-slate-950">{filtered.length} {filtered.length === 1 ? "property" : "properties"}</h3></div><p className="max-w-sm text-right text-xs leading-5 text-slate-500">On-campus housing is restricted to the selected university, even when event access spans campuses.</p></div>
+          <div className="flex items-end justify-between gap-4"><div><p className="text-sm font-semibold text-slate-500">{tab === "on_campus" ? "Official university housing" : "Off-campus housing"}</p><h3 className="mt-1 text-2xl font-bold text-slate-950">{filtered.length} {filtered.length === 1 ? "property" : "properties"}</h3></div></div>
 
-          {filtered.length ? <div className="grid gap-5 xl:grid-cols-2">{filtered.map((housing) => <HousingCard key={housing.id} housing={housing} theme={theme} onViewDetails={setSelected} />)}</div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center"><h3 className="font-semibold text-slate-900">No verified listings match</h3><p className="mt-2 text-sm text-slate-500">Current data stays intentionally small until an official or authorized source is connected.</p></div>}
+          {filtered.length ? <div className="grid gap-5 xl:grid-cols-2">{filtered.map((housing) => <HousingCard key={housing.id} housing={housing} theme={theme} onViewDetails={setSelected} />)}</div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center"><h3 className="font-semibold text-slate-900">No verified listings match</h3></div>}
           {selected && <HousingDetail housing={selected} onClose={() => setSelected(null)} />}
         </>
       )}
 
-      {tab === "roommates" && <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-xl" aria-hidden="true">⌂</div><h3 className="mt-4 text-xl font-bold text-slate-950">Roommate matching is not active yet</h3><p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">Verified profiles, privacy controls, reporting, and moderation are required before real roommate posts can be accepted.</p><button type="button" disabled className="mt-5 cursor-not-allowed rounded-xl bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500">Authentication required</button></section>}
+      {tab === "roommates" && <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-xl" aria-hidden="true">⌂</div><h3 className="mt-4 text-xl font-bold text-slate-950">Roommates coming soon</h3><button type="button" disabled className="mt-5 cursor-not-allowed rounded-xl bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500">Authentication required</button></section>}
 
-      {tab === "reviews" && <section className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm lg:p-9"><p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">Campus Mint housing reviews</p><h3 className="mt-2 text-2xl font-bold text-slate-950">No verified reviews yet</h3><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">External ratings and Campus Mint reviews will remain separate. Campus Mint reviews will cover these categories:</p><div className="mt-5 flex flex-wrap gap-2">{housingReviewCategories.map((category) => <span key={category} className="rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-700">{category}</span>)}</div><button type="button" disabled className="mt-6 cursor-not-allowed rounded-xl bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500">Sign in to write a verified review</button></section>}
+      {tab === "reviews" && <section className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm lg:p-9"><p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">Campus Mint housing reviews</p><h3 className="mt-2 text-2xl font-bold text-slate-950">No verified reviews yet</h3><div className="mt-5 flex flex-wrap gap-2">{housingReviewCategories.map((category) => <span key={category} className="rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-700">{category}</span>)}</div><button type="button" disabled className="mt-6 cursor-not-allowed rounded-xl bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500">Reviews coming soon</button></section>}
     </div>
   );
 }

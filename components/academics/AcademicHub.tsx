@@ -103,9 +103,7 @@ export function AcademicHub({
         <div className="p-6 text-[var(--app-accent-contrast)]" style={{ backgroundColor: theme.primary }}>
           <p className="text-sm font-semibold opacity-80">Academic Hub</p>
           <h3 className="mt-1 text-3xl font-bold">Plan classes. Find your people.</h3>
-          <p className="mt-2 max-w-2xl text-sm opacity-85">
-            Your academic profile stays scoped to {theme.name}; switching schools does not mix catalogs or enrollment.
-          </p>
+
         </div>
         <div className="p-5">
           <h3 className="mb-3 text-lg font-bold text-slate-950">My Academics</h3>
@@ -128,7 +126,7 @@ export function AcademicHub({
         <div className="mb-5">
           <p className="text-sm font-semibold" style={{ color: theme.primary }}>Degree / Major</p>
           <h3 className="text-xl font-bold text-slate-950">Set your academic program</h3>
-          <p className="mt-1 text-sm text-slate-500">Aliases such as “CS” resolve to the university-scoped catalog record.</p>
+
         </div>
         <SearchableAutocomplete
           key={`program-${universityId}-${profile.programId}-${profile.customProgram}`}
@@ -153,7 +151,7 @@ export function AcademicHub({
         <div className="mb-5">
           <p className="text-sm font-semibold" style={{ color: theme.primary }}>Add Class</p>
           <h3 className="text-xl font-bold text-slate-950">Build your current schedule</h3>
-          <p className="mt-1 text-sm text-slate-500">Recommended courses appear first, but the full scoped catalog remains searchable.</p>
+
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <SearchableAutocomplete
@@ -212,9 +210,8 @@ export function AcademicHub({
 
       <section id="classes" className="rounded-2xl bg-white p-6 shadow-sm">
         <h3 className="text-xl font-bold text-slate-950">Classes</h3>
-        <p className="mt-1 text-sm text-slate-500">Locally saved for this prototype.</p>
+        <p className="mt-1 text-sm text-slate-500">Saved on this device</p>
         <div className="mt-4 space-y-3">
-          {profile.enrollments.length === 0 && <p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-500">Add your first class above.</p>}
           {profile.enrollments.map((enrollment) => {
             const course = catalog.courses.find((item) => item.id === enrollment.courseId);
             const term = catalog.terms.find((item) => item.id === enrollment.termId);

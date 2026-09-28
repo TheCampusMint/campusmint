@@ -176,7 +176,7 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
     if (activeCategory === "appearance") return (
       <div>
         <h3 className="text-lg font-black text-slate-950">Appearance</h3>
-        <p className="mt-1 text-sm leading-6 text-slate-500">Choose your look. Light and Dark use your accent throughout the interface.</p>
+
         <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
           {schemeChoices.map((choice) => (
             <button key={choice.id} type="button" aria-pressed={preferences.appearance.scheme === choice.id} onClick={() => updateAppearance({ scheme: choice.id })} className="cm-choice-control rounded-3xl p-3 text-left transition active:scale-[0.98]">
@@ -187,7 +187,7 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
           ))}
         </div>
         {preferences.appearance.scheme === "colorful" ? <div className="mt-5 space-y-3 text-sm">
-          <p className="text-[var(--app-text-secondary)]">One shared palette, with light or dark surfaces that follow your device.</p>
+
           <div className="flex flex-wrap gap-x-5 gap-y-2 font-semibold">
             <span className="text-[var(--app-urgent)]">Red · happening now</span>
             <span className="text-[var(--app-discovery)]">Orange · discover</span>
@@ -217,8 +217,8 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
     if (activeCategory === "privacy") return (
       <div>
         <h3 className="text-lg font-black text-slate-950">Privacy</h3>
-        <p className="mt-1 text-sm leading-6 text-slate-500">These controls update the existing profile permission state immediately.</p>
-        <div className="mt-5 divide-y divide-slate-100 rounded-2xl border border-slate-200 px-4">
+
+        <div className="mt-5 divide-y divide-slate-100 rounded-2xl px-4">
           <SelectRow label="Account" value={viewer.socialSettings.accountType} onChange={(value) => profiles.updateCurrentSocialSettings({ accountType: value as "public" | "private" })}><option value="public">Public</option><option value="private">Private</option></SelectRow>
           <SelectRow label="Profile visibility" value={viewer.privacy.bio} onChange={(value) => updatePrivacy("bio", value)}>{visibilityOptions()}</SelectRow>
           <SelectRow label="Classes visibility" value={viewer.privacy.classes} onChange={(value) => updatePrivacy("classes", value)}>{visibilityOptions()}</SelectRow>
@@ -229,48 +229,48 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
     );
 
     if (activeCategory === "notifications") return (
-      <div><h3 className="text-lg font-black text-slate-950">Notifications</h3><p className="mt-1 text-sm leading-6 text-slate-500">Device-local preferences for this development build.</p><div className="mt-5 divide-y divide-slate-100 rounded-2xl border border-slate-200 px-4">
+      <div><h3 className="text-lg font-black text-slate-950">Notifications</h3><div className="mt-5 divide-y divide-slate-100 rounded-2xl px-4">
         {(Object.entries({ sounds: "Notification sounds", messages: "Messages", clubUpdates: "Club updates", eventReminders: "Event reminders", mentions: "Mentions", marketplaceMessages: "Marketplace messages" }) as Array<[keyof NotificationPreferences, string]>).map(([key, label]) => <ToggleRow key={key} label={label} checked={preferences.notifications[key]} onChange={(checked) => updateNotifications({ [key]: checked })} />)}
       </div></div>
     );
 
     if (activeCategory === "content") return (
-      <div><h3 className="text-lg font-black text-slate-950">Content</h3><p className="mt-1 text-sm leading-6 text-slate-500">Defaults apply to future local content. Reduced motion changes the interface immediately.</p><div className="mt-5 divide-y divide-slate-100 rounded-2xl border border-slate-200 px-4">
-        {(Object.entries({ commentsDefault: ["Comments on by default", "New Mintz begin with comments enabled."], autoplayVideo: ["Autoplay video", "Allow compatible feed video to start automatically."], reducedMotion: ["Reduced motion", "Disable parallax and shorten interface animation."], autoArchiveTemporaryMintz: ["Auto Archive", "Keep an owner-only copy after a temporary Mint expires."], saveCapturedMediaToDevice: ["Save captures to device", "Stored for a future native camera; the browser does not claim Photos access."] }) as Array<[keyof ContentPreferences, [string, string]]>).map(([key, [label, description]]) => <ToggleRow key={key} label={label} description={description} checked={preferences.content[key]} onChange={(checked) => updateContent({ [key]: checked })} />)}
+      <div><h3 className="text-lg font-black text-slate-950">Content</h3><div className="mt-5 divide-y divide-slate-100 rounded-2xl px-4">
+        {(Object.entries({ commentsDefault: ["Comments on by default", ""], autoplayVideo: ["Autoplay video", ""], reducedMotion: ["Reduced motion", ""], autoArchiveTemporaryMintz: ["Auto Archive", "Private archive"], saveCapturedMediaToDevice: ["Save captures to device", "Coming soon"] }) as Array<[keyof ContentPreferences, [string, string]]>).map(([key, [label, description]]) => <ToggleRow key={key} label={label} description={description} checked={preferences.content[key]} onChange={(checked) => updateContent({ [key]: checked })} />)}
       </div><div className="mt-5 px-4">
-        <ToggleRow label="4K / HD uploads" description="Off by default. Turn on for photos up to 4K with less compression. Shape stays unchanged. Videos keep their original quality in either mode. Uses more data and storage; existing file limits apply." checked={preferences.content.highQualityUploads} onChange={(checked) => updateContent({ highQualityUploads: checked })} />
+        <ToggleRow label="4K / HD uploads" description="More photo detail · more data. Video quality unchanged." checked={preferences.content.highQualityUploads} onChange={(checked) => updateContent({ highQualityUploads: checked })} />
       </div></div>
     );
 
     if (activeCategory === "safety") return (
-      <div><h3 className="text-lg font-black text-slate-950">Safety</h3><p className="mt-1 text-sm leading-6 text-slate-500">Blocked accounts use the existing local relationship state.</p><div className="mt-5 rounded-2xl border border-slate-200 p-4">
+      <div><h3 className="text-lg font-black text-slate-950">Safety</h3><div className="mt-5 rounded-2xl p-4">
         <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Blocked users</p>
-        {blockedUsers.length === 0 ? <p className="mt-3 text-sm text-slate-500">No blocked users.</p> : <div className="mt-3 divide-y divide-slate-100">{blockedUsers.map((user) => <div key={user.account.id} className="flex items-center justify-between gap-3 py-3"><span className="text-sm font-bold text-slate-900">{user.profile.displayName}</span><button type="button" onClick={() => profiles.unblockUser(user.account.id)} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold">Unblock</button></div>)}</div>}
-      </div><button type="button" onClick={() => setNotice("Report and safety help will connect to support services in a future release.")} className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700">Report or get safety help</button></div>
+        {blockedUsers.length === 0 ? <p className="mt-3 text-sm text-slate-500">No blocked users.</p> : <div className="mt-3 divide-y divide-slate-100">{blockedUsers.map((user) => <div key={user.account.id} className="flex items-center justify-between gap-3 py-3"><span className="text-sm font-bold text-slate-900">{user.profile.displayName}</span><button type="button" onClick={() => profiles.unblockUser(user.account.id)} className="rounded-full px-3 py-1.5 text-xs font-bold">Unblock</button></div>)}</div>}
+      </div><button type="button" onClick={() => setNotice("Support is coming soon.")} className="mt-4 w-full rounded-xl px-4 py-3 text-sm font-bold text-slate-700">Report or get safety help</button></div>
     );
 
     if (activeCategory === "account") return (
-      <div><h3 className="text-lg font-black text-slate-950">Account</h3><p className="mt-1 text-sm leading-6 text-slate-500">Current development identity. No authentication settings are simulated here.</p><div className="mt-5 divide-y divide-slate-100 rounded-2xl border border-slate-200 px-4">
+      <div><h3 className="text-lg font-black text-slate-950">Account</h3><div className="mt-5 divide-y divide-slate-100 rounded-2xl px-4">
         <InfoRow label="Profile" value={viewer.profile.displayName} /><InfoRow label="University" value={theme.name} /><InfoRow label="Role" value={getUserRoleLabel(viewer.account.role)} /><InfoRow label="Username" value={`@${viewer.profile.username}`} /><InfoRow label="Verification" value={viewer.account.verifiedStudent || viewer.account.verifiedAlumni ? "Verified" : "Not verified"} />
-      </div><button type="button" onClick={() => { onOpenProfile(); requestClose(); }} className="mt-4 w-full rounded-xl px-4 py-3 text-sm font-black shadow-sm transition active:scale-[0.98]" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>Open profile</button>{viewer.account.verifiedStudent && !viewer.account.isDevelopment && !viewer.account.capabilities?.includes("creator") && <button type="button" onClick={() => { onApplyCreator(); requestClose(); }} className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700">Apply for Creator</button>}</div>
+      </div><button type="button" onClick={() => { onOpenProfile(); requestClose(); }} className="mt-4 w-full rounded-xl px-4 py-3 text-sm font-black transition active:scale-[0.98]" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>Open profile</button>{viewer.account.verifiedStudent && !viewer.account.isDevelopment && !viewer.account.capabilities?.includes("creator") && <button type="button" onClick={() => { onApplyCreator(); requestClose(); }} className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-black text-slate-700">Apply for Creator</button>}</div>
     );
 
     return (
-      <div><h3 className="text-lg font-black text-slate-950">Help</h3><p className="mt-1 text-sm leading-6 text-slate-500">Campus Mint development resources.</p><div className="mt-5 flex flex-col gap-1">
-        {["Help / Support", "About Campus Mint", "Terms / Privacy"].map((label) => <button key={label} type="button" onClick={() => setNotice(`${label} is a placeholder in this local development version.`)} className="cm-choice-control flex min-h-11 w-full items-center justify-between gap-3 rounded-full py-1 pr-3 text-left text-sm font-bold"><span className="cm-choice-highlight">{label}</span><span aria-hidden="true">›</span></button>)}
+      <div><h3 className="text-lg font-black text-slate-950">Help</h3><div className="mt-5 flex flex-col gap-1">
+        {["Help / Support", "About Campus Mint", "Terms / Privacy"].map((label) => <button key={label} type="button" onClick={() => setNotice(`${label} is coming soon.`)} className="cm-choice-control flex min-h-11 w-full items-center justify-between gap-3 rounded-full py-1 pr-3 text-left text-sm font-bold"><span className="cm-choice-highlight">{label}</span><span aria-hidden="true">›</span></button>)}
       </div></div>
     );
   })();
 
   return (
     <div className={`settings-backdrop fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/42 backdrop-blur-sm sm:items-center sm:p-5 ${closing ? "is-closing" : ""}`} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
-      <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="settings-title" className={`settings-sheet flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:max-h-[84dvh] sm:rounded-[2rem] ${closing ? "is-closing" : ""}`}>
+      <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="settings-title" className={`settings-sheet flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[2rem] bg-white sm:max-h-[84dvh] sm:rounded-[2rem] ${closing ? "is-closing" : ""}`}>
         <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
-          <div><p className="text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: "var(--app-accent)" }}>Campus Mint</p><h2 id="settings-title" className="text-xl font-black text-slate-950">Settings</h2></div>
+          <div><h2 id="settings-title" className="text-xl font-black text-slate-950">Settings</h2></div>
           <CloseButton data-initial-focus onClick={requestClose} label="Close settings" />
         </div>
         <div className="flex gap-2 overflow-x-auto border-b border-slate-100 px-4 py-3 sm:px-6" aria-label="Settings categories">
-          {categories.map((category) => <button key={category.id} type="button" onClick={() => selectCategory(category.id)} data-static-control aria-pressed={activeCategory === category.id} className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border px-3 py-2 text-center text-xs font-black transition" style={activeCategory === category.id ? { backgroundColor: "var(--app-accent)", borderColor: "var(--app-accent)", color: "var(--app-accent-contrast)" } : { borderColor: "var(--app-border)", color: "var(--app-text-secondary)" }}>{category.label}</button>)}
+          {categories.map((category) => <button key={category.id} type="button" onClick={() => selectCategory(category.id)} data-static-control aria-pressed={activeCategory === category.id} className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full px-3 py-2 text-center text-xs font-black transition" style={activeCategory === category.id ? { backgroundColor: "var(--app-accent)", borderColor: "var(--app-accent)", color: "var(--app-accent-contrast)" } : { borderColor: "var(--app-border)", color: "var(--app-text-secondary)" }}>{category.label}</button>)}
         </div>
         <div
           className="min-h-0 flex-1 touch-pan-y overflow-y-auto px-5 py-6 sm:px-6"

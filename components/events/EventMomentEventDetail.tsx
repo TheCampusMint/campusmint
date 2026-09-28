@@ -191,9 +191,7 @@ export function EventMomentEventDetail({
                 <p className="text-sm font-bold text-slate-700">
                   {displayedRsvpCount.toLocaleString("en-US")} attending
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Attending records planned attendance; it does not verify attendance.
-                </p>
+
               </div>
               <button
                 type="button"
@@ -226,9 +224,7 @@ export function EventMomentEventDetail({
               >
                 Optional Event Moment
               </p>
-              <h3 className="mt-2 text-lg font-black text-slate-950">
-                Capture a memory from this event.
-              </h3>
+
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 {eligibility.basis === "simulated_location"
                   ? `Looks like you may have been at ${event.title}. Capture a memory?`
@@ -339,10 +335,7 @@ export function EventMomentEventDetail({
                 </select>
               </label>
 
-              <p className="rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
-                This prototype saves a photo/video placeholder only on this device.
-                It does not upload media.
-              </p>
+              <p className="rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">Preview only · this device</p>
 
               <button
                 type="submit"
@@ -370,9 +363,7 @@ export function EventMomentEventDetail({
             </div>
 
             {visibleMoments.length === 0 ? (
-              <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-500">
-                No active Moments are visible to you yet.
-              </p>
+              <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-500">No Moments yet</p>
             ) : (
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 {visibleMoments.map((moment) => {

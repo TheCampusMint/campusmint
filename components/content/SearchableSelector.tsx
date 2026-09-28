@@ -47,7 +47,7 @@ export function SearchableSelector({ label, value, options, onChange, placeholde
           {option.detail && <span className="block text-xs text-[var(--app-text-secondary)]">{option.detail}</span>}
         </li>)}
       </ul>
-      {matches.length === 0 && <p role="status" className="px-3 py-2 text-xs text-[var(--app-text-secondary)]">{loading ? "Loading…" : "No matches available."}</p>}
+      {matches.length === 0 && <p role="status" className="px-3 py-2 text-xs text-[var(--app-text-secondary)]">{loading ? "Loading…" : "No matches"}</p>}
     </div>}
   </div>;
 }

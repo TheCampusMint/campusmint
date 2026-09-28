@@ -428,12 +428,12 @@ export function GroupsSkeleton({
 
         <div className="cm-surface-card p-5">
           <div className="flex items-center justify-between gap-3"><div><h2 className="font-black text-slate-900">Group chat</h2><p className="mt-1 text-xs text-slate-500">Local prototype conversation</p></div><button type="button" disabled={!canChat} onClick={() => setChatOpen((current) => !current)} className="rounded-full px-3 py-2 text-xs font-black disabled:bg-slate-100 disabled:text-slate-400" style={canChat ? { backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" } : undefined}>{canChat ? (chatOpen ? "Close chat" : "Open chat") : "Members only"}</button></div>
-          {!canChat && <p className="mt-3 text-xs leading-5 text-slate-500">Join and become an official conversation participant to access this group chat.</p>}
+          {!canChat && <p className="mt-3 text-xs leading-5 text-slate-500">Join to chat</p>}
           {chatOpen && canChat && (
             <div className="cm-content-swap mt-4">
               <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl bg-slate-50 p-3">{chatMessages.length ? chatMessages.map((message, index) => <p key={`${index}:${message}`} className="ml-auto w-fit max-w-[82%] rounded-2xl px-3 py-2 text-sm" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>{message}</p>) : <p className="py-6 text-center text-sm text-slate-400">No local messages yet</p>}</div>
               <form onSubmit={submitChat} className="mt-2 flex gap-2"><input value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} placeholder="Message group" className="min-w-0 flex-1 rounded-full border border-slate-200 px-4 py-2.5 text-sm" /><button type="submit" disabled={!chatDraft.trim()} className="rounded-full px-4 py-2 text-xs font-black disabled:opacity-40" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>Send</button></form>
-              <p className="mt-2 text-[10px] text-slate-400">Saved only for this browser session. Real-time group delivery is not connected.</p>
+              <p className="mt-2 text-[10px] text-slate-400">Preview only · this device</p>
             </div>
           )}
         </div>
@@ -487,11 +487,8 @@ export function GroupsSkeleton({
       <div key={view} className="cm-content-swap">
       {!configuredUniversityId ? (
         <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-9 text-center">
-          <h2 className="font-black text-slate-900">Groups are not configured yet</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            A provisional university identity never inherits another campus&apos;s
-            development groups.
-          </p>
+          <h2 className="font-black text-slate-900">No groups yet</h2>
+
         </div>
       ) : view === "mine" ? (
         hasMyGroups ? (
@@ -553,10 +550,8 @@ export function GroupsSkeleton({
         </div>
       ) : (
         <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-9 text-center">
-          <h2 className="font-black text-slate-900">No groups match this view</h2>
-          <p className="mt-2 text-sm text-slate-500">
-            Clear the search to see available groups.
-          </p>
+          <h2 className="font-black text-slate-900">No groups</h2>
+
         </div>
       )}
       </div>

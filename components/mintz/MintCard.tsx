@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useCampusPreview } from "@/components/developer/CampusPreviewContext";
 
+import { PostOptionsMenu } from "@/components/mintz/PostOptionsMenu";
 import { ClubMintBadge } from "@/components/content/ClubMintBadge";
 import { EventMintBadge } from "@/components/content/EventMintBadge";
 import { EventAttendingContext } from "@/components/events/EventAttendingContext";
@@ -44,6 +45,8 @@ import type { OrganizationMembershipStatus } from "@/types/organization";
 import type { CampusMintUser } from "@/types/profile";
 
 type MintCardProps = {
+  onNotInterested?: (reason: import("@/lib/social/feedPreferences").InterestReason) => void;
+  onBlock?: () => void;
   mint: Mint;
   author: CampusMintUser;
   viewer: CampusMintUser;
@@ -215,6 +218,7 @@ export function MintCard(props: MintCardProps) {
                 <button type="button" onClick={() => props.onOpenProfile(author.account.id)} className="block max-w-full truncate text-sm font-black text-slate-950 hover:underline">@{author.profile.username}</button>
                 <p className="mt-0.5 truncate text-xs text-slate-500">{getAccountUniversityShortName(author.account)} · {formatRelativeTime(mint.createdAt, currentTime)}{temporaryLabel ? ` · ${temporaryLabel}` : ""}</p>
               </div>
+              {!readOnly && !ownMint && <PostOptionsMenu onNotInterested={props.onNotInterested} onBlock={props.onBlock} onReport={()=>props.onReport("other")}/>}
               {mint.isDevelopment && <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-slate-500">Demo</span>}
             </div>
 

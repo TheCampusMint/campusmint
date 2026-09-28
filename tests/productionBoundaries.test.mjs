@@ -93,8 +93,8 @@ test("production and preview cannot enable demo fixtures or developer controls",
   assert.equal(areDevelopmentFixturesEnabled({ NODE_ENV: "development", NEXT_PUBLIC_CAMPUS_MINT_ENABLE_FIXTURES: "true" }), true);
   assert.equal(areDevelopmentFixturesEnabled({ NODE_ENV: "test" }), true);
   assert.equal(areDeveloperControlsEnabled({ NODE_ENV: "production", NEXT_PUBLIC_CAMPUS_MINT_ENABLE_DEV_CONTROLS: "true" }), false);
-  assert.match(mintRoute, /areDevelopmentFixturesEnabled\(\)/);
-  assert.match(mintRoute, /if \(!areDevelopmentFixturesEnabled\(\)\) notFound\(\)/);
+  assert.match(mintRoute, /publicMint\(mintId\)/);
+  assert.doesNotMatch(mintRoute, /getDevelopmentMintById|createDevelopmentMintz/);
 });
 
 test("production migration establishes owner/participant/recipient-only private data policies", () => {

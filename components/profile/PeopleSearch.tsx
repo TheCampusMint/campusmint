@@ -75,7 +75,7 @@ export function PeopleSearch({ viewer, users, theme, getFriendshipStatus, isBloc
         <div className="p-6 sm:p-8" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}e8)`, color: theme.secondary }}>
           <p className="text-xs font-bold uppercase tracking-[0.2em] opacity-75">Campus connections</p>
           <h2 className="mt-2 text-3xl font-black sm:text-4xl">People</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 opacity-85">Find fictional development student profiles. Search respects every person&apos;s field-level privacy.</p>
+
         </div>
         <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4">
           <label className="sm:col-span-2"><span className="sr-only">Search people</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, university, major, or year" className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-slate-400" /></label>
@@ -119,7 +119,7 @@ export function PeopleSearch({ viewer, users, theme, getFriendshipStatus, isBloc
           {(visibleMajor || visibleYear) && <p className="mt-4 text-sm text-slate-700">{visibleMajor}{visibleMajor && visibleYear ? " · " : ""}{visibleYear ? `Class of ${visibleYear}` : ""}</p>}
           <span className="mt-4 inline-flex rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: theme.accent, color: theme.primary }}>Development profile</span>
         </button>
-      ))}</div> : <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center"><h3 className="font-bold text-slate-900">No people in this view</h3><p className="mt-2 text-sm text-slate-500">Try a wider campus scope or clear a filter.</p></div>}
+      ))}</div> : <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center"><h3 className="font-bold text-slate-900">No people in this view</h3></div>}
     </div>
   );
 }

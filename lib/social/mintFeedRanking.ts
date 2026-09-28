@@ -1,3 +1,4 @@
+import { preferenceScore, recommendationAllowed, exploreRankedFeed, type FeedSignal } from "./feedPreferences.ts";
 import { getCampusNetworkForUniversity } from "../../data/campusNetworks.ts";
 import {
   getAccountConfiguredUniversityId,
@@ -38,6 +39,8 @@ export type NormalMintRankingState = MintVisibilityState & {
   eventDirectory?: readonly Event[];
   followedOrganizationIds?: readonly string[];
   attendingEventIds?: readonly string[];
+  preferences?: readonly FeedSignal[];
+  explorationSeed?: string;
 };
 
 export type NormalMintRankingMetadata = {
@@ -217,6 +220,7 @@ function recencyScore(mint: Mint, currentTime: number) {
 
 function engagementScore(mint: Mint) {
   const weightedEngagement =
+    Math.min(100, Math.log2(1 + Math.max(0, mint.viewCount ?? 0)) * 3) +
     Math.max(0, mint.likeCount) +
     Math.max(0, mint.commentCount) * 2 +
     Math.max(0, mint.saveCount) * 2.5 +
@@ -381,7 +385,7 @@ function scoreMint(mint: Mint, context: RankingContext): RankedNormalMint {
     organization.score +
     event.score +
     engagementSignal +
-    recencySignal;
+    recencySignal + preferenceScore(mint, context.state.preferences ?? [], context.state.currentTime);
   const reasons: string[] = [];
 
   if (locality.tier === "home_university") {
@@ -476,6 +480,7 @@ function rankVisibleMintz(
   }
 
   const remaining = [...unique.values()]
+    .filter(mint => mint.authorId === context.state.viewer.account.id || recommendationAllowed(mint, context.state.preferences ?? [], context.state.explorationSeed ?? ""))
     .filter((mint) => {
       const eventWindow = eventWindowForMint(mint, context);
       return (
@@ -517,7 +522,7 @@ function rankVisibleMintz(
   // Preserve the centralized end-soonest ordering inside the event slots
   // without forcing every Event Mint above ordinary social content.
   return rankEventContentInMixedFeed(
-    ranked,
+    context.state.explorationSeed ? exploreRankedFeed(ranked, context.state.preferences ?? [], context.state.explorationSeed) : ranked,
     (candidate) => eventWindowForMint(candidate.mint, context),
     context.state.currentTime,
   );

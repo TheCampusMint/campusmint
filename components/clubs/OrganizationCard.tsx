@@ -68,7 +68,7 @@ export function OrganizationCard({
         <p className="mt-4 text-sm leading-6 text-slate-600">{organization.shortDescription}</p>
         <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Next meeting or event</p>
-          {nextEvent ? <><p className="mt-2 font-bold text-slate-900">{nextEvent.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{nextEvent.date} · {nextEvent.time}</p></> : <p className="mt-2 text-slate-500">No dated event is available yet.</p>}
+          {nextEvent ? <><p className="mt-2 font-bold text-slate-900">{nextEvent.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{nextEvent.date} · {nextEvent.time}</p></> : <p className="mt-2 text-slate-500">No events</p>}
         </div>
 
         <div className="mt-auto grid grid-cols-2 gap-2 pt-5">

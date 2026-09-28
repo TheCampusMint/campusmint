@@ -8,7 +8,7 @@ import { MarketplaceRestricted } from "@/components/marketplace/MarketplaceRestr
 import { SellListingModal } from "@/components/marketplace/SellListingModal";
 import { getCampusNetworkForUniversity } from "@/data/campusNetworks";
 import { marketplaceCategoryDetails, safeMeetupAreas } from "@/data/marketplace";
-import { universities, type UniversityTheme } from "@/data/universities";
+import { type UniversityTheme } from "@/data/universities";
 import type { useMarketplace } from "@/hooks/useMarketplace";
 import { canCreateListing, canMakeOffer, canMessageSeller, canSaveListing, canViewMarketplace, type MarketplacePermissionMode } from "@/lib/marketplacePermissions";
 import { marketplaceCategories, marketplaceConditions, type MarketplaceCategory, type MarketplaceCondition } from "@/types/marketplace";
@@ -76,7 +76,7 @@ export function MarketplaceHub({ user, theme, permissionMode, marketplace, onOpe
     : undefined;
 
   if (!viewAllowed) return <MarketplaceRestricted user={user} theme={theme} />;
-  if (!campusNetwork) return <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-amber-950"><h2 className="text-xl font-bold">Campus Network unavailable</h2><p className="mt-2 text-sm">Marketplace access has not been configured for this university.</p></div>;
+  if (!campusNetwork) return <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-amber-950"><h2 className="text-xl font-bold">Campus Network unavailable</h2><p className="mt-2 text-sm">Sell is unavailable here.</p></div>;
 
   function openListing(listingId: string, panel: MarketplaceDetailPanel = "none") {
     setSelectedPanel(panel);
@@ -92,7 +92,7 @@ export function MarketplaceHub({ user, theme, permissionMode, marketplace, onOpe
     <div className="space-y-6">
       <section className="overflow-hidden rounded-3xl p-7 shadow-sm lg:p-9" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}e8)`, color: theme.secondary }}>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div><p className="text-sm font-bold uppercase tracking-[0.18em] opacity-75">{campusNetwork.name} Campus Network</p><h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Campus Marketplace</h2><p className="mt-3 max-w-xl text-sm leading-6 opacity-85">Shared regional listings for verified students. You remain identified as a {universities[user.universityId].name} student.</p></div>
+          <div><p className="text-sm font-bold uppercase tracking-[0.18em] opacity-75">{campusNetwork.name} Campus Network</p><h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Campus Marketplace</h2></div>
           <button type="button" disabled={!createAllowed} onClick={() => setSellOpen(true)} className="rounded-xl bg-white px-5 py-3 text-sm font-extrabold shadow-sm disabled:cursor-not-allowed disabled:opacity-60" style={{ color: theme.primary }}>＋ Sell something</button>
         </div>
         <label htmlFor="marketplace-search" className="sr-only">Search Marketplace</label>
@@ -120,10 +120,10 @@ export function MarketplaceHub({ user, theme, permissionMode, marketplace, onOpe
         </div>
       </section>
 
-      <div className="flex items-end justify-between gap-4"><div><p className="text-sm font-semibold text-slate-500">{tab === "saved" ? "Your saved items" : `${campusNetwork.name} Campus Network`}</p><h3 className="mt-1 text-2xl font-bold text-slate-950">{listings.length} {listings.length === 1 ? "listing" : "listings"}</h3></div><p className="max-w-md text-right text-xs leading-5 text-slate-500">Marketplace inventory is shared by Campus Network. Each seller keeps their actual verified university identity.</p></div>
-      {listings.length ? <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{listings.map((listing) => <MarketplaceCard key={listing.id} listing={listing} saved={marketplace.savedListingIds.includes(listing.id)} theme={theme} onOpen={openListing} onToggleSaved={marketplace.toggleSaved} />)}</div> : <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center"><div className="text-3xl" aria-hidden="true">♡</div><h3 className="mt-3 text-lg font-bold text-slate-900">{tab === "saved" ? "No saved listings yet" : "No listings match"}</h3><p className="mt-2 text-sm text-slate-500">{tab === "saved" ? "Save a listing to find it here during this session." : "Try clearing a filter or create a local development listing."}</p></div>}
+      <div className="flex items-end justify-between gap-4"><div><p className="text-sm font-semibold text-slate-500">{tab === "saved" ? "Your saved items" : `${campusNetwork.name} Campus Network`}</p><h3 className="mt-1 text-2xl font-bold text-slate-950">{listings.length} {listings.length === 1 ? "listing" : "listings"}</h3></div></div>
+      {listings.length ? <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{listings.map((listing) => <MarketplaceCard key={listing.id} listing={listing} saved={marketplace.savedListingIds.includes(listing.id)} theme={theme} onOpen={openListing} onToggleSaved={marketplace.toggleSaved} />)}</div> : <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center"><div className="text-3xl" aria-hidden="true">♡</div><h3 className="mt-3 text-lg font-bold text-slate-900">{tab === "saved" ? "No saved listings yet" : "No listings match"}</h3></div>}
 
-      <section className="grid gap-4 rounded-3xl bg-slate-950 p-6 text-white md:grid-cols-3"><div><p className="text-sm font-bold">Meet in public</p><p className="mt-1 text-xs leading-5 text-slate-400">Use campus, a student center, library area, or another public location.</p></div><div><p className="text-sm font-bold">Protect your account</p><p className="mt-1 text-xs leading-5 text-slate-400">Never bypass identity, ticket-transfer, or university controls.</p></div><div><p className="text-sm font-bold">No payments yet</p><p className="mt-1 text-xs leading-5 text-slate-400">Campus Mint does not process money or guarantee transactions in v1.</p></div></section>
+      <section className="grid gap-4 rounded-3xl bg-slate-950 p-6 text-white md:grid-cols-3"><div><p className="text-sm font-bold">Meet in public</p></div><div><p className="text-sm font-bold">Protect your account</p></div><div><p className="text-sm font-bold">No payments yet</p></div></section>
 
       {sellOpen && <SellListingModal universityId={user.universityId} campusNetwork={campusNetwork} theme={theme} onClose={() => setSellOpen(false)} onCreate={(input) => { const listing = marketplace.addListing(input, user.universityId); setSellOpen(false); openListing(listing.id); }} />}
       {selectedListing && interactionAllowed && <MarketplaceDetailModal listing={selectedListing} theme={theme} currentUserId={marketplace.currentUserId} saved={marketplace.savedListingIds.includes(selectedListing.id)} activeOffer={activeOffer} messages={marketplace.messages.filter((message) => message.listingId === selectedListing.id)} alreadyReported={marketplace.reports.some((report) => report.listingId === selectedListing.id)} initialPanel={selectedPanel} onClose={closeListing} onToggleSaved={() => marketplace.toggleSaved(selectedListing.id)} onSendOffer={(amount, note) => marketplace.sendOffer(selectedListing.id, amount, note)} onWithdrawOffer={marketplace.withdrawOffer} onSendMessage={(body) => marketplace.sendMessage(selectedListing.id, body)} onReport={(reason, details) => marketplace.reportListing(selectedListing.id, reason, details)} onBlockSeller={() => { marketplace.blockSeller(selectedListing.sellerId); closeListing(); }} onUpdateStatus={(status) => marketplace.updateListingStatus(selectedListing.id, status)} onOpenSellerProfile={onOpenProfile} />}

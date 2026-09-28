@@ -100,6 +100,8 @@ export type NewMarketplaceListingInput = Pick<
   MarketplaceListing,
   "title" | "description" | "category" | "condition" | "askingPrice" | "negotiable" | "pickupArea" | "deliveryAvailable" | "sportsTicket"
 > & {
+  nearbyLocation?: { latitude: number; longitude: number };
+  shareNearbyArea?: boolean;
   brand?: string;
   photo?: Pick<MarketplacePhoto, "url" | "alt" | "isDevelopmentPlaceholder">;
 };

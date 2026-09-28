@@ -155,9 +155,7 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
           <MintLeafBackButton onClick={() => setProfileSetupOpen(false)} label="Back" className="mb-8 text-slate-500" />
           <p className="text-sm font-bold uppercase tracking-[0.22em] text-slate-400">The Campus Mint</p>
           <h1 className="mt-4 text-4xl font-black tracking-[-0.045em]">Build your profile</h1>
-          <p className="mt-3 text-base leading-7 text-slate-500">
-            Add your name and username exactly as you want them to appear on campus. You can add more details later.
-          </p>
+
           <div className="mt-8 space-y-4">
             <label className="block">
               <span className="text-sm font-bold text-slate-700">First name</span>
@@ -171,7 +169,7 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
               />
             </label>
             <label className="block">
-              <span className="text-sm font-bold text-slate-700">Last name</span>
+              <span className="text-sm font-bold text-slate-700">Last name (optional)</span>
               <input
                 value={lastName}
                 onChange={(event) => setLastName(event.target.value.slice(0, 80))}
@@ -179,7 +177,7 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
                 placeholder="Last name"
                 className={inputClass}
               />
-              <span className="mt-1 block text-xs text-slate-500">Leave blank if you use one name.</span>
+
             </label>
             <label className="block">
               <span className="text-sm font-bold text-slate-700">Username</span>
@@ -227,9 +225,7 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
         <div className="mx-auto flex min-h-[calc(100dvh-5rem)] w-full max-w-md flex-col justify-center">
           <p className="text-sm font-bold uppercase tracking-[0.22em] text-slate-400">The Campus Mint</p>
           <h1 className="mt-4 text-4xl font-black tracking-[-0.045em]">Choose your sign-in email</h1>
-          <p className="mt-3 text-base leading-7 text-slate-500">
-            Your student status stays verified even if your university email stops working later.
-          </p>
+
           <div className="mt-8 space-y-3">
             <TactileButton type="button" onClick={() => { setEmailChoice("university"); setPersonalEmail(""); }} className={choiceClass("university")}>
               <p className="font-black">Keep university email</p>
@@ -237,7 +233,7 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
             </TactileButton>
             <TactileButton type="button" onClick={() => setEmailChoice("personal")} className={choiceClass("personal")}>
               <p className="font-black">Use a personal email</p>
-              <p className={choiceDetailClass("personal")}>Your .edu email remains attached only as your verified university credential.</p>
+              <p className={choiceDetailClass("personal")}>University verification stays linked.</p>
             </TactileButton>
           </div>
           {emailChoice === "personal" && (
@@ -297,7 +293,7 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
           <p className="text-sm font-bold uppercase tracking-[0.22em] text-slate-400">The Campus Mint</p>
           <h1 className="mt-4 text-4xl font-black tracking-[-0.045em]">Check your email</h1>
           <p className="mt-3 text-base leading-7 text-slate-500">
-            Enter the six-digit code sent to <span className="font-bold text-slate-800">{challenge.email}</span>.
+            Code sent to <span className="font-bold text-slate-800">{challenge.email}</span>.
           </p>
           {challengeExpired && <p className="mt-5 text-sm font-semibold text-red-600">That verification code has expired. Request a new code.</p>}
           <form onSubmit={verifyCode} className="mt-7 space-y-4">
@@ -335,7 +331,7 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
         {onBack && <MintLeafBackButton onClick={onBack} label="Back" className="mb-8 text-slate-500" />}
         <p className="text-sm font-bold uppercase tracking-[0.22em] text-slate-400">The Campus Mint</p>
         <h1 className="mt-4 text-4xl font-black tracking-[-0.045em]">Verify your university</h1>
-        <p className="mt-3 text-base leading-7 text-slate-500">Use your university .edu email to join your campus.</p>
+        <p className="mt-3 text-base leading-7 text-slate-500">University .edu email</p>
         <form onSubmit={handleSubmit} className="mt-9 space-y-4">
           <label className="block">
             <span className="text-sm font-bold text-slate-700">Student email</span>
@@ -364,7 +360,7 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
             {requestPending ? "Sending code…" : "Continue"}
           </TactileButton>
         </form>
-        <p className="mt-6 text-center text-xs leading-5 text-slate-400">College and university .edu emails are supported after institution verification.</p>
+
       </div>
     </main>
   );

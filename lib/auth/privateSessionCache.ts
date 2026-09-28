@@ -2,6 +2,7 @@ const privateUserKeyPrefixes = [
   "campusmint:private-messages:",
   "campusmint:mint-interactions:",
   "campusmint:mint-feed:",
+  "campusmint:feed-preferences:",
   "campusmint:notifications:",
 ] as const;
 

@@ -63,7 +63,7 @@ export function SellListingModal({ universityId, campusNetwork, theme, onClose, 
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0) return setError("Enter a valid non-negative price.");
 
     if (isSportsListing) {
-      if (!sportsListingEnabled) return setError("Sports ticket listing creation is not configured for this university yet.");
+      if (!sportsListingEnabled) return setError("Ticket listings unavailable here.");
       const resolvedSport = sport === "Other" ? customSport.trim() : sport;
       const resolvedEventName = selectedEvent?.title ?? customEventName.trim();
       const resolvedEventDate = selectedEvent?.date ?? (customEventDate || null);
@@ -116,7 +116,7 @@ export function SellListingModal({ universityId, campusNetwork, theme, onClose, 
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm" role="presentation">
       <div role="dialog" aria-modal="true" aria-labelledby="sell-listing-title" className="mx-auto my-4 max-w-3xl rounded-3xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-6">
-          <div><p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: theme.primary }}>Local development flow</p><h2 id="sell-listing-title" className="mt-1 text-2xl font-bold text-slate-950">Sell something</h2><p className="mt-1 text-sm text-slate-500">Your listing stays in this browser session only.</p></div>
+          <div><p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: theme.primary }}>Local development flow</p><h2 id="sell-listing-title" className="mt-1 text-2xl font-bold text-slate-950">Sell something</h2><p className="mt-1 text-sm text-slate-500">Preview only · this device</p></div>
           <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600">Close</button>
         </div>
 
@@ -133,9 +133,9 @@ export function SellListingModal({ universityId, campusNetwork, theme, onClose, 
               <p className="mt-1 text-sm text-slate-600">{campusNetwork.name} Campus Network</p>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-              <p className="font-bold">Campus Mint is for discovery and negotiation only.</p>
-              <p className="mt-1 leading-5">Campus Mint does not issue or transfer tickets. Complete any permitted transfer outside Campus Mint under applicable university and ticketing rules.</p>
-              {!sportsListingEnabled && <p className="mt-2 font-semibold">Sports ticket listing creation is not configured for this university yet.</p>}
+              <p className="font-bold">Arrange payment directly</p>
+              <p className="mt-1 leading-5">Transfer tickets through the authorized provider.</p>
+              {!sportsListingEnabled && <p className="mt-2 font-semibold">Ticket listings unavailable here.</p>}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-semibold text-slate-700">Sport<select value={sport} onChange={(event) => setSport(event.target.value as typeof sport)} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-3 font-normal">{marketplaceSports.map((item) => <option key={item}>{item}</option>)}</select></label>
@@ -151,7 +151,7 @@ export function SellListingModal({ universityId, campusNetwork, theme, onClose, 
             <label className="block text-sm font-semibold text-slate-700">Notes<textarea value={description} maxLength={1200} rows={4} onChange={(event) => setDescription(event.target.value)} placeholder="Describe what is included and any important restrictions. Never include a ticket code or transfer credential." className="mt-1 block w-full rounded-xl border border-slate-200 px-4 py-3 font-normal" /></label>
             <label className="block text-sm font-semibold text-slate-700">Seat / section information <span className="font-normal text-slate-400">(optional)</span><input value={seatDetails} maxLength={120} onChange={(event) => setSeatDetails(event.target.value)} placeholder="Section or general location only" className="mt-1 block w-full rounded-xl border border-slate-200 px-4 py-3 font-normal" /></label>
             <label className="block text-sm font-semibold text-slate-700">Meetup / transfer notes <span className="font-normal text-slate-400">(optional)</span><textarea value={transferNotes} maxLength={500} rows={3} onChange={(event) => setTransferNotes(event.target.value)} placeholder="Discuss timing or the appropriate outside transfer method. Do not paste credentials." className="mt-1 block w-full rounded-xl border border-slate-200 px-4 py-3 font-normal" /></label>
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-5"><p className="font-bold text-red-900">No QR codes, barcodes, or transfer credentials</p><p className="mt-1 text-sm leading-5 text-red-800">Sports listings cannot upload scannable codes, screenshots containing them, or account-transfer credentials. Generic event imagery and non-scannable seat information may be supported later.</p></div>
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-5"><p className="font-bold text-red-900">No QR codes, barcodes, or transfer credentials</p><p className="mt-1 text-sm leading-5 text-red-800">Keep ticket codes and credentials private.</p></div>
           </> : <>
             <label className="block text-sm font-semibold text-slate-700">Title<input value={title} maxLength={100} onChange={(event) => setTitle(event.target.value)} placeholder="What are you selling?" className="mt-1 block w-full rounded-xl border border-slate-200 px-4 py-3 font-normal" /></label>
             <label className="block text-sm font-semibold text-slate-700">Description<textarea value={description} maxLength={1200} rows={5} onChange={(event) => setDescription(event.target.value)} placeholder="Describe the item honestly. Do not include a full home address." className="mt-1 block w-full rounded-xl border border-slate-200 px-4 py-3 font-normal" /></label>
@@ -160,7 +160,7 @@ export function SellListingModal({ universityId, campusNetwork, theme, onClose, 
               <label className="text-sm font-semibold text-slate-700">Approximate meetup area<select value={pickupArea} onChange={(event) => setPickupArea(event.target.value as typeof pickupArea)} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-3 font-normal">{safeMeetupAreas.map((area) => <option key={area}>{area}</option>)}</select></label>
             </div>
             <div className="grid gap-3 sm:grid-cols-2"><label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-sm font-semibold text-slate-700"><input type="checkbox" checked={negotiable} onChange={(event) => setNegotiable(event.target.checked)} />Open to offers</label><label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-sm font-semibold text-slate-700"><input type="checkbox" checked={deliveryAvailable} onChange={(event) => setDeliveryAvailable(event.target.checked)} />Delivery available</label></div>
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center"><p className="font-semibold text-slate-700">Photo upload placeholder</p><p className="mt-1 text-xs text-slate-500">Secure uploads will be enabled with verified accounts and storage.</p><button type="button" disabled className="mt-3 cursor-not-allowed rounded-xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-500">Add photos later</button></div>
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center"><p className="font-semibold text-slate-700">Photo upload placeholder</p><p className="mt-1 text-xs text-slate-500">Uploads coming soon</p><button type="button" disabled className="mt-3 cursor-not-allowed rounded-xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-500">Add photos later</button></div>
           </>}
 
           <details className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600"><summary className="cursor-pointer font-semibold text-slate-800">Prohibited items and services</summary><p className="mt-2 leading-5">Campus Mint blocks categories including {prohibitedMarketplaceItems.map((item) => item.label.toLowerCase()).join(", ")}.</p></details>

@@ -22,7 +22,7 @@ export function DashboardOverview({
     ? `${newestStory.category}: ${newestStory.text.slice(0, 105)}${
         newestStory.text.length > 105 ? "…" : ""
       }`
-    : "No stories are available for this campus and role yet.";
+    : "No stories";
 
   return (
     <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
@@ -63,9 +63,7 @@ export function DashboardOverview({
 
         <h3 className="mt-2 text-xl font-semibold">{joinedClubCount} joined</h3>
 
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Discover organizations tied to your university and manage local memberships.
-        </p>
+
 
         <button
           type="button"
@@ -91,10 +89,7 @@ export function DashboardOverview({
 
         <h3 className="mt-2 text-xl font-semibold">Your campus calendar</h3>
 
-        <p className="mt-2 text-sm text-slate-600">
-          Sports, club events, career fairs, concerts, and volunteer
-          opportunities.
-        </p>
+
       </article>
 
       <article className="rounded-2xl bg-white p-6 shadow-sm">
@@ -107,9 +102,7 @@ export function DashboardOverview({
 
         <h3 className="mt-2 text-xl font-semibold">Your classes</h3>
 
-        <p className="mt-2 text-sm text-slate-600">
-          Class pages, group chats, tutors, and study groups.
-        </p>
+
       </article>
 
       <article className="rounded-2xl bg-white p-6 shadow-sm">
@@ -119,9 +112,7 @@ export function DashboardOverview({
 
         <h3 className="mt-2 text-xl font-semibold">Student-to-student</h3>
 
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Buy and sell with verified students.
-        </p>
+
 
         <button
           type="button"

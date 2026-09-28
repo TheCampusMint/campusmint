@@ -90,12 +90,7 @@ export function GlobalSearchOverlay({
       <header className="sticky top-0 z-20 border-b border-[var(--app-border)] bg-[color-mix(in_srgb,var(--app-surface)_88%,transparent)] backdrop-blur-xl">
         <div className="mx-auto flex min-h-16 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
           <div>
-            <p
-              className="text-[9px] font-black uppercase tracking-[0.2em]"
-              style={{ color: theme.primary }}
-            >
-              The Campus Mint
-            </p>
+
             <h1 className="text-lg font-black text-[var(--app-text-primary)]">
               Search
             </h1>
