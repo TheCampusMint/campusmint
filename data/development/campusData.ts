@@ -1,4 +1,4 @@
-import { universities, type UniversityId } from "@/data/universities";
+import { configuredUniversityIds, universities, type UniversityId } from "@/data/universities";
 import type {
   AcademicCatalog,
   AliasRecord,
@@ -14,17 +14,11 @@ const emptyCatalog: AcademicCatalog = {
   programs: [], courses: [], programRelations: [], terms: [], instructors: [], sections: [],
 };
 
-export const developmentCatalogs: Record<UniversityId, AcademicCatalog> = {
-  tamu: tamuAcademicCatalog,
-  blinn: blinnAcademicCatalog,
-  texas: emptyCatalog,
-  lsu: emptyCatalog,
-  alabama: emptyCatalog,
-  oregon: emptyCatalog,
-  harvard: emptyCatalog,
-  michigan: emptyCatalog,
-  miami: emptyCatalog,
-};
+export const developmentCatalogs = Object.fromEntries(
+  configuredUniversityIds.map((id) => [id,
+    id === "tamu" ? tamuAcademicCatalog : id === "blinn" ? blinnAcademicCatalog : emptyCatalog,
+  ]),
+) as Record<UniversityId, AcademicCatalog>;
 
 export function getAcademicCatalog(universityId: UniversityId) {
   return developmentCatalogs[universityId] ?? emptyCatalog;

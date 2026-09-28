@@ -2,6 +2,7 @@
 
 import { createPortal } from "react-dom";
 import { useRef } from "react";
+import { useCampusPreview } from "@/components/developer/CampusPreviewContext";
 
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 import { DiningLocationDetail } from "@/components/dining/DiningLocationDetail";
@@ -121,6 +122,7 @@ export function SearchResultDetails({
   onOpenDirectMint,
   onLogout,
 }: SearchResultDetailsProps) {
+  const readOnly = useCampusPreview();
   const detail = currentUnifiedSearchDetail(state);
   if (!detail) return null;
 
@@ -129,6 +131,10 @@ export function SearchResultDetails({
     onStateChange(openUnifiedSearchDetail(state, next));
   const closeLabel =
     state.history.length > 1 ? "Back" : `Back to ${state.category}`;
+
+  if (readOnly && ["profile", "marketplace", "event_moment"].includes(detail.kind)) {
+    return <DiscoveryDetailOverlay label="Campus preview" onClose={close} backLabel={closeLabel}><p className="p-6 text-sm text-[var(--app-text-secondary)]">Exit campus preview to open personal account features.</p></DiscoveryDetailOverlay>;
+  }
 
   if (detail.kind === "profile") {
     if (profiles.isBlocked(detail.id)) return null;

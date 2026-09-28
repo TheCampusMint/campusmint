@@ -7,4 +7,15 @@ export type UniversityId =
   | "oregon"
   | "harvard"
   | "michigan"
-  | "miami";
+  | "miami"
+  | "ucla"
+  | "stanford"
+  | "usc"
+  | "washington"
+  | "ohio-state"
+  | "penn-state"
+  | "duke"
+  | "uconn"
+  | "wisconsin"
+  | "mines"
+  | "williams";

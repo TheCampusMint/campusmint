@@ -17,6 +17,7 @@ import { CreateContentFlow } from "@/components/content/CreateContentFlow";
 import { BrandWorkspace } from "@/components/brands/BrandWorkspace";
 import { DeveloperRoleSwitcher } from "@/components/developer/DeveloperRoleSwitcher";
 import { DeveloperSoundPreview } from "@/components/developer/DeveloperSoundPreview";
+import { CampusPreviewContext } from "@/components/developer/CampusPreviewContext";
 import { GroupsSkeleton } from "@/components/groups/GroupsSkeleton";
 import { MessagesSkeleton } from "@/components/messages/MessagesSkeleton";
 import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
@@ -77,6 +78,7 @@ import {
 import { resolveNotificationDeepLink } from "@/lib/notifications/campusNotifications";
 import { rankPrivateMessageSuggestions } from "@/lib/social/privateMessages";
 import { areDeveloperControlsEnabled, areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
+import { resolveCampusPreview, type CampusPreviewSelection } from "@/lib/runtime/campusPreview";
 import {
   initialNotchScrollState,
   expandNotchPresentation,
@@ -136,9 +138,6 @@ const initialUser: TemporaryUser = {
 };
 
 const showDeveloperControls = areDeveloperControlsEnabled();
-const initialDeveloperUniversityOverride = showDeveloperControls
-  ? initialUser.universityId
-  : null;
 const marketplacePermissionMode =
   areDevelopmentFixturesEnabled()
     ? "development_role"
@@ -199,8 +198,9 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
     useState(false);
   const [mintHeaderHidden, setMintHeaderHidden] = useState(false);
   const [user, setUser] = useState<TemporaryUser>(initialUser);
-  const [developerUniversityOverride, setDeveloperUniversityOverride] =
-    useState<UniversityId | null>(initialDeveloperUniversityOverride);
+  const [campusPreviewSelection, setCampusPreviewSelection] = useState<CampusPreviewSelection>(null);
+  const [developerControlsOpen, setDeveloperControlsOpen] = useState(false);
+  const [campusPreviewNotice, setCampusPreviewNotice] = useState<string | null>(null);
   const [unifiedSearchState, setUnifiedSearchState] =
     useState<UnifiedSearchState>(() => initialLocation.kind === "search"
       ? initialLocation.searchState
@@ -246,15 +246,17 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
 
   const profiles = useProfiles();
   const currentUserId = profiles.currentUser.account.id;
+  const developerUniversityOverride = resolveCampusPreview(campusPreviewSelection, currentUserId, getAccountConfiguredUniversityId(profiles.currentUser.account), showDeveloperControls || canUseCampusTester);
+  const campusPreviewActive = developerUniversityOverride !== null;
   const currentProfileOnboardingCompletedAt =
     profiles.currentUser.account.onboardingCompletedAt;
   const clearAuthenticatedProfile = profiles.clearAuthenticatedUser;
   const hydrateAuthenticatedProfile = profiles.hydrateAuthenticatedUser;
   const marketplace = useMarketplace();
-  const mintz = useMintz(currentUserId);
+  const mintz = useMintz(currentUserId, developerUniversityOverride);
   const directMint = useDirectMint(currentUserId);
   const eventMoments = useEventMoments();
-  const campusEventState = useCampusEvents(developerUniversityOverride);
+  const campusEventState = useCampusEvents(developerUniversityOverride, currentUserId);
   const organizations = useOrganizations(currentUserId);
   const campusNotifications = useCampusNotifications(
     currentUserId,
@@ -286,11 +288,15 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
         setBrandProfile(null);
         setCreatorProfile(null);
         setCanUseCampusTester(false);
+        setCampusPreviewSelection(null);
+        setDeveloperControlsOpen(false);
         setSessionStatus("signed_out");
         setOnboardingOpen(true);
         return true;
       }
       setCanUseCampusTester(Boolean(result.canUseCampusTester));
+      const sessionUserId = result.accountType === "student" ? result.user?.account.id : null;
+      setCampusPreviewSelection((current) => current && result.canUseCampusTester && current.accountId === sessionUserId ? current : null);
       if (result.accountType === "brand") {
         setBrandProfile(result.brand);
         setSessionStatus("brand");
@@ -369,7 +375,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
 
     if (account.onboardingCompletedAt) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDeveloperUniversityOverride(null);
+      setCampusPreviewSelection(null);
     }
   }, [
     profiles.currentUser,
@@ -520,7 +526,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
         account: {
           ...account,
           role: user.role,
-          verifiedStudent: user.verifiedStudent ?? false,
+          verifiedStudent: campusPreviewActive ? false : user.verifiedStudent ?? false,
         },
       };
     },
@@ -529,8 +535,23 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
       profiles.currentUser,
       user.role,
       user.verifiedStudent,
+      campusPreviewActive,
     ],
   );
+
+  const campusUser = developerUniversityOverride ? { ...user, universityId: developerUniversityOverride, verifiedStudent: false } : user;
+  const visibleEventMoments = campusPreviewActive ? {
+    ...eventMoments,
+    rsvps: [], moments: [], prompts: [], attendanceEvidence: [],
+    isAttending: () => false,
+    getPrompt: () => null,
+    getEligibility: () => ({ eligible: false, basis: null, qualifyingEvidence: [] }),
+    toggleRsvp: () => undefined,
+    simulateQualifyingLocationAttendance: () => false,
+    dismissPrompt: () => undefined,
+    captureMoment: () => null,
+    keepMoment: () => undefined,
+  } : eventMoments;
 
   const campusTheme = getAccountUniversityDisplayTheme(viewer.account);
 
@@ -611,7 +632,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
     stories.currentTime,
     {
       id: user.id,
-      universityId: user.universityId,
+      universityId: campusUser.universityId,
     },
     organizations.memberships,
   );
@@ -737,10 +758,32 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
     restoreWindowScroll(specialScrollPositionsRef.current.get(key) ?? 0);
   }
 
-  function changeUniversity(universityId: UniversityId) {
-    setUser((current) => ({ ...current, universityId }));
-    setDeveloperUniversityOverride(universityId);
-    setUnifiedSearchState((current) => ({ ...current, history: [] }));
+  function changeUniversity(universityId: UniversityId | null) {
+    if (!showDeveloperControls && !canUseCampusTester) return;
+    setCampusPreviewSelection(universityId ? { accountId: currentUserId, universityId } : null);
+    setCampusPreviewNotice(null);
+    closeCreateMint();
+    setSearchOpen(false);
+    setSettingsOpen(false);
+    setNotificationsOpen(false);
+    setSpecialSection(null);
+    setRequestedMessageUserId(null);
+    setRequestedGroupOrganizationId(null);
+    setRequestedSportsSport(null);
+    setNotificationReturnScene(null);
+    setDirectMintReturnUserId(null);
+    setUnifiedSearchState({ ...initialUnifiedSearchState });
+    setMintHeaderHidden(false);
+    clearSettleTimer();
+    clearMintReturnTimer();
+    cancelScheduledMainSectionCommit();
+    setMintSweepProgress(null);
+    setGestureProgress(0);
+    setSwipeSettling(false);
+    specialScrollPositionsRef.current.clear();
+    sectionMemoryRef.current = new SectionMemory(currentNavigationSection, 2);
+    window.history.replaceState({ campusMintView: "section", section: currentNavigationSection }, "", mainSectionUrl(currentNavigationSection));
+    restoreWindowScroll(0);
   }
 
   function changeRole(role: UserRole) {
@@ -1063,6 +1106,10 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
   }
 
   function beginCreateMint() {
+    if (campusPreviewActive) {
+      setCampusPreviewNotice("Exit campus preview to post from your own account.");
+      return;
+    }
     createMintMediaRequestRef.current += 1;
     setCreateMintMedia([]);
     setCreateMintMediaError(null);
@@ -1104,6 +1151,9 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
 
   async function logoutDevelopmentUser() {
     sessionRequestRef.current += 1;
+    setCampusPreviewSelection(null);
+    setDeveloperControlsOpen(false);
+    setCampusPreviewNotice(null);
     setSessionError(null);
     setSessionRefreshing(false);
     await fetch("/api/account/logout", { method: "POST" }).catch(() => null);
@@ -1116,7 +1166,9 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
     setSelectedProfileUserId(profiles.currentUser.account.id);
     setUnifiedSearchState({ ...initialUnifiedSearchState });
     setUser(initialUser);
-    setDeveloperUniversityOverride(initialDeveloperUniversityOverride);
+    setCampusPreviewSelection(null);
+    setDeveloperControlsOpen(false);
+    setCampusPreviewNotice(null);
     setOnboardingOpen(true);
     setBrandProfile(null);
     setCreatorProfile(null);
@@ -1266,6 +1318,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
   }
 
   function handleOrganizationMembership(organization: Organization) {
+    if (campusPreviewActive) return;
     if (!canJoinOrganization(user, organization)) return;
 
     const status = organizations.getMembershipStatus(organization.id);
@@ -1526,6 +1579,9 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
   }
 
   function sectionContent(section: PrimarySection): ReactNode {
+    if (campusPreviewActive && (section === "messages" || section === "profile")) {
+      return <section className="mx-auto max-w-lg py-16 text-center"><h1 className="text-xl font-bold text-[var(--app-text-primary)]">{section === "messages" ? "Messages stay with your account" : "Your profile stays with your campus"}</h1><p className="mt-3 text-sm text-[var(--app-text-secondary)]">Campus preview shows public content. Return to your campus to use your personal account.</p><button type="button" onClick={() => changeUniversity(null)} className="mt-5 rounded-full bg-[var(--app-accent)] px-5 py-2.5 text-sm font-bold text-[var(--app-accent-contrast)]">Use my campus</button></section>;
+    }
     if (section === "mint") {
       return (
         <CampusMintFeed
@@ -1534,7 +1590,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
           profiles={profiles}
           mintz={mintz}
           organizations={organizations}
-          eventMoments={eventMoments}
+          eventMoments={visibleEventMoments}
           events={campusEventState.events}
           directMint={directMint}
           onCreateStory={stories.addStory}
@@ -1599,7 +1655,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
       return (
         <GroupsSkeleton
           currentUserId={viewer.account.id}
-          user={user}
+          user={campusUser}
           configuredUniversityId={configuredUniversityId}
           theme={theme}
           organizations={organizations}
@@ -1668,7 +1724,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
               : `translate3d(0, ${viewportScrollY - rememberedScrollY}px, 0)`,
         }}
       >
-        <div key={`${section}:${refreshGeneration}`}>
+        <div key={`${currentUserId}:${developerUniversityOverride ?? "home"}:${section}:${refreshGeneration}`}>
           {sectionContent(section)}
         </div>
       </div>
@@ -1753,7 +1809,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
           if (!accountResponse.ok || !accountResult?.ok) {
             return { ok: false, message: accountResult?.message ?? "We couldn't save your account." };
           }
-          setDeveloperUniversityOverride(null);
+          setCampusPreviewSelection(null);
           // Rehydrate the saved server identity rather than editing the anonymous
           // placeholder (or a previous account) and pretending setup is durable.
           return await refreshAccountSession()
@@ -1766,6 +1822,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
 
 
   return (
+    <CampusPreviewContext value={campusPreviewActive}>
     <main
       className="campus-app-shell min-h-dvh overflow-x-hidden text-slate-950"
       style={shellStyle}
@@ -1780,7 +1837,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
       }}
     >
       <TopUtilityBar
-        hidden={activeSection === "mint" && mintHeaderHidden}
+        hidden={!campusPreviewActive && !developerControlsOpen && activeSection === "mint" && mintHeaderHidden}
         compact={notchPresentation !== "expanded"}
         viewer={viewer}
         theme={theme}
@@ -1791,6 +1848,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
           setSettingsOpen(true);
         }}
         onOpenNotifications={(origin) => {
+          if (campusPreviewActive) { setCampusPreviewNotice("Exit campus preview to view your notifications."); return; }
           setSearchOpen(false);
           setSettingsOpen(false);
           setNotificationOrigin(origin);
@@ -1801,14 +1859,18 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
           setNotificationsOpen(false);
           openProfile(viewer.account.id);
         }}
-        unreadNotificationCount={campusNotifications.unreadCount}
+        unreadNotificationCount={campusPreviewActive ? 0 : campusNotifications.unreadCount}
+        developerControlsOpen={developerControlsOpen}
+        onToggleDeveloperControls={() => setDeveloperControlsOpen((open) => !open)}
+        campusPreviewLabel={campusPreviewActive ? campusTheme.shortName : undefined}
+        onExitCampusPreview={() => changeUniversity(null)}
         developerControls={
           showDeveloperControls || canUseCampusTester ? (
             <>
               <DeveloperUniversitySwitcher
-                selectedUniversityId={user.universityId}
+                selectedUniversityId={developerUniversityOverride}
                 onUniversityChange={changeUniversity}
-                label={showDeveloperControls ? "Dev: Switch campus" : "Owner: Test campus"}
+                label="Preview campus"
               />
               {showDeveloperControls && <DeveloperRoleSwitcher
                 selectedRole={user.role}
@@ -1824,6 +1886,8 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
         }
       />
 
+      {campusPreviewActive && campusPreviewNotice && <div role="status" className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 text-sm text-[var(--app-text-secondary)]"><span>{campusPreviewNotice}</span><button type="button" onClick={() => changeUniversity(null)} className="shrink-0 rounded-full px-2 py-1 font-bold text-[var(--app-accent)]">Use my campus</button></div>}
+
       {searchOpen && (
         <GlobalSearchOverlay
           theme={theme}
@@ -1837,14 +1901,14 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
         >
           <GlobalSearchSkeleton
             viewer={viewer}
-            user={user}
+            user={campusUser}
             theme={theme}
             profiles={profiles}
             mintz={mintz}
-            eventMoments={eventMoments}
+            eventMoments={visibleEventMoments}
             events={campusEventState.events}
             marketplace={marketplace}
-            marketplacePermissionMode={marketplacePermissionMode}
+            marketplacePermissionMode={campusPreviewActive ? "verified_student" : marketplacePermissionMode}
             organizations={organizations}
             stories={visibleStories}
             searchState={unifiedSearchState}
@@ -1928,7 +1992,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
         }}
       />
 
-      {createMintOpen && (
+      {createMintOpen && !campusPreviewActive && (
         <CreateContentFlow
           viewer={viewer}
           users={createMintUsers}
@@ -1970,7 +2034,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
 
       {settingsOpen && (
         <SettingsPanel
-          viewer={viewer}
+          viewer={campusPreviewActive ? profiles.currentUser : viewer}
           theme={theme}
           profiles={profiles}
           preferenceState={preferenceState}
@@ -1980,5 +2044,6 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
         />
       )}
     </main>
+    </CampusPreviewContext>
   );
 }

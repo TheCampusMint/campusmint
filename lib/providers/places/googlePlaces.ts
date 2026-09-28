@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { UniversityId } from "@/types/campus";
 import type { PlaceProviderResult, PlacesProvider } from "./types";
 
 const campusSearchAreas = {
@@ -12,7 +13,18 @@ const campusSearchAreas = {
   harvard: "Cambridge, Massachusetts",
   michigan: "Ann Arbor, Michigan",
   miami: "Coral Gables, Florida",
-} as const;
+  ucla: "Westwood, Los Angeles, California",
+  stanford: "Stanford, California",
+  usc: "University Park, Los Angeles, California",
+  washington: "University District, Seattle, Washington",
+  "ohio-state": "Columbus, Ohio",
+  "penn-state": "University Park, Pennsylvania",
+  duke: "Durham, North Carolina",
+  uconn: "Storrs, Connecticut",
+  wisconsin: "Madison, Wisconsin",
+  mines: "Golden, Colorado",
+  williams: "Williamstown, Massachusetts",
+} as const satisfies Record<UniversityId, string>;
 
 type GooglePlace = {
   id?: string;

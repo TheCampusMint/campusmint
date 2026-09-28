@@ -24,6 +24,25 @@ export type UniversityTheme = {
   };
 };
 
+// Newly configured campuses have identity/display metadata, not seeded campus
+// content or permission to run ticket exchanges. Each feed stays campus-scoped.
+function additionalCampus(
+  id: UniversityId,
+  details: Omit<UniversityTheme, "accessibleCampuses" | "eventDiscoveryRadiusMiles" | "marketplace">,
+): UniversityTheme {
+  return {
+    ...details,
+    accessibleCampuses: [id],
+    eventDiscoveryRadiusMiles: 10,
+    marketplace: {
+      ticketMarketplaceEnabled: false,
+      ticketResaleAllowed: null,
+      ticketTransferMethod: "Ticket activity is unavailable until a current official university policy is configured.",
+      ticketPolicyUrl: null,
+    },
+  };
+}
+
 export const universities = {
   tamu: {
     name: "Texas A&M University",
@@ -191,6 +210,107 @@ export const universities = {
       ticketTransferMethod: "Ticket activity is unavailable until a current official university policy is configured.", ticketPolicyUrl: null,
     },
   },
+  // Official campus location references are recorded alongside the new entries.
+  // Coordinates represent campus centers for discovery, not venue entrances.
+  ucla: additionalCampus("ucla", {
+    // https://newsroom.ucla.edu/ucla-fast-facts
+    name: "University of California, Los Angeles", shortName: "UCLA",
+    emailDomains: ["ucla.edu"],
+    primary: "#2774AE", secondary: "#FFD100", accent: "#E6F0F8",
+    timeZone: "America/Los_Angeles",
+    campusLatitude: 34.0689, campusLongitude: -118.4452,
+    campusNetworkId: "los-angeles",
+  }),
+  stanford: additionalCampus("stanford", {
+    // https://visit.stanford.edu/contact
+    name: "Stanford University", shortName: "Stanford",
+    emailDomains: ["stanford.edu"],
+    primary: "#8C1515", secondary: "#FFFFFF", accent: "#F1E4E4",
+    timeZone: "America/Los_Angeles",
+    campusLatitude: 37.4275, campusLongitude: -122.1697,
+    campusNetworkId: "stanford-palo-alto",
+  }),
+  usc: additionalCampus("usc", {
+    // https://www.usc.edu/visit-usc/
+    name: "University of Southern California", shortName: "USC",
+    emailDomains: ["usc.edu"],
+    primary: "#990000", secondary: "#FFCC00", accent: "#F3E3E3",
+    timeZone: "America/Los_Angeles",
+    campusLatitude: 34.0224, campusLongitude: -118.2851,
+    campusNetworkId: "los-angeles",
+  }),
+  washington: additionalCampus("washington", {
+    // https://www.washington.edu/contact/
+    name: "University of Washington", shortName: "Washington",
+    emailDomains: ["uw.edu", "washington.edu"],
+    primary: "#4B2E83", secondary: "#B7A57A", accent: "#ECE7F3",
+    timeZone: "America/Los_Angeles",
+    campusLatitude: 47.6553, campusLongitude: -122.3035,
+    campusNetworkId: "seattle",
+  }),
+  "ohio-state": additionalCampus("ohio-state", {
+    // https://www.osu.edu/about/columbus/visits
+    name: "The Ohio State University", shortName: "Ohio State",
+    emailDomains: ["osu.edu"],
+    primary: "#BA0C2F", secondary: "#A7B1B7", accent: "#F5E3E7",
+    timeZone: "America/New_York",
+    campusLatitude: 40.0067, campusLongitude: -83.0305,
+    campusNetworkId: "columbus",
+  }),
+  "penn-state": additionalCampus("penn-state", {
+    // https://www.psu.edu/academics/campuses/university-park
+    name: "The Pennsylvania State University", shortName: "Penn State",
+    emailDomains: ["psu.edu"],
+    primary: "#001E44", secondary: "#FFFFFF", accent: "#E4E9F0",
+    timeZone: "America/New_York",
+    campusLatitude: 40.7982, campusLongitude: -77.8599,
+    campusNetworkId: "state-college",
+  }),
+  duke: additionalCampus("duke", {
+    // https://www.duke.edu/visit/
+    name: "Duke University", shortName: "Duke",
+    emailDomains: ["duke.edu"],
+    primary: "#012169", secondary: "#FFFFFF", accent: "#E5EAF4",
+    timeZone: "America/New_York",
+    campusLatitude: 36.0014, campusLongitude: -78.9382,
+    campusNetworkId: "durham",
+  }),
+  uconn: additionalCampus("uconn", {
+    // https://uconn.edu/maps/
+    name: "University of Connecticut", shortName: "UConn",
+    emailDomains: ["uconn.edu"],
+    primary: "#000E2F", secondary: "#FFFFFF", accent: "#E4E8EE",
+    timeZone: "America/New_York",
+    campusLatitude: 41.8077, campusLongitude: -72.2540,
+    campusNetworkId: "storrs",
+  }),
+  wisconsin: additionalCampus("wisconsin", {
+    // https://www.wisc.edu/visit/
+    name: "University of Wisconsin–Madison", shortName: "Wisconsin",
+    emailDomains: ["wisc.edu"],
+    primary: "#C5050C", secondary: "#FFFFFF", accent: "#F5E3E3",
+    timeZone: "America/Chicago",
+    campusLatitude: 43.0766, campusLongitude: -89.4125,
+    campusNetworkId: "madison",
+  }),
+  mines: additionalCampus("mines", {
+    // https://www.mines.edu/about/
+    name: "Colorado School of Mines", shortName: "Colorado Mines",
+    emailDomains: ["mines.edu"],
+    primary: "#21314D", secondary: "#92A2BD", accent: "#E6EAF0",
+    timeZone: "America/Denver",
+    campusLatitude: 39.7512, campusLongitude: -105.2226,
+    campusNetworkId: "golden",
+  }),
+  williams: additionalCampus("williams", {
+    // https://www.williams.edu/about/fast-facts/
+    name: "Williams College", shortName: "Williams",
+    emailDomains: ["williams.edu"],
+    primary: "#500082", secondary: "#FFBE0A", accent: "#EEE4F4",
+    timeZone: "America/New_York",
+    campusLatitude: 42.7128, campusLongitude: -73.2030,
+    campusNetworkId: "williamstown",
+  }),
 } satisfies Record<UniversityId, UniversityTheme>;
 
 export const configuredUniversityIds = Object.keys(

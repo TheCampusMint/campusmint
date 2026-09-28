@@ -9,6 +9,7 @@ import {
   type PointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import { useCampusPreview } from "@/components/developer/CampusPreviewContext";
 
 import { EventAttendingContext } from "@/components/events/EventAttendingContext";
 import {
@@ -134,6 +135,7 @@ export function FullscreenVideoViewer({
   onClose,
   suspended = false,
 }: FullscreenVideoViewerProps) {
+  const readOnly = useCampusPreview();
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<number | null>(null);
   const tapRef = useRef<{ x: number; y: number; time: number; moved: boolean } | null>(null);
@@ -172,7 +174,7 @@ export function FullscreenVideoViewer({
 
   useEffect(() => {
     const entry = selectedEntry;
-    if (!entry || suspended || document.visibilityState !== "visible") return;
+    if (readOnly || !entry || suspended || document.visibilityState !== "visible") return;
     activeDwellRef.current = { mintId: entry.mint.id, startedAt: performance.now() };
     const flush = () => {
       const active = activeDwellRef.current;
@@ -189,13 +191,14 @@ export function FullscreenVideoViewer({
       document.removeEventListener("visibilitychange", visibilityChanged);
       flush();
     };
-  }, [selectedEntry, suspended]);
+  }, [selectedEntry, suspended, readOnly]);
 
   useEffect(() => () => {
     if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
   }, []);
 
   async function shareEntry(entry: VideoEntry, channel: MintShare["channel"] = "copy_link") {
+    if (readOnly) return;
     const context = createMintPermissionContext(entry.mint, entry.author, feedState);
     const url = `${window.location.origin}/mint/${entry.mint.id}`;
     if (navigator.share) {
@@ -217,6 +220,7 @@ export function FullscreenVideoViewer({
   }
 
   function confirmPrivateAppreciation(entry: VideoEntry, point: ScreenPoint) {
+    if (readOnly) return;
     const context = createMintPermissionContext(entry.mint, entry.author, feedState);
     mintz.registerPrivateAppreciation(context);
     setAppreciationBurst((current) => ({ point, sequence: (current?.sequence ?? 0) + 1 }));
@@ -407,27 +411,28 @@ export function FullscreenVideoViewer({
             <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/60">{getAccountUniversityShortName(entry.author.account)}</span>
           </button>
           {entry.mint.caption && <p className="mt-2 line-clamp-3 max-w-xl text-sm leading-5 text-white/90">{entry.mint.caption}</p>}
-          {event && <EventAttendingContext users={attendingUsers} attending={eventMoments.isAttending(event.id, feedState.viewer.account.id)} disabled={eventEnded} theme={getAccountUniversityDisplayTheme(entry.author.account)} onToggle={!eventEnded ? () => eventMoments.toggleRsvp(event, feedState.viewer.account.id) : undefined} />}
+          {event && <EventAttendingContext users={attendingUsers} attending={eventMoments.isAttending(event.id, feedState.viewer.account.id)} disabled={readOnly || eventEnded} theme={getAccountUniversityDisplayTheme(entry.author.account)} onToggle={!readOnly && !eventEnded ? () => eventMoments.toggleRsvp(event, feedState.viewer.account.id) : undefined} />}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">{metrics.map((metric) => <CompactMetric key={metric.kind} label={metric.label} tone="dark" />)}</div>
-          <div className="mt-1.5 flex items-center justify-between gap-3">
+          {!readOnly && <div className="mt-1.5 flex items-center justify-between gap-3">
             <div className="flex items-center">
               <CommentAction count={entry.mint.commentCount} disabled={!entry.mint.commentsEnabled} onClick={(origin) => { setCommentsOrigin(origin); setCommentsEntry(entry); }} tone="dark" />
               <ShareAction onClick={() => void shareEntry(entry)} tone="dark" />
             </div>
             {entry.mint.postType !== "event" && <FriendEndorsementStack users={friendUsers} additionalCount={endorsementContext.additionalCount} theme={getAccountUniversityDisplayTheme(entry.author.account)} />}
             <button type="button" onClick={() => mintz.togglePin(permissionContext)} aria-pressed={mintz.pins.some((pin) => pin.mintId === entry.mint.id && pin.userId === feedState.viewer.account.id)} aria-label={mintz.pins.some((pin) => pin.mintId === entry.mint.id && pin.userId === feedState.viewer.account.id) ? "Unpin Mint" : "Pin Mint"} className="grid h-10 w-10 place-items-center text-white/90"><svg viewBox="0 0 24 24" className="h-5 w-5" fill={mintz.pins.some((pin) => pin.mintId === entry.mint.id && pin.userId === feedState.viewer.account.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m14 4 6 6-3 1-4 4-1 5-2-2-4-4 5-1 4-4-1-5Z" /><path d="m9 15-5 5" /></svg></button>
-          </div>
+          </div>}
         </div>
 
-        <div className="absolute bottom-28 right-[max(.35rem,env(safe-area-inset-right))] z-20" data-video-gesture-control>
+        {!readOnly && <><div className="absolute bottom-28 right-[max(.35rem,env(safe-area-inset-right))] z-20" data-video-gesture-control>
           <PublicEndorsementAction endorsed={publiclyEndorsed} onToggle={() => mintz.togglePublicEndorsement(permissionContext)} />
         </div>
         <button type="button" onClick={() => confirmPrivateAppreciation(entry, { clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 })} aria-pressed={privatelyAppreciated} className="sr-only focus:not-sr-only focus:absolute focus:right-3 focus:top-3 focus:z-30 focus:px-3 focus:py-2 focus:text-xs focus:text-white">{privatelyAppreciated ? "Privately appreciated" : "Appreciate privately"}</button>
+        </>}
       </section>
 
       {appreciationBurst && <PrivateAppreciationBurst point={appreciationBurst.point} reducedMotion={reducedMotion} sequence={appreciationBurst.sequence} onComplete={() => setAppreciationBurst(null)} />}
 
-      {commentsEntry && (() => {
+      {!readOnly && commentsEntry && (() => {
         const permissionContext = createMintPermissionContext(commentsEntry.mint, commentsEntry.author, feedState);
         return (
           <MintCommentsSheet

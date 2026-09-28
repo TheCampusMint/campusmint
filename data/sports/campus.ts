@@ -3,6 +3,8 @@ import { apCurrentPoll, AP_POLL_SOURCE } from "./football.ts";
 import { getFootballConferenceForTeam } from "./conferences.ts";
 import { getSportsTeam } from "./teams.ts";
 import type { SportsDataSource } from "./types.ts";
+import { campusSportsCoverage } from "./coverage.ts";
+import { universities } from "../universities.ts";
 
 export const launchCampusSports = [
   { id: "football", label: "Football" },
@@ -340,33 +342,46 @@ function standardProfile(input: {
     sourceName: input.sourceName,
     sourceUrl: input.sourceUrl,
     season: "current athletics offering",
-    verifiedAt: "2026-09-21",
+    verifiedAt: "2026-09-27",
   };
   const programs = Object.fromEntries(
-    input.featuredSports.map((sport) => {
+    campusSportsCoverage[input.universityId].map((coverage) => {
+      const sport = coverage.sport as LaunchCampusSportId;
       const label = launchCampusSports.find((entry) => entry.id === sport)?.label ?? sport;
       return [sport, {
         sport,
-        label,
+        label: "label" in coverage ? coverage.label : label,
         seasonLabel: "Current season",
         seasonStart: "2026-07-01",
         seasonEnd: "2027-06-30",
         schedulePublished: false,
         games: [],
-        source,
+        source: { ...source, sourceUrl: coverage.url },
       } satisfies CampusSportProgram];
     }),
   ) as Partial<Record<LaunchCampusSportId, CampusSportProgram>>;
 
   return {
     ...input,
+    featuredSports: campusSportsCoverage[input.universityId].map(({ sport }) => sport),
     featuredSportsSource: source,
-    supportedSports: input.featuredSports,
+    supportedSports: campusSportsCoverage[input.universityId].map(({ sport }) => sport),
     programs,
   };
 }
 
 export const campusAthleticsProfiles: Readonly<Record<UniversityId, CampusAthleticsProfile>> = {
+  "ucla": standardProfile({ universityId: "ucla", universityName: universities["ucla"].name, nickname: "Bruins", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "big-ten", conferenceLabel: "Big Ten", featuredSports: campusSportsCoverage["ucla"].map(({sport}) => sport), sourceName: "Bruins official athletics schedules", sourceUrl: "https://uclabruins.com/" }),
+  "stanford": standardProfile({ universityId: "stanford", universityName: universities["stanford"].name, nickname: "Cardinal", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "acc", conferenceLabel: "ACC", featuredSports: campusSportsCoverage["stanford"].map(({sport}) => sport), sourceName: "Cardinal official athletics schedules", sourceUrl: "https://gostanford.com/" }),
+  "usc": standardProfile({ universityId: "usc", universityName: universities["usc"].name, nickname: "Trojans", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "big-ten", conferenceLabel: "Big Ten", featuredSports: campusSportsCoverage["usc"].map(({sport}) => sport), sourceName: "Trojans official athletics schedules", sourceUrl: "https://usctrojans.com/" }),
+  "washington": standardProfile({ universityId: "washington", universityName: universities["washington"].name, nickname: "Huskies", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "big-ten", conferenceLabel: "Big Ten", featuredSports: campusSportsCoverage["washington"].map(({sport}) => sport), sourceName: "Huskies official athletics schedules", sourceUrl: "https://gohuskies.com/" }),
+  "ohio-state": standardProfile({ universityId: "ohio-state", universityName: universities["ohio-state"].name, nickname: "Buckeyes", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "big-ten", conferenceLabel: "Big Ten", featuredSports: campusSportsCoverage["ohio-state"].map(({sport}) => sport), sourceName: "Buckeyes official athletics schedules", sourceUrl: "https://ohiostatebuckeyes.com/" }),
+  "penn-state": standardProfile({ universityId: "penn-state", universityName: universities["penn-state"].name, nickname: "Nittany Lions", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "big-ten", conferenceLabel: "Big Ten", featuredSports: campusSportsCoverage["penn-state"].map(({sport}) => sport), sourceName: "Nittany Lions official athletics schedules", sourceUrl: "https://gopsusports.com/" }),
+  "duke": standardProfile({ universityId: "duke", universityName: universities["duke"].name, nickname: "Blue Devils", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "acc", conferenceLabel: "ACC", featuredSports: campusSportsCoverage["duke"].map(({sport}) => sport), sourceName: "Blue Devils official athletics schedules", sourceUrl: "https://goduke.com/" }),
+  "uconn": standardProfile({ universityId: "uconn", universityName: universities["uconn"].name, nickname: "Huskies", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "big-east", conferenceLabel: "Big East", featuredSports: campusSportsCoverage["uconn"].map(({sport}) => sport), sourceName: "Huskies official athletics schedules", sourceUrl: "https://uconnhuskies.com/" }),
+  "wisconsin": standardProfile({ universityId: "wisconsin", universityName: universities["wisconsin"].name, nickname: "Badgers", division: "ncaa_d1", divisionLabel: "NCAA Division I", conferenceId: "big-ten", conferenceLabel: "Big Ten", featuredSports: campusSportsCoverage["wisconsin"].map(({sport}) => sport), sourceName: "Badgers official athletics schedules", sourceUrl: "https://uwbadgers.com/" }),
+  "mines": standardProfile({ universityId: "mines", universityName: universities["mines"].name, nickname: "Orediggers", division: "ncaa_d2", divisionLabel: "NCAA Division II", conferenceId: null, conferenceLabel: "RMAC", featuredSports: campusSportsCoverage["mines"].map(({sport}) => sport), sourceName: "Orediggers official athletics schedules", sourceUrl: "https://minesathletics.com/" }),
+  "williams": standardProfile({ universityId: "williams", universityName: universities["williams"].name, nickname: "Ephs", division: "ncaa_d3", divisionLabel: "NCAA Division III", conferenceId: null, conferenceLabel: "NESCAC", featuredSports: campusSportsCoverage["williams"].map(({sport}) => sport), sourceName: "Ephs official athletics schedules", sourceUrl: "https://ephsports.williams.edu/" }),
   tamu: {
     universityId: "tamu",
     universityName: "Texas A&M University",
@@ -395,10 +410,10 @@ export function getCampusAthleticsProfile(universityId: UniversityId | null) {
 }
 
 export function getAvailableCampusPrograms(profile: CampusAthleticsProfile) {
-  return profile.supportedSports.flatMap((sport) => {
+  return [...new Set(profile.featuredSports)].filter((sport) => profile.supportedSports.includes(sport)).flatMap((sport) => {
     const program = profile.programs[sport];
-    return program ? [program] : [];
-  });
+    return program?.source.sourceUrl.startsWith("https://") ? [program] : [];
+  }).slice(0, 3);
 }
 
 export function getLiveCampusGames(

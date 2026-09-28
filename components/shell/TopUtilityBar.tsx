@@ -11,6 +11,10 @@ type TopUtilityBarProps = {
   viewer: CampusMintUser;
   theme: UniversityTheme;
   developerControls?: ReactNode;
+  developerControlsOpen?: boolean;
+  onToggleDeveloperControls?: () => void;
+  campusPreviewLabel?: string;
+  onExitCampusPreview?: () => void;
   hidden?: boolean;
   compact?: boolean;
   onOpenSettings: () => void;
@@ -24,6 +28,10 @@ export function TopUtilityBar({
   viewer,
   theme,
   developerControls,
+  developerControlsOpen = false,
+  onToggleDeveloperControls,
+  campusPreviewLabel,
+  onExitCampusPreview,
   hidden = false,
   compact = false,
   onOpenSettings,
@@ -109,7 +117,7 @@ export function TopUtilityBar({
           </p>
 
           <p
-            className="max-w-28 truncate text-xs font-black min-[430px]:max-w-36 min-[430px]:text-sm"
+            className={`${developerControls ? "max-w-20" : "max-w-28"} truncate text-xs font-black min-[430px]:max-w-36 min-[430px]:text-sm`}
             style={{
               color: "var(--app-accent)",
             }}
@@ -119,6 +127,14 @@ export function TopUtilityBar({
         </div>
 
         <div className="flex items-center gap-1" data-header-group="profile-search">
+          {developerControls && <button
+            type="button"
+            aria-label="Dev campus preview"
+            aria-expanded={developerControlsOpen}
+            aria-controls="campus-preview-controls"
+            onClick={onToggleDeveloperControls}
+            className="min-h-10 rounded-full px-2 text-xs font-bold text-[var(--app-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"
+          >Dev</button>}
           <button
             type="button"
             aria-label="Open Search"
@@ -151,23 +167,18 @@ export function TopUtilityBar({
         </div>
       </div>
 
-      {developerControls && (
-        <details className="group mx-auto max-w-5xl px-4 pb-2 sm:px-6">
-          <summary className="cm-eyebrow ml-auto w-fit cursor-pointer list-none rounded-full bg-slate-950 px-3 py-1 text-white">
-            Dev controls
-          </summary>
-
-          <div
-            className="mt-2 flex flex-wrap justify-end gap-2 rounded-2xl p-3"
-            style={{
-              backgroundColor:
-                theme.primary,
-            }}
-          >
+      {developerControls && developerControlsOpen && (
+        <div id="campus-preview-controls" className="mx-auto max-w-5xl px-4 pb-3 sm:px-6">
+          <div className="flex flex-wrap items-end justify-end gap-3 rounded-2xl bg-[var(--app-surface)] p-3">
             {developerControls}
           </div>
-        </details>
+          <p className="mt-2 text-right text-xs text-[var(--app-text-secondary)]">View public campus content. Your saved campus stays unchanged.</p>
+        </div>
       )}
+      {campusPreviewLabel && <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 pb-3 pt-1 text-xs sm:px-6" role="status">
+        <span className="min-w-0 text-[var(--app-text-secondary)]"><strong className="text-[var(--app-accent)]">Testing {campusPreviewLabel}</strong> · Read only</span>
+        <button type="button" onClick={onExitCampusPreview} className="shrink-0 rounded-full px-2 py-1 font-bold text-[var(--app-accent)] focus-visible:outline-2 focus-visible:outline-offset-2">Exit test</button>
+      </div>}
     </header>
   );
 }

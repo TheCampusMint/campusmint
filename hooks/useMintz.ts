@@ -7,6 +7,8 @@ import {
   createDevelopmentMintz,
 } from "@/data/development/mintz";
 import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
+import { campusReadScope } from "@/lib/runtime/campusPreview";
+import type { UniversityId } from "@/data/universities";
 import type { LocalMintMediaSelection } from "@/lib/content/localMintMedia";
 import { publishMint } from "@/lib/content/publishMint";
 import { emptyPoll } from "@/lib/content/polls";
@@ -91,7 +93,8 @@ function readLegacyDrafts(userId: string) {
   try { return readMintDrafts(window.localStorage, userId); } catch { return []; }
 }
 
-export function useMintz(currentUserId: string) {
+export function useMintz(currentUserId: string, previewUniversityId: UniversityId | null = null) {
+  const readScope = campusReadScope(currentUserId, previewUniversityId);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [refreshGeneration, setRefreshGeneration] = useState(0);
   const [feedRevision, setFeedRevision] = useState(0);
@@ -99,20 +102,20 @@ export function useMintz(currentUserId: string) {
     FIXTURES_ENABLED ? createDevelopmentMintz(currentTime) : [],
   );
   const [rawPersistedAuthors, setPersistedAuthors] = useState<CampusMintUser[]>([]);
-  const [feedOwnerId, setFeedOwnerId] = useState(currentUserId);
-  const [persistenceStatus, setPersistenceStatus] = useState<{ userId: string; error: string | null; loading: boolean }>({ userId: currentUserId, error: null, loading: false });
-  const persistenceError = accountScopedValue(persistenceStatus.userId, currentUserId, persistenceStatus.error, null);
-  const persistedMintzLoading = accountScopedValue(persistenceStatus.userId, currentUserId, persistenceStatus.loading, uuidPattern.test(currentUserId));
-  const persistedAuthors = accountScopedValue(feedOwnerId, currentUserId, rawPersistedAuthors, []);
+  const [feedOwnerId, setFeedOwnerId] = useState(readScope);
+  const [persistenceStatus, setPersistenceStatus] = useState<{ userId: string; error: string | null; loading: boolean }>({ userId: readScope, error: null, loading: false });
+  const persistenceError = accountScopedValue(persistenceStatus.userId, readScope, persistenceStatus.error, null);
+  const persistedMintzLoading = accountScopedValue(persistenceStatus.userId, readScope, persistenceStatus.loading, uuidPattern.test(currentUserId));
+  const persistedAuthors = accountScopedValue(feedOwnerId, readScope, rawPersistedAuthors, []);
   // Hide the prior account's feed during render, before effect cleanup runs.
   // This includes private poll choices present on otherwise public Mintz.
-  const storedMintz = useMemo(() => accountScopedValue(feedOwnerId, currentUserId, rawStoredMintz, rawStoredMintz.filter((mint) => mint.isDevelopment)), [feedOwnerId, currentUserId, rawStoredMintz]);
-  const feedRequestScope = useRef(createAccountRequestScope(currentUserId));
+  const storedMintz = useMemo(() => accountScopedValue(feedOwnerId, readScope, rawStoredMintz, previewUniversityId ? [] : rawStoredMintz.filter((mint) => mint.isDevelopment)), [feedOwnerId, readScope, rawStoredMintz, previewUniversityId]);
+  const feedRequestScope = useRef(createAccountRequestScope(readScope));
   useLayoutEffect(() => {
     const scope = feedRequestScope.current;
-    activateAccountRequestScope(scope, currentUserId);
+    activateAccountRequestScope(scope, readScope);
     return () => activateAccountRequestScope(scope, "");
-  }, [currentUserId]);
+  }, [readScope]);
   const [privateAppreciations, setPrivateAppreciations] = useState<
     MintPrivateAppreciation[]
   >([]);
@@ -242,11 +245,12 @@ export function useMintz(currentUserId: string) {
 
   const loadPersistedMintz = useCallback(async () => {
     if (!uuidPattern.test(currentUserId)) return;
-    const request = beginAccountRequest(feedRequestScope.current, currentUserId);
+    const request = beginAccountRequest(feedRequestScope.current, readScope);
     if (!request) return;
-    setPersistenceStatus({ userId: currentUserId, loading: true, error: null });
+    setPersistenceStatus({ userId: readScope, loading: true, error: null });
     try {
-      const response = await fetch("/api/mintz", { cache: "no-store", signal: request.signal });
+      const query = previewUniversityId ? `?universityId=${encodeURIComponent(previewUniversityId)}` : "";
+      const response = await fetch(`/api/mintz${query}`, { cache: "no-store", signal: request.signal });
       const result = await response.json().catch(() => null) as MintFeedResponse | null;
       if (!request.isCurrent()) return;
       if (!response.ok || !result?.ok) {
@@ -254,16 +258,16 @@ export function useMintz(currentUserId: string) {
       }
       setStoredMintz((current) => {
         const persistedIds = new Set(result.mintz.map((mint) => mint.id));
-        return [...result.mintz, ...current.filter((mint) => mint.isDevelopment && !persistedIds.has(mint.id))];
+        return [...result.mintz, ...current.filter((mint) => !previewUniversityId && mint.isDevelopment && !persistedIds.has(mint.id))];
       });
       setPersistedAuthors(result.authors);
-      setFeedOwnerId(currentUserId);
+      setFeedOwnerId(readScope);
       setFeedRevision((revision) => revision + 1);
-      setPersistenceStatus({ userId: currentUserId, loading: false, error: null });
+      setPersistenceStatus({ userId: readScope, loading: false, error: null });
     } catch (error) {
-      if (request.isCurrent()) setPersistenceStatus({ userId: currentUserId, loading: false, error: error instanceof Error ? error.message : "Mintz are temporarily unavailable." });
+      if (request.isCurrent()) setPersistenceStatus({ userId: readScope, loading: false, error: error instanceof Error ? error.message : "Mintz are temporarily unavailable." });
     }
-  }, [currentUserId]);
+  }, [currentUserId, readScope, previewUniversityId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadPersistedMintz(); }, 0);
@@ -349,6 +353,7 @@ export function useMintz(currentUserId: string) {
     selections: readonly LocalMintMediaSelection[] = [],
     requestId = globalThis.crypto.randomUUID(),
   ) {
+    if (previewUniversityId) return { ok: false as const, message: "Exit campus preview to post from your own account.", retryable: false };
     if (input.isDevelopment) {
       return { ok: true as const, mint: createLocalMint(input), message: null };
     }
@@ -391,15 +396,15 @@ export function useMintz(currentUserId: string) {
           retryable: result.retryable,
         };
       }
-      if (feedRequestScope.current.accountId === currentUserId && result.author.account.id === currentUserId) {
+      if (feedRequestScope.current.accountId === readScope && result.author.account.id === currentUserId) {
         // A feed request started before this publish must not replace the
         // newly confirmed post with an older snapshot when it arrives late.
-        activateAccountRequestScope(feedRequestScope.current, currentUserId);
-        setStoredMintz((current) => [result.mint, ...current.filter((mint) => (feedOwnerId === currentUserId || mint.isDevelopment) && mint.id !== result.mint.id)]);
-        setPersistedAuthors((current) => [result.author, ...current.filter((author) => feedOwnerId === currentUserId && author.account.id !== result.author.account.id)]);
-        setFeedOwnerId(currentUserId);
+        activateAccountRequestScope(feedRequestScope.current, readScope);
+        setStoredMintz((current) => [result.mint, ...current.filter((mint) => (feedOwnerId === readScope || mint.isDevelopment) && mint.id !== result.mint.id)]);
+        setPersistedAuthors((current) => [result.author, ...current.filter((author) => feedOwnerId === readScope && author.account.id !== result.author.account.id)]);
+        setFeedOwnerId(readScope);
         setFeedRevision((revision) => revision + 1);
-        setPersistenceStatus({ userId: currentUserId, loading: false, error: null });
+        setPersistenceStatus({ userId: readScope, loading: false, error: null });
       }
       return { ok: true as const, mint: result.mint, message: null };
     } catch {

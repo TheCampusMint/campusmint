@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
+import { useCampusPreview } from "@/components/developer/CampusPreviewContext";
 import { createPortal } from "react-dom";
 
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
@@ -52,6 +53,7 @@ export function EventMomentEventDetail({
   closeLabel,
   onOpenMoment,
 }: EventMomentEventDetailProps) {
+  const readOnly = useCampusPreview();
   const [captureOpen, setCaptureOpen] = useState(false);
   const [mediaType, setMediaType] = useState<"image" | "video">("image");
   const [caption, setCaption] = useState("");
@@ -69,7 +71,7 @@ export function EventMomentEventDetail({
   const eligibility = eventMoments.getEligibility(event, viewerId);
   const prompt = eventMoments.getPrompt(event.id, viewerId);
   const showPrompt =
-    eligibility.eligible &&
+    !readOnly && eligibility.eligible &&
     prompt !== null &&
     (prompt.status === "pending" || prompt.status === "shown");
 
@@ -94,6 +96,7 @@ export function EventMomentEventDetail({
 
   function submitMoment(submitEvent: FormEvent<HTMLFormElement>) {
     submitEvent.preventDefault();
+    if (readOnly) return;
 
     const created = eventMoments.captureMoment({
       event,
@@ -195,7 +198,7 @@ export function EventMomentEventDetail({
               <button
                 type="button"
                 aria-pressed={isGoing}
-                disabled={ended}
+                disabled={ended || readOnly}
                 onClick={() => eventMoments.toggleRsvp(event, viewerId)}
                 className="min-w-24 rounded-xl border px-4 py-2.5 text-sm font-black transition"
                 style={{

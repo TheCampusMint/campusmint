@@ -88,13 +88,13 @@ export const footballSeasons: Readonly<Record<string, SportsSeason>> = {
   blinn: { id: "blinn-football-2026", sport: "football", teamId: "blinn", label: "2026 verified fixtures", conferenceLabel: "SWJCFC", games: blinnSchedule, source: BLINN_FOOTBALL_SOURCE },
 };
 
-export const featuredFootballTeamByUniversity: Readonly<Record<UniversityId, string>> = {
+export const featuredFootballTeamByUniversity: Readonly<Partial<Record<UniversityId, string>>> = {
   tamu: "texas-am", blinn: "blinn", texas: "texas", lsu: "lsu", alabama: "alabama",
   oregon: "oregon", harvard: "harvard", michigan: "michigan", miami: "miami",
 };
 
 export function getFeaturedFootballTeamId(universityId: UniversityId | null) {
-  return universityId ? featuredFootballTeamByUniversity[universityId] : null;
+  return universityId ? featuredFootballTeamByUniversity[universityId] ?? null : null;
 }
 
 export function getFootballSeason(teamId: string): SportsSeason {

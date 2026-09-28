@@ -20,6 +20,6 @@ export const trackPrograms: readonly TrackProgram[] = [
 ];
 
 export function getTrackProgram(universityId: UniversityId | null) {
-  const teamId = universityId ? ({ tamu: "texas-am", texas: "texas", lsu: "lsu", alabama: "alabama", blinn: "blinn", oregon: "oregon", harvard: "harvard", michigan: "michigan", miami: "miami" } as const)[universityId] : "texas-am";
+  const teamId = universityId ? ({ tamu: "texas-am", texas: "texas", lsu: "lsu", alabama: "alabama", blinn: "blinn", oregon: "oregon", harvard: "harvard", michigan: "michigan", miami: "miami" } as Partial<Record<UniversityId, string>>)[universityId] : "texas-am";
   return trackPrograms.find((program) => program.teamId === teamId) ?? null;
 }

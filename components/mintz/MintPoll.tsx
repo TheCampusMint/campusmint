@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useCampusPreview } from "@/components/developer/CampusPreviewContext";
 
 import type { ContentPoll } from "@/types/content";
 
@@ -8,6 +9,7 @@ type Props = { mintId: string; poll: ContentPoll; isDevelopment: boolean; active
 
 /** Server totals and the signed-in account's choice; never a device-local vote. */
 export function MintPoll({ mintId, poll: initialPoll, isDevelopment, active = true }: Props) {
+  const readOnly = useCampusPreview();
   const headingId = useId();
   const [poll, setPoll] = useState(initialPoll);
   const [pending, setPending] = useState(false);
@@ -16,7 +18,7 @@ export function MintPoll({ mintId, poll: initialPoll, isDevelopment, active = tr
   const voting = useRef(false);
 
   useEffect(() => {
-    if (isDevelopment || !active) return;
+    if (isDevelopment || !active || readOnly) return;
     let disposed = false;
     const refresh = async () => {
       if (document.hidden || voting.current) return;
@@ -37,10 +39,10 @@ export function MintPoll({ mintId, poll: initialPoll, isDevelopment, active = tr
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [mintId, isDevelopment, active]);
+  }, [mintId, isDevelopment, active, readOnly]);
 
   async function vote(optionId: string) {
-    if (voting.current || isDevelopment) return;
+    if (voting.current || isDevelopment || readOnly) return;
     voting.current = true;
     ++requestVersion.current;
     setPending(true);
@@ -67,7 +69,7 @@ export function MintPoll({ mintId, poll: initialPoll, isDevelopment, active = tr
         const selected = poll.selectedOptionId === option.id;
         const percentage = poll.totalVotes > 0 ? Math.round(option.voteCount / poll.totalVotes * 100) : 0;
         return <button key={option.id} type="button" aria-pressed={selected}
-          disabled={pending || isDevelopment} onClick={() => { void vote(option.id); }}
+          disabled={pending || isDevelopment || readOnly} onClick={() => { void vote(option.id); }}
           className="relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-4 py-3 text-left text-sm text-[var(--app-text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] disabled:cursor-default"
           style={{ background: "var(--app-surface-elevated)" }}>
           <span aria-hidden="true" className="absolute inset-y-0 left-0 rounded-2xl" style={{ width: `${percentage}%`, background: "var(--app-personal-soft)", opacity: selected ? 1 : 0.6 }} />
@@ -76,7 +78,7 @@ export function MintPoll({ mintId, poll: initialPoll, isDevelopment, active = tr
         </button>;
       })}
     </div>
-    <p className="mt-2 text-xs text-[var(--app-text-secondary)]" aria-live="polite">{isDevelopment ? "Preview poll · voting requires a published post" : pending ? "Saving your vote…" : `${poll.totalVotes} ${poll.totalVotes === 1 ? "vote" : "votes"} · ${poll.selectedOptionId ? "You can change your answer" : "Choose one answer"}`}</p>
+    <p className="mt-2 text-xs text-[var(--app-text-secondary)]" aria-live="polite">{readOnly ? "Campus preview · voting is off" : isDevelopment ? "Preview poll · voting requires a published post" : pending ? "Saving your vote…" : `${poll.totalVotes} ${poll.totalVotes === 1 ? "vote" : "votes"} · ${poll.selectedOptionId ? "You can change your answer" : "Choose one answer"}`}</p>
     {error && <p role="alert" className="mt-2 text-xs text-[var(--app-danger)]">{error}</p>}
   </section>;
 }

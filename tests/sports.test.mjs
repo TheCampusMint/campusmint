@@ -44,7 +44,7 @@ test("67. Soccer can be selected by a university configuration", () => {
 });
 
 test("68. unsupported provider data remains separate from featured-sport identity", () => {
-  assert.equal(getCampusAthleticsProfile("alabama").featuredSports.includes("gymnastics"), true);
+  assert.deepEqual(getCampusAthleticsProfile("alabama").featuredSports, ["football", "basketball", "baseball"]);
   assert.equal(getAvailableCampusPrograms(getCampusAthleticsProfile("alabama")).every(({ schedulePublished }) => !schedulePublished), true);
 });
 

@@ -1,3 +1,6 @@
+"use client";
+
+import { useCampusPreview } from "@/components/developer/CampusPreviewContext";
 import type { UniversityTheme } from "@/data/universities";
 import { CalendarIcon, ClockIcon, LocationIcon } from "@/components/icons/CampusIcons";
 import type { Event } from "@/types/event";
@@ -21,6 +24,7 @@ export function EventCard({
   onOpenDetails,
   currentTime,
 }: EventCardProps) {
+  const readOnly = useCampusPreview();
   const displayedRsvpCount = event.rsvpCount + (isGoing ? 1 : 0);
   const ended = (typeof currentTime === "number" && new Date(event.eventEndAt ?? event.eventStartAt).getTime() <= currentTime) || event.status === "cancelled";
   const happeningNow = !ended && typeof currentTime === "number" && new Date(event.eventStartAt).getTime() <= currentTime;
@@ -88,7 +92,7 @@ export function EventCard({
           <button
             type="button"
             aria-pressed={isGoing}
-            disabled={ended}
+            disabled={ended || readOnly}
             onClick={() => onToggleRsvp(event.id)}
             className="min-w-24 rounded-xl border px-4 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{

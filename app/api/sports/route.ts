@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { configuredUniversityIds, type UniversityId } from "@/data/universities";
 import { areDeveloperControlsEnabled } from "@/lib/runtime/fixturePolicy";
-import { refreshCampusSports, type SportsSnapshot } from "@/lib/sports/refresh";
+import { mergeCampusSports, refreshCampusSports, type SportsSnapshot } from "@/lib/sports/refresh";
 import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig, hasSupabaseServerConfig } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -35,5 +35,5 @@ export async function GET(request: Request) {
   let refreshUnavailable = false;
   try { snapshot = await refreshCampusSports(requestedUniversityId, snapshot); }
   catch { refreshUnavailable = true; }
-  return NextResponse.json({ ok: true, profile: snapshot?.payload ?? null, refreshUnavailable, freshness: snapshot ? { fetchedAt: snapshot.fetched_at, verifiedAt: snapshot.verified_at, staleAfter: snapshot.stale_after } : null }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({ ok: true, profile: mergeCampusSports(requestedUniversityId, snapshot), refreshUnavailable, freshness: snapshot ? { fetchedAt: snapshot.fetched_at, verifiedAt: snapshot.verified_at, staleAfter: snapshot.stale_after } : null }, { headers: { "Cache-Control": "private, no-store" } });
 }

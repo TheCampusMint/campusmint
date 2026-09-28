@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { MintCard } from "@/components/mintz/MintCard";
+import { useCampusPreview } from "@/components/developer/CampusPreviewContext";
 import { getOrganizationById } from "@/data/organizations";
 import type { UniversityTheme } from "@/data/universities";
 import type { MintzState } from "@/hooks/useMintz";
@@ -78,6 +79,7 @@ export function MintFeedList({
   onOpenVideo,
   surfaceActive = true,
 }: MintFeedListProps) {
+  const readOnly = useCampusPreview();
   const feedRef = useRef<HTMLDivElement>(null);
   const pullStartRef = useRef<number | null>(null);
   const pullModeRef = useRef<"top" | "bottom" | null>(null);
@@ -96,7 +98,7 @@ export function MintFeedList({
   });
 
   useEffect(() => {
-    if (!surfaceActive || typeof IntersectionObserver === "undefined") return;
+    if (readOnly || !surfaceActive || typeof IntersectionObserver === "undefined") return;
     const root = feedRef.current;
     if (!root) return;
     const dwellStarts = dwellStartsRef.current;
@@ -134,7 +136,7 @@ export function MintFeedList({
       [...dwellStarts.keys()].forEach(flush);
       dwellVisible.clear();
     };
-  }, [mints, surfaceActive]);
+  }, [mints, surfaceActive, readOnly]);
 
   function clearRefreshHoldTimer() {
     if (refreshHoldTimerRef.current === null) return;

@@ -7,37 +7,29 @@ import {
 } from "@/data/universities";
 
 type DeveloperUniversitySwitcherProps = {
-  selectedUniversityId: UniversityId;
-  onUniversityChange: (universityId: UniversityId) => void;
+  selectedUniversityId: UniversityId | null;
+  onUniversityChange: (universityId: UniversityId | null) => void;
   label?: string;
 };
 
 export function DeveloperUniversitySwitcher({
   selectedUniversityId,
   onUniversityChange,
-  label = "Dev: Switch campus",
+  label = "Preview campus",
 }: DeveloperUniversitySwitcherProps) {
-  const selectedTheme = universities[selectedUniversityId];
-
   return (
     <label
-      className="flex min-w-0 flex-col gap-1 text-xs font-semibold"
-      style={{ color: selectedTheme.secondary }}
+      className="flex min-w-0 flex-col gap-2 text-xs font-semibold text-[var(--app-text-secondary)]"
     >
       <span className="opacity-85">{label}</span>
       <select
-        value={selectedUniversityId}
+        value={selectedUniversityId ?? ""}
         onChange={(event) =>
-          onUniversityChange(event.target.value as UniversityId)
+          onUniversityChange(event.target.value ? event.target.value as UniversityId : null)
         }
-        className="w-64 max-w-full rounded-xl border px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
-        style={{
-          backgroundColor: selectedTheme.secondary,
-          borderColor: selectedTheme.secondary,
-          color: selectedTheme.primary,
-          outlineColor: selectedTheme.secondary,
-        }}
+        className="w-72 max-w-full rounded-2xl border-0 bg-[var(--app-surface-elevated)] px-3 py-2.5 text-sm font-semibold text-[var(--app-text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"
       >
+        <option value="">Use my campus</option>
         {configuredUniversityIds.map((universityId) => (
           <option key={universityId} value={universityId}>
             {universities[universityId].name}

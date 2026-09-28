@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { getAcademicCatalog } from "@/data/development/campusData";
-import type { UniversityId } from "@/data/universities";
+import { configuredUniversityIds, type UniversityId } from "@/data/universities";
 import { normalizeSearchText, normalizeSubmissionDisplay } from "@/lib/campus-data/normalization";
 import type { AcademicEnrollment, AcademicProfile, CampusEntityType, CommunitySubmission } from "@/types/campus-data";
 
@@ -24,12 +24,9 @@ function initialProfile(universityId: UniversityId): AcademicProfile {
 }
 
 export function useAcademics() {
-  const [profiles, setProfiles] = useState<Record<UniversityId, AcademicProfile>>(() => ({
-    tamu: initialProfile("tamu"), blinn: initialProfile("blinn"), texas: initialProfile("texas"),
-    lsu: initialProfile("lsu"), alabama: initialProfile("alabama"),
-    oregon: initialProfile("oregon"), harvard: initialProfile("harvard"),
-    michigan: initialProfile("michigan"), miami: initialProfile("miami"),
-  }));
+  const [profiles, setProfiles] = useState<Record<UniversityId, AcademicProfile>>(() =>
+    Object.fromEntries(configuredUniversityIds.map((id) => [id, initialProfile(id)])) as Record<UniversityId, AcademicProfile>,
+  );
   const [submissions, setSubmissions] = useState<CommunitySubmission[]>([]);
 
   function setProgram(universityId: UniversityId, programId: string | null, customProgram: string | null = null) {

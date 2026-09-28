@@ -41,7 +41,7 @@ function ScheduleRow({ game, program, currentTime, onOpen }: { game: CampusSched
   const live = state === "live";
 
   return (
-    <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-[1.25rem] border border-slate-200/80 bg-white px-3.5 py-3 text-left shadow-[0_10px_32px_-28px_rgba(15,23,42,.6)] sm:px-4">
+    <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-[1.25rem] bg-white px-3.5 py-3 text-left sm:px-4">
       <time
         dateTime={game.date}
         className="w-14 shrink-0 text-xs font-black tabular-nums text-slate-500"
@@ -96,7 +96,7 @@ function SchedulePanel({ program, currentTime, onOpenGame }: { program: CampusSp
           </h2>
         </div>
         <span className="text-right text-[9px] font-semibold text-slate-400">
-          {stale ? "Last verified" : "Updated"} {program.source.lastFetchedAt ?? program.source.verifiedAt}
+          {program.schedulePublished ? <>{stale ? "Last verified" : "Updated"} {program.source.lastFetchedAt ?? program.source.verifiedAt}</> : "Official schedule linked"}
           {program.record ? <><br/>{program.record}</> : null}
         </span>
       </div>
@@ -106,8 +106,8 @@ function SchedulePanel({ program, currentTime, onOpenGame }: { program: CampusSp
           {program.games.map((game) => <ScheduleRow key={game.id} game={game} program={program} currentTime={currentTime} onOpen={() => onOpenGame(game)} />)}
         </div>
       ) : (
-        <p className="mt-3 rounded-[1.25rem] border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-          Schedule isn&apos;t posted yet.
+        <p className="mt-3 rounded-[1.25rem] bg-white px-4 py-6 text-center text-sm text-slate-500">
+          The schedule could not be loaded here. Check the official schedule for current fixtures and results.
         </p>
       )}
 
@@ -128,20 +128,20 @@ function GameDetail({ game, program, campusLabel, onBack }: { game: CampusSchedu
   const final = game.status === "final";
   return <section className="cm-content-swap space-y-5" data-game-detail>
     <MintLeafBackButton onClick={onBack} label={`Back to ${program.label}`} tone="minimal" className="text-slate-700" />
-    <header className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
+    <header className="rounded-[1.5rem] bg-white p-5">
       <p className="text-[10px] font-black uppercase tracking-[.18em] text-slate-400">{program.label} · {final ? "Final" : "Game detail"}</p>
       <h2 className="mt-2 text-2xl font-black text-slate-950">{campusLabel} {game.homeAway === "away" ? "at" : "vs"} {game.opponentName}</h2>
       {final && game.campusScore !== null && game.opponentScore !== null && <p className="mt-2 text-xl font-black text-[var(--app-accent)]">{game.result} {game.campusScore}–{game.opponentScore}</p>}
       <p className="mt-2 text-sm text-slate-500">{game.dateLabel}{game.timeLabel ? ` · ${game.timeLabel}` : ""}{game.location ? ` · ${game.location}` : ""}{game.network ? ` · ${game.network}` : ""}</p>
     </header>
-    {!final ? <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5"><h3 className="font-black text-slate-950">Upcoming game</h3><p className="mt-2 text-sm leading-6 text-slate-500">Participant statistics will appear only after a verified game source reports them. Campus Mint does not infer starters or participants.</p></div> : detail ? <>
+    {!final ? <div className="rounded-[1.5rem] bg-white p-5"><h3 className="font-black text-slate-950">Upcoming game</h3><p className="mt-2 text-sm leading-6 text-slate-500">Participant statistics will appear only after a verified game source reports them. Campus Mint does not infer starters or participants.</p></div> : detail ? <>
       <p className="text-xs font-semibold text-slate-500">{detail.scopeLabel}</p>
-      {detail.statGroups.map((group) => <section key={group.id} aria-labelledby={`game-stat-${group.id}`} className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
+      {detail.statGroups.map((group) => <section key={group.id} aria-labelledby={`game-stat-${group.id}`} className="rounded-[1.5rem] bg-white p-5">
         <h3 id={`game-stat-${group.id}`} className="text-xs font-black uppercase tracking-[.16em] text-slate-500">{group.label}</h3>
         <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[28rem] border-collapse text-left text-xs"><thead><tr className="border-b border-slate-200 text-[10px] uppercase tracking-wide text-slate-400"><th className="pb-2 pr-4 font-black">Player</th>{group.columns.map((column) => <th key={column} className="pb-2 px-2 text-right font-black">{column}</th>)}</tr></thead><tbody>{group.rows.map((row) => <tr key={row.playerId} className="border-b border-slate-100 last:border-0"><th className="py-3 pr-4 font-bold text-slate-800">{row.playerName}<span className="block text-[9px] font-medium text-slate-400">{row.teamName}</span></th>{row.values.map((value, index) => <td key={`${row.playerId}:${group.columns[index]}`} className="px-2 py-3 text-right font-semibold tabular-nums text-slate-600">{value}</td>)}</tr>)}</tbody></table></div>
       </section>)}
       <a href={detail.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex text-xs font-bold text-[var(--app-accent)] underline underline-offset-4">Official game source</a>
-    </> : <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5"><h3 className="font-black text-slate-950">Participation details unavailable</h3><p className="mt-2 text-sm leading-6 text-slate-500">The result is verified, but no normalized participation source is available. No players have been inferred.</p></div>}
+    </> : <div className="rounded-[1.5rem] bg-white p-5"><h3 className="font-black text-slate-950">Participation details unavailable</h3><p className="mt-2 text-sm leading-6 text-slate-500">The result is verified, but no normalized participation source is available. No players have been inferred.</p></div>}
   </section>;
 }
 
@@ -160,7 +160,8 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
     defaultSport,
   );
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
-  const [refreshUnavailable, setRefreshUnavailable] = useState(false);
+  const [refreshFailureCampus, setRefreshFailureCampus] = useState<UniversityId | null>(null);
+  const refreshUnavailable = refreshFailureCampus === universityId;
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 60_000);
@@ -179,9 +180,9 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
         const response = await fetch(`/api/sports?universityId=${encodeURIComponent(universityId)}`, { cache: "no-store", signal: controller.signal });
         const payload = await response.json() as { ok?: boolean; profile?: CampusAthleticsProfile | null; refreshUnavailable?: boolean };
         if (!active) return;
-        setRefreshUnavailable(!response.ok || !payload.ok || payload.refreshUnavailable === true);
+        setRefreshFailureCampus(!response.ok || !payload.ok || payload.refreshUnavailable === true ? universityId : null);
         if (response.ok && payload.ok && payload.profile?.universityId === universityId) setRemoteProfile(payload.profile);
-      } catch { if (active) setRefreshUnavailable(true); }
+      } catch { if (active) setRefreshFailureCampus(universityId); }
       finally { pending = false; }
     };
     void refresh();
@@ -215,7 +216,7 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
 
   if (!resolvedProfile) {
     return (
-      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-7 text-center shadow-sm" data-sports-hub>
+      <section className="rounded-[1.75rem] bg-white p-7 text-center" data-sports-hub>
         <h1 className="text-xl font-black text-slate-950">Campus Sports</h1>
         <p className="mt-2 text-sm text-slate-500">
           Athletics data isn&apos;t available for this university yet.
@@ -245,7 +246,7 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
 
   return (
     <section
-      className="space-y-5 rounded-[1.75rem] border border-slate-200/80 bg-slate-50/75 p-4 shadow-[0_22px_64px_-48px_rgba(15,23,42,.55)] sm:p-6"
+      className="space-y-5 rounded-[1.75rem] bg-slate-50/75 p-4 sm:p-6"
       data-sports-hub
       data-natural-content-height="true"
       data-university-id={resolvedProfile.universityId}
@@ -270,10 +271,10 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
         </div>
       </header>
 
-      {refreshUnavailable && <p role="status" className="text-xs text-[var(--app-text-secondary)]">Scores could not be refreshed. Showing the last verified schedule.</p>}
+      {refreshUnavailable && <p role="status" className="text-xs text-[var(--app-text-secondary)]">Latest scores are unavailable. Check the official schedule for updates.</p>}
 
       <section
-        className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-[0_12px_38px_-30px_rgba(15,23,42,.7)]"
+        className="rounded-[1.4rem] bg-white p-4"
         aria-labelledby="live-games-title"
       >
         <div className="flex items-center justify-between gap-3">
@@ -313,7 +314,7 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
       {programs.length > 0 ? (
         <>
           <div className="flex justify-center">
-            <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-full border border-slate-200 bg-white p-1" aria-label="Campus sports">
+            <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-full bg-white p-1" aria-label="Campus sports">
               {programs.map((program) => {
                 const active = selectedProgram?.sport === program.sport;
                 return (
@@ -347,7 +348,7 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
           {!selectedGame && rankingBoards.length > 0 && (
             <div className="grid gap-3 md:grid-cols-2" aria-label="Relevant rankings">
               {rankingBoards.map((board) => (
-                <section key={board.id} className="rounded-[1.4rem] border border-slate-200 bg-white p-4">
+                <section key={board.id} className="rounded-[1.4rem] bg-white p-4">
                   <h2 className="text-sm font-black text-slate-950">{board.title}</h2>
                   <div className="mt-3 max-h-72 space-y-1 overflow-y-auto">
                     {board.entries.map((entry) => (
@@ -370,23 +371,23 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
           )}
         </>
       ) : (
-        <div className="rounded-[1.25rem] border border-slate-200 bg-white p-5 text-center">
+        <div className="rounded-[1.25rem] bg-white p-5 text-center">
           <p className="text-sm text-slate-500">Verified schedules and results aren&apos;t available from a connected provider yet.</p>
           <div className="mt-3 flex flex-wrap justify-center gap-2" aria-label="Configured featured sports">
-            {resolvedProfile.featuredSports.map((sportId) => <span key={sportId} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-700">{launchCampusSports.find((sport) => sport.id === sportId)?.label ?? sportId}</span>)}
+            {resolvedProfile.featuredSports.map((sportId) => <span key={sportId} className="rounded-full px-3 py-1.5 text-xs font-black text-slate-700">{launchCampusSports.find((sport) => sport.id === sportId)?.label ?? sportId}</span>)}
           </div>
           <a href={resolvedProfile.featuredSportsSource.sourceUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex text-xs font-bold text-[var(--app-accent)] underline underline-offset-4">Official athletics source</a>
         </div>
       )}
 
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3">
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] bg-white px-4 py-3">
         <div>
           <p className="text-sm font-black text-slate-950">Sports Plus</p>
           <p className="mt-0.5 text-xs text-slate-500">
             Deeper campus-team context when verified providers are connected.
           </p>
         </div>
-        <span className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-600">
+        <span className="rounded-full px-3 py-1.5 text-xs font-black text-slate-600">
           {defaultSportsEntitlement.sportsPlus ? "Active" : "Coming Soon"}
         </span>
       </section>

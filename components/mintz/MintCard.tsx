@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useCampusPreview } from "@/components/developer/CampusPreviewContext";
 
 import { ClubMintBadge } from "@/components/content/ClubMintBadge";
 import { EventMintBadge } from "@/components/content/EventMintBadge";
@@ -101,6 +102,7 @@ function expirationLabel(expiresAt: string | null, currentTime: number) {
 }
 
 export function MintCard(props: MintCardProps) {
+  const readOnly = useCampusPreview();
   const { mint, author, viewer, users, theme, currentTime } = props;
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentsOrigin, setCommentsOrigin] = useState<FloatingSurfaceOrigin | null>(null);
@@ -157,6 +159,7 @@ export function MintCard(props: MintCardProps) {
   });
 
   function confirmPrivateAppreciation(point: ScreenPoint) {
+    if (readOnly) return;
     props.onPrivateAppreciation();
     setAppreciationBurst((current) => ({
       point,
@@ -218,25 +221,25 @@ export function MintCard(props: MintCardProps) {
             {(mint.postType === "event" || organization) && (
               <div className="mt-3 flex flex-wrap items-center gap-2 sm:mt-4">
                 {mint.postType === "event" && <EventMintBadge eventStartAt={eventStartAt} eventEndAt={eventEndAt} currentTime={currentTime} timeZone={eventTimeZone} />}
-                {organization && <ClubMintBadge membershipStatus={props.organizationMembershipStatus} onMembershipAction={props.onOrganizationMembershipAction} />}
+                {organization && <ClubMintBadge membershipStatus={props.organizationMembershipStatus} onMembershipAction={readOnly ? undefined : props.onOrganizationMembershipAction} />}
               </div>
             )}
           </header>
 
           {mint.media.length > 0 && <MintMediaCarousel media={mint.media} theme={theme} fallbackLabel={fallbackLabel} fallbackDetail={fallbackDetail} autoplayVideo={props.autoplayVideo} onDoubleTap={confirmPrivateAppreciation} onOpenVideo={(mediaId) => props.onOpenVideo?.(mint.id, mediaId)}>
-            <div className="absolute bottom-2 right-1 z-20">
+            {!readOnly && <div className="absolute bottom-2 right-1 z-20">
               <PublicEndorsementAction endorsed={props.publiclyEndorsed} onToggle={props.onTogglePublicEndorsement} />
-            </div>
+            </div>}
             {mint.postType !== "event" && <div className="absolute bottom-3 left-3 z-20"><FriendEndorsementStack users={props.friendEndorsementUsers} additionalCount={props.additionalFriendEndorsementCount ?? 0} theme={theme} /></div>}
           </MintMediaCarousel>}
 
           <div className="p-3 sm:p-4 lg:p-5">
             {eventTitle && <div className="mb-3 rounded-2xl bg-slate-50 p-3 sm:mb-4 sm:p-4"><h3 className="font-black text-slate-950">{eventTitle}</h3>{eventWhen && <p className="mt-1 text-xs font-bold text-emerald-700">{eventWhen}</p>}{eventWhere && <p className="mt-1 text-xs text-slate-600">{eventWhere}</p>}{canonicalEvent?.status === "cancelled" && <p className="mt-2 text-xs font-black text-red-600">Canceled</p>}{canonicalEvent?.source && <a href={canonicalEvent.source.sourceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[10px] font-bold text-slate-500 underline">Event source</a>}</div>}
-            {mint.postType === "event" && <EventAttendingContext users={props.attendeeUsers ?? []} attending={Boolean(props.attending)} disabled={props.attendingDisabled} theme={theme} onToggle={props.onToggleAttending} />}
+            {mint.postType === "event" && <EventAttendingContext users={props.attendeeUsers ?? []} attending={Boolean(props.attending)} disabled={readOnly || props.attendingDisabled} theme={theme} onToggle={readOnly ? undefined : props.onToggleAttending} />}
             {organization && <p className="mb-3 text-sm font-black text-slate-900">{organization.name}</p>}
             {mint.caption && <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{mint.caption}</p>}
             {mint.poll && <MintPoll key={`${mint.id}:${viewer.account.id}`} mintId={mint.id} poll={mint.poll} isDevelopment={mint.isDevelopment} active={props.surfaceActive} />}
-            {mint.media.length === 0 && <div className="mt-2 flex items-center gap-2"><PublicEndorsementAction endorsed={props.publiclyEndorsed} onToggle={props.onTogglePublicEndorsement} /><FriendEndorsementStack users={props.friendEndorsementUsers} additionalCount={props.additionalFriendEndorsementCount ?? 0} theme={theme} /></div>}
+            {!readOnly && mint.media.length === 0 && <div className="mt-2 flex items-center gap-2"><PublicEndorsementAction endorsed={props.publiclyEndorsed} onToggle={props.onTogglePublicEndorsement} /><FriendEndorsementStack users={props.friendEndorsementUsers} additionalCount={props.additionalFriendEndorsementCount ?? 0} theme={theme} /></div>}
             {mint.mentions.length > 0 && <p className="mt-2 text-sm font-bold" style={{ color: theme.primary }}>{mint.mentions.map((mention) => `@${mention.username}`).join(" ")}</p>}
             {mint.hashtags.length > 0 && <p className="mt-2 text-sm font-bold" style={{ color: theme.primary }}>{mint.hashtags.map((tag) => `#${tag}`).join(" ")}</p>}
             {taggedOrganizations.length > 0 && <p className="mt-3 text-xs font-semibold text-slate-500">With {taggedOrganizations.map((tagged) => tagged.name).join(", ")}</p>}
@@ -247,7 +250,7 @@ export function MintCard(props: MintCardProps) {
               {ownMint && typeof props.creatorAppreciationCount === "number" && <span className="whitespace-nowrap text-[11px] font-semibold tabular-nums text-slate-500">{props.creatorAppreciationCount} appreciations · only you</span>}
             </div>
 
-            <div className="mt-2 flex items-center justify-between gap-2">
+            {!readOnly && <><div className="mt-2 flex items-center justify-between gap-2">
               <div className="flex items-center">
                 <CommentAction count={mint.commentCount} disabled={!mint.commentsEnabled} onClick={(origin) => { setCommentsOrigin(origin); setCommentsOpen(true); }} />
                 <ShareAction onClick={shareMint} />
@@ -276,12 +279,13 @@ export function MintCard(props: MintCardProps) {
                 ) : <button type="button" onClick={() => props.onReport("other")} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-bold text-slate-500">Report Mint</button>}
               </div>
             </details>
+            </>}
           </div>
         </article>
       </FloatingMintCard>
 
       {appreciationBurst && <PrivateAppreciationBurst point={appreciationBurst.point} reducedMotion={Boolean(props.reducedMotion)} sequence={appreciationBurst.sequence} onComplete={clearAppreciationBurst} />}
-      {commentsOpen && props.surfaceActive !== false && mint.commentsEnabled && (
+      {!readOnly && commentsOpen && props.surfaceActive !== false && mint.commentsEnabled && (
         <MintCommentsSheet
           comments={activeComments}
           users={users}

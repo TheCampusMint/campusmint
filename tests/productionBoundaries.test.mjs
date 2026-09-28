@@ -168,7 +168,7 @@ test("production Mint publishing waits for authenticated storage and database pe
   assert.match(mintPersistenceRoute, /client_request_id/);
   assert.match(mintPersistenceRoute, /removeUploadedMedia/);
   assert.match(mintPersistenceMigration, /unique index social_content_author_request_unique_idx/);
-  assert.match(mintHook, /fetch\("\/api\/mintz"/);
+  assert.match(mintHook, /fetch\(["`]\/api\/mintz/);
   assert.match(mintHook, /uploadToSignedUrl/);
   assert.match(source("../lib/content/publishMint.ts"), /JSON\.stringify\(body\)/);
   assert.match(mintComposer, /if \(!result.ok\)/);

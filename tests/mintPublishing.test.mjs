@@ -116,7 +116,7 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
   };
   const bindings = {
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
-    "@/data/universities": { configuredUniversityIds: ["tamu"], universities: { tamu: { accessibleCampuses: ["tamu"] } } },
+    "@/data/universities": { configuredUniversityIds: ["tamu", "harvard"], universities: { tamu: { accessibleCampuses: ["tamu"] }, harvard: { accessibleCampuses: ["harvard"] } } },
     "@/lib/supabase/server": {
       hasSupabasePublicConfig: () => configured,
       hasSupabaseServerConfig: () => configured,
@@ -136,10 +136,40 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
     return bindings[name];
   }, exports);
   const request = (body) => exports.POST(new Request("http://campusmint.test/api/mintz", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }));
-  return { request, getFeed: exports.GET, rows, objects, pollReads, unavailablePollIds, signedUploads: () => signedUploads, removedObjects: () => removedObjects };
+  return { request, getFeed: (query = "") => exports.GET(new Request(`http://campusmint.test/api/mintz${query}`)), rows, objects, pollReads, unavailablePollIds, signedUploads: () => signedUploads, removedObjects: () => removedObjects };
 }
 
 const payload = { requestId, caption: "A campus moment", postType: "personal", privacy: "public", mediaMetadata: [{ width: 640, height: 480 }] };
+
+test("campus preview requires an active owner capability before reading content", async () => {
+  for (const revoked_at of [undefined, "2026-09-27"]) {
+    const app = routeHarness();
+    app.rows.account_capabilities = revoked_at ? [{ user_id: userId, capability: "owner_campus_tester", revoked_at }] : [];
+    assert.equal((await app.getFeed("?universityId=harvard")).status, 403);
+    assert.equal(app.pollReads.length, 0);
+  }
+  assert.equal((await routeHarness().getFeed("?universityId=unknown")).status, 400);
+});
+
+test("owner preview is campus-scoped and excludes private accounts, private posts and member audiences", async () => {
+  const app = routeHarness();
+  await app.request({ action: "publish", payload });
+  app.rows.account_capabilities = [{ user_id: userId, capability: "owner_campus_tester", revoked_at: null }];
+  const publicId = randomUUID();
+  for (const [id, privacy, accountPrivacy, audience] of [[publicId, "public", "public", null], [randomUUID(), "private", "public", null], [randomUUID(), "public", "private", null], [randomUUID(), "public", "public", "members"]]) {
+    const author = randomUUID();
+    app.rows.profiles.push({ ...app.rows.profiles[0], user_id: author, social_account_type: accountPrivacy, bio: "private biography", bio_visibility: "only_me" });
+    (app.rows.profile_privacy_settings ??= []).push({ user_id: author, bio: "only_me" });
+    app.rows.profile_identities.push({ ...app.rows.profile_identities[0], user_id: author, university_id: "harvard" });
+    app.rows.social_content.push({ ...app.rows.social_content[0], id, author_id: author, university_id: "harvard", organization_audience: audience });
+    app.rows.mints.push({ content_id: id, privacy, archived_at: null });
+  }
+  const result = await (await app.getFeed("?universityId=harvard")).json();
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mintz.map((mint) => mint.id), [publicId]);
+  assert.equal(result.authors.length, 1);
+  assert.equal(result.authors[0].profile.bio, null);
+});
 
 test("upload authorization is withheld from signed-out, unverified and unconfigured accounts", async () => {
   for (const [options, status] of [[{ authenticated: false }, 401], [{ verified: false }, 403], [{ configured: false }, 503]]) {

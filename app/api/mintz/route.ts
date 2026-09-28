@@ -312,6 +312,7 @@ async function loadMintFeed(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   viewerId: string,
   onlyContentId: string | null = null,
+  previewUniversityId: UniversityId | null = null,
 ): Promise<{ mintz: Mint[]; authors: CampusMintUser[] }> {
   const { data: viewerIdentity, error: viewerError } = await admin.from("profile_identities")
     .select("user_id,university_id")
@@ -327,6 +328,7 @@ async function loadMintFeed(
     .order("created_at", { ascending: false })
     .limit(100);
   if (onlyContentId) contentQuery = contentQuery.eq("id", onlyContentId);
+  if (previewUniversityId) contentQuery = contentQuery.in("university_id", universities[previewUniversityId].accessibleCampuses);
   const { data: contentRows, error: contentError } = await contentQuery;
   if (contentError) throw contentError;
   const contentIds = (contentRows ?? []).map((row) => row.id);
@@ -364,6 +366,9 @@ async function loadMintFeed(
   let visibleRows = (contentRows ?? []).filter((row) => {
     const mint = mintById.get(row.id);
     if (!mint || mint.archived_at || blockedIds.has(row.author_id)) return false;
+    // Campus testing is a public browsing context, never another student's
+    // identity or a bypass for campus-only, private or Club-member content.
+    if (previewUniversityId && (mint.privacy !== "public" || authorPrivacyById.get(row.author_id) !== "public" || row.organization_audience === "members")) return false;
     if (row.author_id === viewerId) return true;
     if (!authorPrivacyById.has(row.author_id) || (authorPrivacyById.get(row.author_id) === "private" && !connectedIds.has(row.author_id))) return false;
     if (row.organization_audience === "members" && row.organization_id && !memberOrganizationIds.has(row.organization_id)) return false;
@@ -411,7 +416,19 @@ async function loadMintFeed(
   (capabilityResult.data ?? []).forEach((row) => capabilities.set(row.user_id, [...(capabilities.get(row.user_id) ?? []), row.capability as AccountCapability]));
   const authors = (profilesResult.data ?? []).flatMap((profile) => {
     const identity = identities.get(profile.user_id);
-    return identity ? [mapAuthor(profile, identity, privacy.get(profile.user_id) ?? null, capabilities.get(profile.user_id) ?? [])] : [];
+    if (!identity) return [];
+    const fieldPrivacy = privacy.get(profile.user_id) ?? null;
+    const author = mapAuthor(profile, identity, fieldPrivacy, capabilities.get(profile.user_id) ?? []);
+    if (previewUniversityId) {
+      author.account.capabilities = author.account.capabilities?.filter((capability) => capability === "creator");
+      // Only public profile details accompany a campus preview response.
+      for (const field of ["bio", "major", "graduationYear", "hometown", "instagram", "linkedin", "portfolioUrl", "personalWebsite"] as const) {
+        if (author.privacy[field] !== "everyone") author.profile[field] = null;
+      }
+      author.profile.academicArea = author.profile.major;
+      if (author.privacy.interests !== "everyone") author.profile.interests = [];
+    }
+    return [author];
   });
   const authorById = new Map(authors.map((author) => [author.account.id, author]));
   const locations = new Map((locationResult.data ?? []).map((row) => [row.id, row]));
@@ -545,7 +562,7 @@ async function verifyUploadedObject(admin: ReturnType<typeof createSupabaseAdmin
   return { ...item, mediaType: mediaMimeTypes.get(item.mimeType)!.type };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   if (!hasSupabasePublicConfig() || !hasSupabaseServerConfig()) {
     return json<MintFeedResponse>({ ok: false, message: "Mint publishing is not configured." }, 503);
   }
@@ -553,7 +570,18 @@ export async function GET() {
   const { data: { user }, error: userError } = await session.auth.getUser();
   if (userError || !user) return json<MintFeedResponse>({ ok: false, message: "Sign in to view Mintz." }, 401);
   try {
-    const result = await loadMintFeed(createSupabaseAdminClient(), user.id);
+    const admin = createSupabaseAdminClient();
+    const requestedCampus = new URL(request.url).searchParams.get("universityId");
+    if (requestedCampus !== null && !configuredUniversityIds.includes(requestedCampus as UniversityId)) {
+      return json<MintFeedResponse>({ ok: false, message: "Unknown campus context." }, 400);
+    }
+    if (requestedCampus) {
+      const { data: tester, error } = await admin.from("account_capabilities").select("capability")
+        .eq("user_id", user.id).eq("capability", "owner_campus_tester").is("revoked_at", null).maybeSingle();
+      if (error) throw error;
+      if (!tester) return json<MintFeedResponse>({ ok: false, message: "Campus test access is required." }, 403);
+    }
+    const result = await loadMintFeed(admin, user.id, null, requestedCampus as UniversityId | null);
     return json<MintFeedResponse>({ ok: true, ...result });
   } catch (error) {
     logFailure("feed load failed", error);

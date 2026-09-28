@@ -22,4 +22,4 @@ export const baseballSeasons: readonly SportsSeason[] = [
   { id: "miami-baseball-2026", sport: "baseball", teamId: "miami", label: "Baseball · 2026", conferenceLabel: "ACC", source: official("Miami Baseball", "https://miamihurricanes.com/sports/baseball/"), games: [] },
 ];
 
-export function getBaseballSeason(universityId: UniversityId | null) { return baseballSeasons.find((season) => season.teamId === ({ tamu: "texas-am", blinn: "blinn", texas: "texas", lsu: "lsu", alabama: "alabama", oregon: "oregon", harvard: "harvard", michigan: "michigan", miami: "miami" } as const)[universityId ?? "tamu"]) ?? baseballSeasons[0]; }
+export function getBaseballSeason(universityId: UniversityId | null) { return baseballSeasons.find((season) => season.teamId === ({ tamu: "texas-am", blinn: "blinn", texas: "texas", lsu: "lsu", alabama: "alabama", oregon: "oregon", harvard: "harvard", michigan: "michigan", miami: "miami" } as Partial<Record<UniversityId, string>>)[universityId ?? "tamu"]) ?? null; }
