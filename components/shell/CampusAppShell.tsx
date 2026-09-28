@@ -40,7 +40,7 @@ import { SettingsPanel } from "@/components/shell/SettingsPanel";
 import { TopUtilityBar } from "@/components/shell/TopUtilityBar";
 import { DeveloperUniversitySwitcher } from "@/components/university/DeveloperUniversitySwitcher";
 import { CURRENT_DEVELOPMENT_USER_ID } from "@/data/development/users";
-import { getAppearanceTokens } from "@/data/appearance";
+import { getAppearanceCssVariables, getAppearanceTokens } from "@/data/appearance";
 import { getOrganizationById } from "@/data/organizations";
 import { type UserRole } from "@/data/userRoles";
 import {
@@ -49,6 +49,7 @@ import {
   getAccountUniversityDisplayTheme,
 } from "@/data/universities";
 import { useAppPreferences } from "@/hooks/useAppPreferences";
+import { useSystemColorScheme } from "@/hooks/useSystemColorScheme";
 import { useCampusNotifications } from "@/hooks/useCampusNotifications";
 import { useCampusEvents } from "@/hooks/useCampusEvents";
 import { useDirectMint } from "@/hooks/useDirectMint";
@@ -536,13 +537,15 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
   const configuredUniversityId =
     getAccountConfiguredUniversityId(viewer.account);
 
+  const systemColorScheme = useSystemColorScheme();
   const appearanceTokens = useMemo(
     () =>
       getAppearanceTokens(
         preferenceState.preferences.appearance,
         campusTheme,
+        systemColorScheme,
       ),
-    [preferenceState.preferences.appearance, campusTheme],
+    [preferenceState.preferences.appearance, campusTheme, systemColorScheme],
   );
 
   // Legacy feature controls consume this palette; university identity stays in campusTheme.
@@ -555,19 +558,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
 
   useEffect(() => {
     const root = document.documentElement;
-    const variables = {
-      "--app-background": appearanceTokens.background,
-      "--app-surface": appearanceTokens.surface,
-      "--app-surface-elevated": appearanceTokens.surfaceElevated,
-      "--app-text-primary": appearanceTokens.textPrimary,
-      "--app-text-secondary": appearanceTokens.textSecondary,
-      "--app-border": appearanceTokens.border,
-      "--app-accent": appearanceTokens.accent,
-      "--app-accent-soft": appearanceTokens.accentSoft,
-      "--app-accent-contrast": appearanceTokens.accentContrast,
-      "--app-danger": appearanceTokens.danger,
-      "--app-success": appearanceTokens.success,
-    } as const;
+    const variables = getAppearanceCssVariables(appearanceTokens);
     const previous = Object.fromEntries(
       Object.keys(variables).map((name) => [name, root.style.getPropertyValue(name)]),
     );
@@ -1688,17 +1679,7 @@ export function CampusAppShell({ initialLocation }: CampusAppShellProps) {
     "--campus-primary": campusTheme.primary,
     "--campus-secondary": campusTheme.secondary,
     "--campus-accent": campusTheme.accent,
-    "--app-background": appearanceTokens.background,
-    "--app-surface": appearanceTokens.surface,
-    "--app-surface-elevated": appearanceTokens.surfaceElevated,
-    "--app-text-primary": appearanceTokens.textPrimary,
-    "--app-text-secondary": appearanceTokens.textSecondary,
-    "--app-border": appearanceTokens.border,
-    "--app-accent": appearanceTokens.accent,
-    "--app-accent-soft": appearanceTokens.accentSoft,
-    "--app-accent-contrast": appearanceTokens.accentContrast,
-    "--app-danger": appearanceTokens.danger,
-    "--app-success": appearanceTokens.success,
+    ...getAppearanceCssVariables(appearanceTokens),
     colorScheme: appearanceTokens.colorScheme,
   } as CSSProperties;
 

@@ -1,5 +1,7 @@
 import type {
   ContentReport,
+  ContentPoll,
+  ContentPollInput,
   SharedSocialContent,
   SocialContentPrivacy,
 } from "@/types/content";
@@ -17,6 +19,8 @@ export type Mint = SharedSocialContent & {
   repostCount?: number;
   archivedAt: string | null;
   isDevelopment: boolean;
+  poll?: ContentPoll | null;
+  taggedOrganizations?: Array<{ id: string; name: string }>;
   /** Development fixture release boundary used to exercise finite refresh. */
   developmentFeedGeneration?: number;
 };
@@ -132,5 +136,5 @@ export type MintReport = ContentReport & { targetType: "mint" };
 
 export type CreateMintInput = Omit<
   Mint,
-  "id" | "createdAt" | "updatedAt" | "likeCount" | "viewCount" | "commentCount" | "saveCount" | "shareCount" | "status" | "archivedAt"
->;
+  "id" | "createdAt" | "updatedAt" | "likeCount" | "viewCount" | "commentCount" | "saveCount" | "shareCount" | "status" | "archivedAt" | "poll" | "taggedOrganizations"
+> & { poll?: ContentPollInput | null };

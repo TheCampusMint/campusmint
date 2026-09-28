@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { configuredUniversityIds, type UniversityId } from "@/data/universities";
+import { configuredUniversityIds, universities, type UniversityId } from "@/data/universities";
 import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig, hasSupabaseServerConfig } from "@/lib/supabase/server";
-import type { ContentLocation, EventContentData, MusicMetadata, OrganizationContentAudience, SocialContentPrivacy, SocialPostType } from "@/types/content";
+import type { ContentLocation, ContentPoll, ContentPollInput, EventContentData, MusicMetadata, OrganizationContentAudience, SocialContentPrivacy, SocialPostType } from "@/types/content";
 import type { Mint } from "@/types/mint";
 import type { MintFeedResponse, MintPublishResponse } from "@/types/mintPersistence";
 import type { CampusMintUser, ProfilePrivacySettings } from "@/types/profile";
@@ -10,6 +10,7 @@ import type { AccountCapability } from "@/types/accountCapabilities";
 import { launchPublishedMediaPolicy } from "@/lib/content/mediaPolicy";
 import { mintMediaFormats as mediaMimeTypes, matchesMintMediaSignature, validateMintStoredObject, validateMintUploadFiles, type MintUploadObject } from "@/lib/content/mintUploadPolicy";
 import { createMintUploadTicket, verifyMintUploadTicket } from "@/lib/content/mintUploadTicket";
+import { createPollDefinition, validatePollInput } from "@/lib/content/polls";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +46,7 @@ type RawPublishPayload = {
   taggedUserIds?: unknown;
   music?: unknown;
   mediaMetadata?: unknown;
+  poll?: unknown;
 };
 
 type ValidatedPublishPayload = {
@@ -63,6 +65,7 @@ type ValidatedPublishPayload = {
   mentionedUserIds: string[];
   taggedUserIds: string[];
   music: MusicMetadata | null;
+  poll: ContentPollInput | null;
   mediaMetadata: Array<{
     width: number | null;
     height: number | null;
@@ -188,6 +191,14 @@ function validatePayload(value: unknown): { value: ValidatedPublishPayload | nul
   const mentionedUserIds = Array.isArray(raw.mentions)
     ? uuidArray(raw.mentions.map((item) => item && typeof item === "object" ? (item as Record<string, unknown>).userId : null), 30)
     : [];
+  let poll: ContentPollInput | null;
+  try { poll = validatePollInput(raw.poll); }
+  catch (error) { return { value: null, message: error instanceof Error ? error.message : "The poll is invalid." }; }
+  const eventData = parseEventData(raw.eventData);
+  if (raw.eventData && !eventData) return { value: null, message: "Choose a valid event attachment." };
+  if ((eventData?.eventId && !uuidPattern.test(eventData.eventId)) || (postType !== "event" && eventData && !eventData.eventId)) {
+    return { value: null, message: "Choose an existing campus event to attach." };
+  }
   return {
     value: {
       requestId,
@@ -197,7 +208,7 @@ function validatePayload(value: unknown): { value: ValidatedPublishPayload | nul
       expiresAt,
       commentsEnabled: raw.commentsEnabled !== false,
       location: parseLocation(raw.location),
-      eventData: parseEventData(raw.eventData),
+      eventData,
       organizationId,
       taggedOrganizationIds: uuidArray(raw.taggedOrganizationIds, 20),
       organizationAudience,
@@ -206,6 +217,7 @@ function validatePayload(value: unknown): { value: ValidatedPublishPayload | nul
       taggedUserIds: uuidArray(raw.taggedUserIds, 30),
       // Music attachment is unavailable until provider rights are in place.
       music: null,
+      poll,
       mediaMetadata: parseMediaMetadata(raw.mediaMetadata),
     },
     message: null,
@@ -308,7 +320,7 @@ async function loadMintFeed(
   if (viewerError || !viewerIdentity) throw viewerError ?? new Error("Verified profile identity is missing.");
 
   let contentQuery = admin.from("social_content")
-    .select("id,author_id,university_id,campus_network_id,content_type,post_type,caption,location_id,event_details_id,music_provider,music_track_id,music_track_title,music_artist,music_artwork_url,music_preview_url,comments_enabled,likes_visible,status,expires_at,created_at,updated_at,organization_id,organization_audience")
+    .select("id,author_id,university_id,campus_network_id,content_type,post_type,caption,location_id,event_details_id,music_provider,music_track_id,music_track_title,music_artist,music_artwork_url,music_preview_url,comments_enabled,likes_visible,status,expires_at,created_at,updated_at,organization_id,organization_audience,poll_definition")
     .eq("kind", "mint")
     .eq("status", "active")
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
@@ -323,7 +335,7 @@ async function loadMintFeed(
   const locationIds = (contentRows ?? []).flatMap((row) => row.location_id ? [row.location_id] : []);
   const eventDetailsIds = (contentRows ?? []).flatMap((row) => row.event_details_id ? [row.event_details_id] : []);
 
-  const [mintResult, mediaResult, hashtagResult, mentionResult, tagResult, locationResult, eventResult, membershipResult, followResult, friendshipResult, blockResult] = await Promise.all([
+  const [mintResult, mediaResult, hashtagResult, mentionResult, tagResult, locationResult, eventResult, membershipResult, followResult, friendshipResult, blockResult, organizationTagResult, authorPrivacyResult] = await Promise.all([
     admin.from("mints").select("content_id,privacy,archived_at").in("content_id", contentIds),
     admin.from("content_media").select("id,content_id,media_type,storage_path,thumbnail_storage_path,width,height,duration_seconds,sort_order,mime_type,byte_size").in("content_id", contentIds).order("sort_order"),
     admin.from("content_hashtags").select("content_id,hashtag_normalized").in("content_id", contentIds),
@@ -335,21 +347,25 @@ async function loadMintFeed(
     admin.from("profile_follows").select("follower_id,following_id").or(`follower_id.eq.${viewerId},following_id.eq.${viewerId}`),
     admin.from("friendships").select("requester_id,addressee_id,status").or(`requester_id.eq.${viewerId},addressee_id.eq.${viewerId}`).eq("status", "friends"),
     admin.from("profile_blocks").select("blocker_id,blocked_id").or(`blocker_id.eq.${viewerId},blocked_id.eq.${viewerId}`),
+    admin.from("content_tagged_organizations").select("content_id,organization_id").in("content_id", contentIds),
+    admin.from("profiles").select("user_id,social_account_type").in("user_id", [...new Set((contentRows ?? []).map((row) => row.author_id))]),
   ]);
-  for (const result of [mintResult, mediaResult, hashtagResult, mentionResult, tagResult, locationResult, eventResult, membershipResult, followResult, friendshipResult, blockResult]) {
+  for (const result of [mintResult, mediaResult, hashtagResult, mentionResult, tagResult, locationResult, eventResult, membershipResult, followResult, friendshipResult, blockResult, organizationTagResult, authorPrivacyResult]) {
     if (result.error) throw result.error;
   }
 
   const mintById = new Map((mintResult.data ?? []).map((row) => [row.content_id, row]));
+  const authorPrivacyById = new Map((authorPrivacyResult.data ?? []).map((row) => [row.user_id, row.social_account_type]));
   const blockedIds = new Set((blockResult.data ?? []).map((row) => row.blocker_id === viewerId ? row.blocked_id : row.blocker_id));
   const connectedIds = new Set<string>();
   (followResult.data ?? []).forEach((row) => connectedIds.add(row.follower_id === viewerId ? row.following_id : row.follower_id));
   (friendshipResult.data ?? []).forEach((row) => connectedIds.add(row.requester_id === viewerId ? row.addressee_id : row.requester_id));
   const memberOrganizationIds = new Set((membershipResult.data ?? []).map((row) => row.organization_id));
-  const visibleRows = (contentRows ?? []).filter((row) => {
+  let visibleRows = (contentRows ?? []).filter((row) => {
     const mint = mintById.get(row.id);
     if (!mint || mint.archived_at || blockedIds.has(row.author_id)) return false;
     if (row.author_id === viewerId) return true;
+    if (!authorPrivacyById.has(row.author_id) || (authorPrivacyById.get(row.author_id) === "private" && !connectedIds.has(row.author_id))) return false;
     if (row.organization_audience === "members" && row.organization_id && !memberOrganizationIds.has(row.organization_id)) return false;
     if (mint.privacy === "public") return true;
     if (mint.privacy === "connections") return connectedIds.has(row.author_id);
@@ -357,6 +373,25 @@ async function loadMintFeed(
     return Boolean(row.university_id && viewerIdentity.university_id && row.university_id === viewerIdentity.university_id);
   });
   const visibleIds = new Set(visibleRows.map((row) => row.id));
+  const taggedOrganizationIds = [...new Set((organizationTagResult.data ?? []).filter((row) => visibleIds.has(row.content_id)).map((row) => row.organization_id))];
+  const taggedOrganizationNames = new Map<string, string>();
+  if (taggedOrganizationIds.length > 0) {
+    const { data, error } = await admin.from("organizations").select("id,name").in("id", taggedOrganizationIds)
+      .eq("status", "active").eq("is_development", false).in("official_status", ["university_verified", "community_verified"])
+      .in("confidence_level", ["official", "community_verified"]);
+    if (error) throw error;
+    (data ?? []).forEach((row) => taggedOrganizationNames.set(row.id, row.name));
+  }
+  const polls = new Map<string, ContentPoll>();
+  await Promise.all(visibleRows.filter((row) => row.poll_definition).map(async (row) => {
+    const { data, error } = await admin.rpc("read_mint_poll", { target_content_id: row.id, viewer_id: viewerId });
+    // Privacy or expiry can change after the initial feed query. Hide that one
+    // post instead of leaking its media or failing the rest of the feed.
+    if (error?.code === "P0002") { visibleIds.delete(row.id); return; }
+    if (error) throw error;
+    if (data) polls.set(row.id, data as ContentPoll);
+  }));
+  visibleRows = visibleRows.filter((row) => visibleIds.has(row.id));
   const visibleMedia = (mediaResult.data ?? []).filter((row) => visibleIds.has(row.content_id));
   const mediaUrls = await signedMediaUrls(admin, visibleMedia);
   const authorIds = [...new Set(visibleRows.map((row) => row.author_id))];
@@ -419,6 +454,7 @@ async function loadMintFeed(
       postType: row.post_type,
       media: mappedMedia,
       caption: row.caption,
+      poll: polls.get(row.id) ?? null,
       hashtags: (hashtagResult.data ?? []).filter((item) => item.content_id === row.id).map((item) => item.hashtag_normalized),
       mentions: (mentionResult.data ?? []).filter((item) => item.content_id === row.id).flatMap((item) => {
         const mentioned = authorById.get(item.mentioned_user_id);
@@ -445,12 +481,16 @@ async function loadMintFeed(
         eventStartAt: eventRow.event_start_at,
         eventEndAt: eventRow.event_end_at,
         timeZone: eventRow.event_timezone,
-        location: null,
+        location: eventRow.location_id === row.location_id ? mappedLocation : null,
         locationDetails: eventRow.location_details,
         description: eventRow.description,
       } : null,
       organizationId: row.organization_id,
-      taggedOrganizationIds: [],
+      taggedOrganizationIds: (organizationTagResult.data ?? []).filter((item) => item.content_id === row.id).map((item) => item.organization_id),
+      taggedOrganizations: (organizationTagResult.data ?? []).filter((item) => item.content_id === row.id).flatMap((item) => {
+        const name = taggedOrganizationNames.get(item.organization_id);
+        return name ? [{ id: item.organization_id, name }] : [];
+      }),
       organizationAudience: row.organization_audience,
       status: row.status,
       privacy: mint.privacy,
@@ -574,7 +614,7 @@ export async function POST(request: Request) {
     totalBytes += file.size;
   }
   if (totalBytes > maxRequestMediaBytes) return json<MintPublishResponse>({ ok: false, message: "The selected media exceeds the 150 MB total upload limit.", retryable: false }, 413);
-  if (files.length + directMedia.length + preparedFiles.length === 0 && !payload.caption && !payload.eventData?.title && !payload.eventData?.description) {
+  if (files.length + directMedia.length + preparedFiles.length === 0 && !payload.caption && !payload.poll && !payload.eventData?.eventId && !payload.eventData?.title && !payload.eventData?.description) {
     return json<MintPublishResponse>({ ok: false, message: "Add text or media before publishing.", retryable: false }, 400);
   }
 
@@ -610,12 +650,40 @@ export async function POST(request: Request) {
     if (networkError) throw networkError;
     if (verifiedStudent && !network) return json<MintPublishResponse>({ ok: false, message: "Your university does not have a publishing network yet.", retryable: false }, 409);
 
+    if (payload.taggedOrganizationIds.length > 0) {
+      const accessibleCampuses = universities[identity.university_id as UniversityId]?.accessibleCampuses ?? [];
+      const { data: organizations, error } = await admin.from("organizations").select("id")
+        .in("id", payload.taggedOrganizationIds).in("university_id", accessibleCampuses)
+        .eq("status", "active").eq("is_development", false).in("official_status", ["university_verified", "community_verified"])
+        .in("confidence_level", ["official", "community_verified"]);
+      if (error) throw error;
+      if (organizations?.length !== payload.taggedOrganizationIds.length) return json<MintPublishResponse>({ ok: false, message: "A selected Club is no longer available. Update your Club attachment.", retryable: false }, 400);
+    }
+
+    if (payload.eventData?.eventId) {
+      const accessibleCampuses = universities[identity.university_id as UniversityId]?.accessibleCampuses ?? [];
+      const { data: event, error: eventError } = await admin.from("campus_events")
+        .select("id,title,starts_at,ends_at,timezone,location_name,brief_description,campus_id,status")
+        .eq("id", payload.eventData.eventId).in("campus_id", accessibleCampuses)
+        .in("status", ["scheduled", "updated"]).maybeSingle();
+      if (eventError) throw eventError;
+      if (!event || !Number.isFinite(Date.parse(event.ends_at ?? event.starts_at)) || Date.parse(event.ends_at ?? event.starts_at) <= Date.now()) {
+        return json<MintPublishResponse>({ ok: false, message: "That campus event is no longer available. Choose another event.", retryable: false }, 400);
+      }
+      payload.eventData = {
+        eventId: event.id, title: event.title, eventStartAt: event.starts_at, eventEndAt: event.ends_at,
+        timeZone: event.timezone, location: { source: "event", entityId: event.id, label: event.location_name, details: null },
+        locationDetails: null, description: event.brief_description,
+      };
+    }
+
     if (payload.organizationId) {
       const { data: publishingRole, error: roleError } = await admin.from("organization_roles")
         .select("id")
         .eq("organization_id", payload.organizationId)
         .eq("user_id", user.id)
         .eq("can_publish", true)
+        .limit(1)
         .maybeSingle();
       if (roleError) throw roleError;
       if (!publishingRole) return json<MintPublishResponse>({ ok: false, message: "You are not authorized to publish for that Club.", retryable: false }, 403);
@@ -673,7 +741,7 @@ export async function POST(request: Request) {
         uploaded.push({ storagePath, mediaType: accepted.type, mimeType: file.type, byteSize: file.size, sortOrder });
       }
 
-      const location = payload.postType === "event" ? payload.eventData?.location ?? null : payload.location;
+      const location = payload.postType === "event" ? payload.eventData?.location ?? null : payload.location ?? payload.eventData?.location ?? null;
       if (location) {
         const { data, error } = await admin.from("content_locations").insert({
           source: location.source,
@@ -686,7 +754,7 @@ export async function POST(request: Request) {
         if (error) throw error;
         locationId = data.id;
       }
-      if (payload.postType === "event" && payload.eventData) {
+      if (payload.eventData) {
         const { data, error } = await admin.from("content_event_details").insert({
           canonical_event_key: payload.eventData.eventId,
           title: payload.eventData.title,
@@ -710,6 +778,7 @@ export async function POST(request: Request) {
         content_type: contentType,
         post_type: payload.postType,
         caption: payload.caption,
+        poll_definition: payload.poll ? createPollDefinition(payload.poll) : null,
         location_id: locationId,
         event_details_id: eventDetailsId,
         music_provider: payload.music?.provider ?? null,

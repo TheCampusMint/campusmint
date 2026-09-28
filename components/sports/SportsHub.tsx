@@ -61,7 +61,7 @@ function ScheduleRow({ game, program, currentTime, onOpen }: { game: CampusSched
       </div>
       {live && game.campusScore !== null && game.opponentScore !== null ? (
         <div className="shrink-0 text-right">
-          <span className="block text-[9px] font-black uppercase tracking-wide text-red-600">
+          <span className="block text-[9px] font-black uppercase tracking-wide text-[var(--app-urgent)]">
             Live
           </span>
           <strong className="text-sm tabular-nums text-slate-950">
@@ -281,7 +281,7 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
             Live / Current
           </h2>
           {liveGames.length > 0 && (
-            <span className="rounded-full bg-red-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-red-600">
+            <span className="rounded-full bg-[var(--app-urgent-soft)] px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[var(--app-urgent)]">
               Live
             </span>
           )}
@@ -289,12 +289,12 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
         {liveGames.length > 0 ? (
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
             {liveGames.map((game) => (
-              <button type="button" key={game.id} onClick={() => { selectSport(game.sport); setSelectedGameId(game.id); }} className="min-w-56 rounded-2xl bg-slate-950 p-3 text-left text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]">
-                <p className="text-[9px] font-black uppercase tracking-wide text-white/55">
+              <button type="button" key={game.id} onClick={() => { selectSport(game.sport); setSelectedGameId(game.id); }} className="min-w-56 rounded-2xl bg-[var(--app-urgent-soft)] p-3 text-left text-[var(--app-urgent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]">
+                <p className="text-[9px] font-black uppercase tracking-wide">
                   {launchCampusSports.find((sport) => sport.id === game.sport)?.label}
                 </p>
                 <p className="mt-1 font-black">{game.opponentName}</p>
-                <p className="mt-1 text-xs text-white/70">{game.liveDetail}</p>
+                <p className="mt-1 text-xs text-[var(--app-text-secondary)]">{game.liveDetail}</p>
               </button>
             ))}
           </div>

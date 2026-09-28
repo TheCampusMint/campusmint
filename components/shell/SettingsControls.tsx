@@ -15,7 +15,7 @@ export function ToggleRow({ label, description, checked, onChange }: ToggleRowPr
         {description && <span className="mt-0.5 block text-xs leading-5 text-slate-500">{description}</span>}
       </span>
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="peer sr-only" />
-      <span aria-hidden="true" className="relative h-7 w-12 shrink-0 rounded-full bg-slate-200 transition after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-[var(--app-accent)] peer-checked:after:translate-x-5 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--app-accent)]" />
+      <span aria-hidden="true" className="relative h-7 w-12 shrink-0 rounded-full bg-[var(--app-border)] transition after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-[var(--app-surface)] after:transition-transform peer-checked:bg-[var(--app-accent)] peer-checked:after:translate-x-5 peer-checked:after:bg-[var(--app-accent-contrast)] peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--app-accent)]" />
     </label>
   );
 }

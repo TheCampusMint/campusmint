@@ -339,7 +339,7 @@ export function BottomBubbleNav({
           padding: notchInset,
           transition: reducedMotion
             ? "none"
-            : `height ${motion.duration.standard}ms ${motion.easing.settle}, padding ${motion.duration.standard}ms ${motion.easing.settle}, box-shadow ${motion.duration.fast}ms ease`,
+            : `height ${motion.duration.standard}ms ${motion.easing.settle}, padding ${motion.duration.standard}ms ${motion.easing.settle}`,
           touchAction: "pan-y",
           background: "var(--app-surface)",
         }}
@@ -454,9 +454,9 @@ export function BottomBubbleNav({
           })}
         </div>
         <button type="button" onClick={onExpand} aria-label="Expand navigation" className="absolute inset-0 z-20 flex items-center justify-center gap-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]" style={{ opacity: dots ? 1 : 0, pointerEvents: dots ? "auto" : "none", transition: reducedMotion ? "none" : `opacity ${motion.duration.fast}ms ease` }}>
-          <span className="h-1.5 w-1.5 rounded-full bg-slate-700 transition-opacity" style={{ opacity: dotAvailability.hasPrevious ? (swipeProgress > 0.08 ? 0.95 : 0.55) : 0.18 }} aria-hidden="true" />
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--app-text-secondary)] transition-opacity" style={{ opacity: dotAvailability.hasPrevious ? (swipeProgress > 0.08 ? 0.95 : 0.55) : 0.18 }} aria-hidden="true" />
           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "var(--app-accent)" }} aria-hidden="true" />
-          <span className="h-1.5 w-1.5 rounded-full bg-slate-700 transition-opacity" style={{ opacity: dotAvailability.hasNext ? (swipeProgress < -0.08 ? 0.95 : 0.55) : 0.18 }} aria-hidden="true" />
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--app-text-secondary)] transition-opacity" style={{ opacity: dotAvailability.hasNext ? (swipeProgress < -0.08 ? 0.95 : 0.55) : 0.18 }} aria-hidden="true" />
         </button>
       </div>
     </nav>

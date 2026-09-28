@@ -1,5 +1,6 @@
-export const appearanceSchemes = ["light", "dark"] as const;
+export const appearanceSchemes = ["light", "dark", "colorful"] as const;
 export type AppearanceScheme = (typeof appearanceSchemes)[number];
+export type SurfaceScheme = "light" | "dark";
 
 export const appearanceAccentSources = ["brand", "campus", "curated"] as const;
 export type AppearanceAccentSource = (typeof appearanceAccentSources)[number];

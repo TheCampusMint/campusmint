@@ -13,6 +13,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { CloseButton } from "@/components/ui/CloseButton";
+import { SearchableSelector } from "@/components/content/SearchableSelector";
 import { sampleEvents } from "@/data/events";
 import { developmentOrganizations } from "@/data/organizations";
 import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
@@ -44,6 +45,7 @@ import {
 import { canPostAsOrganization } from "@/lib/organizationPermissions";
 import type { MintDraft, MintDraftInput } from "@/lib/content/mintDrafts";
 import { restoreMintDraftMedia } from "@/lib/content/mintDraftStore";
+import { mintPublishIntent, nextMintPublishAttempt, restoreMintPublishAttempt } from "@/lib/content/mintPublishIntent";
 import { useModalLayer } from "@/hooks/useModalLayer";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { motion } from "@/lib/motion/interaction";
@@ -57,6 +59,12 @@ import type {
 import type { OrganizationMembership, OrganizationRoleAssignment } from "@/types/organization";
 import type { CreateMintInput } from "@/types/mint";
 import type { CampusMintUser } from "@/types/profile";
+
+type ComposerKind = "post" | "poll" | "event";
+type ComposerContext = {
+  clubs: Array<{ id: string; name: string; canPublish: boolean }>;
+  events: Array<{ id: string; title: string; startAt: string; location: string }>;
+};
 
 type CreateContentFlowProps = {
   viewer: CampusMintUser;
@@ -83,14 +91,16 @@ type CreateContentFlowProps = {
   onDeleteDraft?: (draftId: string) => Promise<void>;
 };
 
-const fieldClass = "mt-1 min-w-0 max-w-full w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-elevated)] px-3 py-2.5 text-base text-[var(--app-text-primary)] placeholder:text-[var(--app-text-secondary)] outline-none transition focus:border-[var(--app-accent)] focus:ring-2 focus:ring-[var(--app-accent)]/30 sm:text-sm";
+const fieldClass = "mt-1 min-w-0 max-w-full w-full rounded-2xl border-0 bg-[var(--app-surface-elevated)] px-3 py-2.5 text-base text-[var(--app-text-primary)] placeholder:text-[var(--app-text-secondary)] outline-none sm:text-sm";
 
 export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose, organizationMemberships, organizationRoles, defaultCommentsEnabled = true, highQualityUploads = false, selectedMedia, mediaError, mediaPreparing = false, onChooseMedia, onClearMedia, onRestoreMedia, drafts = [], onSaveDraft, onDeleteDraft }: CreateContentFlowProps) {
   const internalFileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const captionTextareaRef = useRef<HTMLTextAreaElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const closeTimerRef = useRef<number | null>(null);
   const publishRequestIdRef = useRef(globalThis.crypto.randomUUID());
+  const attemptedIntentRef = useRef<string | null>(null);
   const reducedMotion = useReducedMotion();
   const [closing, setClosing] = useState(false);
   const [internalMedia, setInternalMedia] = useState<LocalMintMediaSelection[]>([]);
@@ -99,6 +109,17 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [postType, setPostType] = useState<SocialPostType>("personal");
+  const [composerKind, setComposerKind] = useState<ComposerKind | null>(null);
+  const [eventMode, setEventMode] = useState<"rollcall" | "host">("rollcall");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [contextKind, setContextKind] = useState<"club" | "event" | "location" | "settings" | null>(null);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
+  const [contextCatalog, setContextCatalog] = useState<ComposerContext | null>(null);
+  const [contextError, setContextError] = useState(false);
+  const [contextLoading, setContextLoading] = useState(!viewer.account.isDevelopment);
+  const [contextAttempt, setContextAttempt] = useState(0);
+  const [viewport, setViewport] = useState<{ height: number; top: number } | null>(null);
   const [caption, setCaption] = useState("");
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [commentsEnabled, setCommentsEnabled] = useState(defaultCommentsEnabled);
@@ -124,13 +145,13 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   const restoredUrlsRef = useRef<string[]>([]);
 
   const requestClose = useCallback(() => {
-    if (closing || submitting || draftBusy) return;
+    if (closing || submitting || draftBusy || mediaPreparing || internalMediaPreparing) return;
     setClosing(true);
     closeTimerRef.current = window.setTimeout(
       onClose,
       reducedMotion ? 0 : motion.duration.fast,
     );
-  }, [closing, onClose, reducedMotion, submitting, draftBusy]);
+  }, [closing, onClose, reducedMotion, submitting, draftBusy, mediaPreparing, internalMediaPreparing]);
 
   const closeAfterPublish = useCallback(() => {
     setClosing(true);
@@ -142,6 +163,25 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
 
   useModalLayer(dialogRef, requestClose);
 
+  useEffect(() => {
+    const update = () => setViewport({ height: window.visualViewport?.height ?? window.innerHeight, top: window.visualViewport?.offsetTop ?? 0 });
+    update();
+    window.visualViewport?.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("scroll", update);
+    return () => { window.visualViewport?.removeEventListener("resize", update); window.visualViewport?.removeEventListener("scroll", update); };
+  }, []);
+
+  useEffect(() => {
+    if (viewer.account.isDevelopment) return;
+    const controller = new AbortController();
+    fetch("/api/mintz/context", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => { if (!response.ok) throw new Error("Context unavailable"); return response.json(); })
+      .then((payload: ComposerContext & { ok?: boolean }) => { if (controller.signal.aborted) return; if (!payload.ok) throw new Error("Context unavailable"); setContextCatalog(payload); })
+      .catch(() => { if (!controller.signal.aborted) setContextError(true); })
+      .finally(() => { if (!controller.signal.aborted) setContextLoading(false); });
+    return () => controller.abort();
+  }, [viewer.account.id, viewer.account.isDevelopment, contextAttempt]);
+
   useEffect(() => () => {
     restoredUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     if (closeTimerRef.current !== null) {
@@ -150,9 +190,9 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   }, []);
   const controlledMedia = selectedMedia !== undefined;
   const activeMedia = controlledMedia ? selectedMedia : internalMedia;
-  const activeMediaError = controlledMedia ? mediaError : internalMediaError;
+  const activeMediaError = (controlledMedia ? mediaError : null) ?? internalMediaError;
   const activeMediaPreparing = controlledMedia
-    ? mediaPreparing
+    ? mediaPreparing || internalMediaPreparing
     : internalMediaPreparing;
   const media = activeMedia.map((item) => item.media);
   const contentType = getMintContentType(media);
@@ -167,12 +207,12 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       )
     : null;
 
-  const availableEvents = sampleEvents.filter(
+  const availableEvents = viewer.account.isDevelopment ? sampleEvents.filter(
     (event) =>
       theme.accessibleCampuses.includes(
         event.campus,
       ),
-  );
+  ).map((event) => ({ id: event.id, title: event.title, startAt: event.eventStartAt, location: event.location })) : contextCatalog?.events ?? [];
 
   const availableBuildings =
     configuredUniversityId
@@ -192,8 +232,8 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
         }
       : null;
 
-  const availableOrganizations =
-    configuredUniversityId
+  const developmentClubs =
+    configuredUniversityId && viewer.account.isDevelopment
       ? (areDevelopmentFixturesEnabled() ? developmentOrganizations : []).filter(
           (organization) =>
             organization.universityId ===
@@ -201,18 +241,10 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
         )
       : [];
 
-  const postableOrganizations =
-    organizationActor
-      ? availableOrganizations.filter(
-          (organization) =>
-            canPostAsOrganization(
-              organizationActor,
-              organization,
-              organizationMemberships,
-              organizationRoles,
-            ),
-        )
-      : [];
+  const availableOrganizations = viewer.account.isDevelopment
+    ? developmentClubs.map((organization) => ({ id: organization.id, name: organization.name, canPublish: Boolean(organizationActor && canPostAsOrganization(organizationActor, organization, organizationMemberships, organizationRoles)) }))
+    : contextCatalog?.clubs ?? [];
+  const postableOrganizations = availableOrganizations.filter((organization) => organization.canPublish);
   const selectedOrganization = postableOrganizations.find((organization) => organization.id === selectedOrganizationId) ?? null;
 
   const mentionMatches = useMemo(
@@ -238,7 +270,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   }
 
   function resolvedEventData(): EventContentData | null {
-    if (postType !== "event") return null;
+    if (postType !== "event" && !existingEventId) return null;
     const eventTimeZone =
       getAccountUniversityTheme(
         viewer.account,
@@ -291,7 +323,8 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     setInternalMediaPreparing(true);
     setInternalMediaError(null);
     const prepared = await prepareLocalMintMedia(files, highQualityUploads);
-    setInternalMedia(prepared.accepted);
+    if (controlledMedia) onRestoreMedia?.(prepared.accepted);
+    else setInternalMedia(prepared.accepted);
     setInternalMediaPreparing(false);
 
     if (prepared.rejectedFileNames.length > 0) {
@@ -328,10 +361,18 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     restoredUrlsRef.current = restored.flatMap((item) => item.media.url ? [item.media.url] : []);
     if (controlledMedia) onRestoreMedia?.(restored);
     else setInternalMedia(restored);
-    publishRequestIdRef.current = draft.publishRequestId ?? globalThis.crypto.randomUUID();
+    const attempt = restoreMintPublishAttempt(draft);
+    publishRequestIdRef.current = attempt.requestId;
+    attemptedIntentRef.current = attempt.intent;
     setActiveDraftId(draft.id);
     setCaption(draft.caption);
     setPostType(draft.postType);
+    setComposerKind(draft.composerKind ?? (draft.postType === "event" ? "event" : "post"));
+    setEventMode(draft.eventMode ?? (draft.postType === "event" && !draft.existingEventId ? "host" : "rollcall"));
+    setPollQuestion(draft.pollQuestion ?? "");
+    setPollOptions(draft.pollOptions ?? ["", ""]);
+    setMoreOpen(false);
+    setContextKind(draft.taggedOrganizationId ? "club" : draft.existingEventId ? "event" : null);
     setCommentsEnabled(draft.commentsEnabled);
     setPrivacy(draft.privacy);
     setDurationHours(draft.durationHours);
@@ -353,30 +394,18 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     setDraftsOpen(false);
     setDraftNotice(draft.mediaCount > restored.length
       ? `This older draft saved file names only. Reselect ${draft.mediaFileNames.join(", ") || "your media"} before publishing.`
-      : "Draft reopened.");
+      : attempt.uncertainLegacyAttempt ? "Draft reopened. If an earlier posting attempt was interrupted, check your feed before posting again." : "Draft reopened.");
     setDraftBusy(false);
   }
 
-  async function saveCurrentDraft() {
-    if (!onSaveDraft || draftBusy || activeMediaPreparing) return false;
-    const hasContent = Boolean(
-      caption.trim() ||
-      activeMedia.length > 0 ||
-      eventTitle.trim() ||
-      eventDescription.trim() ||
-      existingEventId,
-    );
-    if (!hasContent) {
-      setSubmitError("Add text, an event detail, or media before saving a draft.");
-      return false;
-    }
-    setDraftBusy(true);
-    try {
-    const saved = await onSaveDraft({
-      id: activeDraftId,
-      publishRequestId: publishRequestIdRef.current,
+  function currentDraftFields(): MintDraftInput {
+    return {
       caption,
       postType,
+      composerKind: composerKind ?? "post",
+      eventMode,
+      pollQuestion,
+      pollOptions,
       commentsEnabled,
       privacy,
       durationHours,
@@ -395,6 +424,29 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       organizationAudience,
       mediaFileNames: activeMedia.map((item) => item.fileName),
       mediaCount: activeMedia.length,
+    };
+  }
+
+  async function saveCurrentDraft() {
+    if (!onSaveDraft || draftBusy || activeMediaPreparing) return false;
+    const hasContent = Boolean(
+      caption.trim() ||
+      activeMedia.length > 0 ||
+      eventTitle.trim() ||
+      eventDescription.trim() ||
+      existingEventId || pollQuestion.trim(),
+    );
+    if (!hasContent) {
+      setSubmitError("Add text, an event detail, or media before saving a draft.");
+      return false;
+    }
+    setDraftBusy(true);
+    try {
+    const saved = await onSaveDraft({
+      ...currentDraftFields(),
+      id: activeDraftId,
+      publishRequestId: attemptedIntentRef.current ? publishRequestIdRef.current : undefined,
+      publishIntent: attemptedIntentRef.current ?? undefined,
     }, activeMedia);
     setActiveDraftId(saved.id);
     setSubmitError(null);
@@ -410,18 +462,24 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (submitting || draftBusy) return;
+    if (submitting || draftBusy || activeMediaPreparing || !composerKind) return;
     setSubmitError(null);
 
-    const hasEventDetails =
-      postType === "event" &&
-      Boolean(
-        existingEventId ||
-          eventTitle.trim() ||
-          eventDescription.trim(),
-      );
+    const hasEventDetails = Boolean(existingEventId || (postType === "event" && (eventTitle.trim() || eventDescription.trim())));
 
-    if (media.length === 0 && !caption.trim() && !hasEventDetails) {
+    if (composerKind === "poll" && (!pollQuestion.trim() || pollOptions.filter((option) => option.trim()).length < 2)) {
+      setSubmitError("Add a question and at least two choices.");
+      return;
+    }
+    if (postType === "event" && !existingEventId && (!eventTitle.trim() || !eventDate || !eventStartTime || !eventLocation.trim())) {
+      setSubmitError("Add your event title, date, time, and place.");
+      return;
+    }
+    if (composerKind === "event" && eventMode === "rollcall" && !existingEventId) {
+      setSubmitError("Choose the event for your roll call.");
+      return;
+    }
+    if (composerKind !== "poll" && media.length === 0 && !caption.trim() && !hasEventDetails) {
       setSubmitError("Add text or choose a photo or video before publishing.");
       return;
     }
@@ -443,10 +501,11 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     const location =
       postType === "event"
         ? eventData?.location ?? null
-        : postType === "club"
-          ? resolvedLocation()
-          : null;
+        : resolvedLocation();
 
+    const attempt = nextMintPublishAttempt(publishRequestIdRef.current, attemptedIntentRef.current, mintPublishIntent(currentDraftFields(), activeMedia));
+    publishRequestIdRef.current = attempt.requestId;
+    attemptedIntentRef.current = attempt.intent;
     setSubmitting(true);
     const result = await onCreateMint({
       publishFormat: "mint",
@@ -471,6 +530,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
 
       contentType,
       postType,
+      poll: composerKind === "poll" ? { question: pollQuestion.trim(), options: pollOptions.map((option) => option.trim()).filter(Boolean) } : null,
       media,
       caption: caption.trim(),
       hashtags: extractHashtagsFromCaption(caption),
@@ -514,373 +574,149 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     label: option.label,
   }));
 
+  const busy = submitting || draftBusy || activeMediaPreparing;
+  const ready = composerKind === "poll"
+    ? Boolean(pollQuestion.trim() && pollOptions.filter((option) => option.trim()).length >= 2)
+    : composerKind === "event" && eventMode === "host"
+      ? Boolean(eventTitle.trim() && eventDate && eventStartTime && eventLocation.trim())
+      : composerKind === "event"
+        ? Boolean(existingEventId)
+        : Boolean(caption.trim() || media.length || existingEventId);
+  const clubOptions = availableOrganizations.map((club) => ({ id: club.id, label: club.name }));
+  const eventOptions = availableEvents.map((event) => ({ id: event.id, label: event.title, detail: `${new Date(event.startAt).toLocaleDateString()} · ${event.location}` }));
+
+  function chooseKind(kind: ComposerKind) {
+    setComposerKind(kind);
+    setDraftsOpen(false);
+    setMoreOpen(false);
+    setSubmitError(null);
+    if (kind === "event" && eventMode === "host") setExistingEventId("");
+    setPostType(kind === "event" && eventMode === "host" ? "event" : selectedOrganizationId && kind !== "event" ? "club" : "personal");
+    if (kind === "event" && !caption.trim()) setCaption("Who’s going?");
+    window.requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLTextAreaElement | HTMLInputElement>("[data-composer-input]")?.focus());
+  }
+
   return createPortal(
-    <div
-      className={`cm-overlay-backdrop fixed inset-0 z-[90] flex items-end justify-center overflow-hidden bg-slate-950/55 sm:items-center sm:p-6 ${
-        closing ? "is-closing" : ""
-      }`}
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) requestClose();
-      }}
-    >
-      <section
-        ref={dialogRef}
-        tabIndex={-1}
-        className={`cm-panel-sheet cm-create-composer mx-auto max-h-[calc(100dvh-0.35rem)] w-full min-w-0 max-w-xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-t-[2rem] bg-[var(--app-surface)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-5 text-[var(--app-text-primary)] shadow-none sm:max-h-[90dvh] sm:max-w-3xl sm:rounded-2xl sm:p-7 ${
-          closing ? "is-closing" : ""
-        }`}
-        style={{ WebkitOverflowScrolling: "touch" }}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="create-content-title"
-      >
-        <div className="sticky -top-5 z-30 -mx-4 -mt-5 flex items-start justify-between gap-4 border-b border-[var(--app-border)] bg-[var(--app-surface)] px-4 pb-3 pt-5 sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: theme.primary }}>
-              {viewer.account.isDevelopment ? "Local development flow" : "Campus Mint publishing"}
-            </p>
-            <h2 id="create-content-title" className="mt-1 text-xl font-black sm:text-2xl">
-              Create Mint
-            </h2>
-          </div>
-          <CloseButton
-            onClick={requestClose}
-            data-initial-focus
-            label="Close Create Mint"
-          />
+    <div className={`cm-overlay-backdrop fixed inset-x-0 top-0 z-[90] flex h-dvh items-center justify-center bg-black/45 p-3 sm:p-6 ${closing ? "is-closing" : ""}`}
+      style={viewport ? { height: viewport.height, top: viewport.top } : undefined}
+      role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
+      <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="create-content-title"
+        className={`cm-panel-sheet cm-create-composer flex max-h-full w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-[1.75rem] bg-[var(--app-surface)] text-[var(--app-text-primary)] ${closing ? "is-closing" : ""}`}>
+        <header className="flex shrink-0 items-center gap-3 px-5 pb-3 pt-4">
+          {composerKind && <button type="button" aria-label="Back to post types" disabled={busy} onClick={() => setComposerKind(null)} className="rounded-full py-2 pr-1 text-xl">←</button>}
+          <h2 id="create-content-title" className="min-w-0 flex-1 text-lg font-bold">{draftsOpen ? "Drafts" : composerKind === "poll" ? "New poll" : composerKind === "event" ? "Share an event" : composerKind ? "New post" : "Create"}</h2>
+          {!draftsOpen && <button type="button" disabled={busy} onClick={() => setDraftsOpen(true)} className="rounded-full px-2 py-2 text-xs font-semibold text-[var(--app-accent)]">Drafts{drafts.length > 0 ? ` (${drafts.length})` : ""}</button>}
+          <CloseButton onClick={requestClose} data-initial-focus label="Close Create Mint" />
+        </header>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pb-4" style={{ WebkitOverflowScrolling: "touch" }}>
+          {draftsOpen ? <section aria-label="Saved drafts" className="space-y-2">
+            <p className="mb-3 text-xs text-[var(--app-text-secondary)]">Saved on this device, including your photos and videos.</p>
+            {drafts.length === 0 && <p className="py-6 text-sm text-[var(--app-text-secondary)]">No drafts yet.</p>}
+            {drafts.map((draft) => <div key={draft.id} className="flex items-center gap-3 rounded-2xl bg-[var(--app-surface-elevated)] p-3">
+              <button type="button" disabled={busy} onClick={() => void openDraft(draft)} className="min-w-0 flex-1 rounded-xl text-left">
+                <span className="block truncate text-sm font-semibold">{draft.pollQuestion?.trim() || draft.caption.trim() || draft.eventTitle.trim() || "Untitled draft"}</span>
+                <span className="text-xs text-[var(--app-text-secondary)]">{new Date(draft.updatedAt).toLocaleDateString()} · {draft.mediaCount ? `${draft.mediaCount} attachment${draft.mediaCount === 1 ? "" : "s"}` : "Text"}</span>
+              </button>
+              {onDeleteDraft && <button type="button" disabled={busy} aria-label={`Delete ${draft.caption.trim() || "untitled"} draft`} className="rounded-full p-2 text-xs text-[var(--app-text-secondary)]"
+                onClick={async () => { setDraftBusy(true); try { await onDeleteDraft(draft.id); if (activeDraftId === draft.id) setActiveDraftId(undefined); } catch { setSubmitError("Couldn’t delete this draft. Try again."); } finally { setDraftBusy(false); } }}>Delete</button>}
+            </div>)}
+            <button type="button" onClick={() => setDraftsOpen(false)} className="rounded-full py-2 text-sm font-semibold text-[var(--app-accent)]">Back to composer</button>
+          </section> : !composerKind ? <div className="space-y-1 pb-2">
+            {([
+              { id: "post", symbol: "Aa", label: "Post", detail: "A thought, a question, photos or video" },
+              { id: "poll", symbol: "☷", label: "Poll", detail: "Let your campus weigh in" },
+              { id: "event", symbol: "↗", label: "Event", detail: "See who’s going or plan something" },
+            ] as const).map((choice) => <button key={choice.id} type="button" onClick={() => chooseKind(choice.id)} className="flex w-full items-center gap-4 rounded-2xl px-2 py-4 text-left hover:bg-[var(--app-accent-soft)]">
+              <span aria-hidden="true" className="w-8 text-center text-xl font-semibold text-[var(--app-accent)]">{choice.symbol}</span>
+              <span><strong className="block text-base">{choice.label}</strong><span className="block text-xs text-[var(--app-text-secondary)]">{choice.detail}</span></span>
+            </button>)}
+          </div> : <form id="mint-composer-form" onSubmit={submit}>
+            <fieldset disabled={busy} className="min-w-0 space-y-4 disabled:pointer-events-none disabled:opacity-70">
+            <legend className="sr-only">Post details</legend>
+            <input ref={internalFileInputRef} type="file" accept="image/*,video/*" multiple hidden onChange={(event) => void selectInternalMedia(event)} />
+            <input ref={cameraInputRef} type="file" accept="image/*,video/*" capture="environment" hidden onChange={(event) => void selectInternalMedia(event)} />
+            {composerKind === "event" && <div className="flex gap-2 text-sm">
+              {([ ["rollcall", "Event roll call"], ["host", "New event"] ] as const).map(([mode, label]) => <button key={mode} type="button" aria-pressed={eventMode === mode}
+                onClick={() => { setEventMode(mode); setPostType(mode === "host" ? "event" : "personal"); setExistingEventId(""); }}
+                className={`rounded-full px-3 py-2 font-semibold ${eventMode === mode ? "bg-[var(--app-accent-soft)] text-[var(--app-accent)]" : "text-[var(--app-text-secondary)]"}`}>{label}</button>)}
+            </div>}
+            {composerKind === "poll" && <fieldset className="space-y-2">
+              <legend className="sr-only">Poll question and choices</legend>
+              <label className="block"><span className="sr-only">Poll question</span><textarea data-composer-input required maxLength={280} value={pollQuestion} onChange={(event) => setPollQuestion(event.target.value)} placeholder="Ask your campus…" rows={2} className="w-full resize-none bg-transparent py-2 text-lg outline-none" /></label>
+              {pollOptions.map((option, index) => <div key={index} className="flex items-center gap-2">
+                <label className="min-w-0 flex-1"><span className="sr-only">Choice {index + 1}</span><input required={index < 2} maxLength={100} value={option} onChange={(event) => setPollOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} className={fieldClass} placeholder={`Choice ${index + 1}`} /></label>
+                {index >= 2 && <button type="button" aria-label={`Remove choice ${index + 1}`} className="rounded-full p-2 text-xl" onClick={() => setPollOptions((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</button>}
+              </div>)}
+              {pollOptions.length < 6 && <button type="button" className="rounded-full py-2 text-xs font-semibold text-[var(--app-accent)]" onClick={() => setPollOptions((current) => [...current, ""])}>+ Add choice</button>}
+            </fieldset>}
+            {composerKind === "event" && eventMode === "rollcall" && <SearchableSelector label="Event" value={existingEventId} options={eventOptions} loading={contextLoading} onChange={setExistingEventId} placeholder="Search campus events" />}
+            {composerKind === "event" && eventMode === "host" && <fieldset className="grid grid-cols-2 gap-3">
+              <legend className="sr-only">New event details</legend>
+              <label className="col-span-2 text-xs font-semibold text-[var(--app-text-secondary)]">Event title<input data-composer-input required value={eventTitle} onChange={(event) => setEventTitle(event.target.value)} placeholder="What’s happening?" className={fieldClass} /></label>
+              <label className="text-xs font-semibold text-[var(--app-text-secondary)]">Date<input required type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} className={fieldClass} /></label>
+              <label className="text-xs font-semibold text-[var(--app-text-secondary)]">Time<input required type="time" value={eventStartTime} onChange={(event) => setEventStartTime(event.target.value)} className={fieldClass} /></label>
+              <label className="col-span-2 text-xs font-semibold text-[var(--app-text-secondary)]">Place<input required value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} placeholder="Where are we meeting?" className={fieldClass} /></label>
+            </fieldset>}
+            {(composerKind !== "poll" || caption) && <div className="relative">
+              <label><span className="sr-only">Caption or text</span><textarea ref={captionTextareaRef} data-composer-input
+                required={composerKind === "post" && media.length === 0 && !existingEventId} value={caption}
+                onChange={(event) => { setCaption(event.target.value); setMentionQuery(getActiveMentionQuery(event.target.value, event.target.selectionStart)); }}
+                onSelect={(event) => setMentionQuery(getActiveMentionQuery(event.currentTarget.value, event.currentTarget.selectionStart))}
+                rows={composerKind === "post" ? 4 : 2} className="w-full resize-none bg-transparent py-2 text-base leading-relaxed outline-none placeholder:text-[var(--app-text-secondary)]"
+                placeholder={media.length ? "Add a caption…" : composerKind === "event" ? "Say a little more (optional)…" : "What’s on your mind?"} /></label>
+              {mentionQuery !== null && mentionSuggestions.length > 0 && <div className="rounded-2xl bg-[var(--app-surface-elevated)] p-1">
+                {mentionSuggestions.map((candidate) => <button key={candidate.account.id} type="button" onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => { const caret = captionTextareaRef.current?.selectionStart ?? caption.length; setCaption(insertMentionAtCaret(caption, caret, candidate.profile.usernameNormalized)); setMentionQuery(null); window.requestAnimationFrame(() => captionTextareaRef.current?.focus()); }}
+                  className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--app-accent-soft)]">@{candidate.profile.username}<span className="ml-2 text-xs text-[var(--app-text-secondary)]">{candidate.profile.displayName}</span></button>)}
+              </div>}
+            </div>}
+            {activeMedia.length > 0 && <div>
+              <div className="flex gap-2 overflow-x-auto pb-1">{activeMedia.map((item) => <figure key={item.media.id} className="relative h-36 w-40 shrink-0 overflow-hidden rounded-2xl bg-[var(--app-surface-elevated)]">
+                {item.media.type === "image" ? <Image src={item.media.url ?? ""} alt={`Selected media preview: ${item.fileName}`} fill sizes="160px" className="object-contain" unoptimized /> : <video src={item.media.url ?? undefined} controls playsInline preload="metadata" className="h-full w-full object-contain" />}
+              </figure>)}</div>
+              <button type="button" onClick={clearMedia} className="rounded-full py-2 text-xs font-semibold text-[var(--app-text-secondary)]">Remove media</button>
+            </div>}
+            {activeMediaPreparing && <p role="status" className="text-xs text-[var(--app-text-secondary)]">Preparing your media…</p>}
+            {activeMediaError && <p role="alert" className="text-sm text-[var(--app-danger)]">{activeMediaError}</p>}
+            {moreOpen && <div id="composer-extras" className="space-y-4 rounded-2xl bg-[var(--app-surface-elevated)] p-3">
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold text-[var(--app-accent)]">
+                <button type="button" disabled={busy} onClick={chooseMedia} className="rounded-full py-2">Photos / video</button>
+                <button type="button" disabled={busy} onClick={() => { if (cameraInputRef.current) { cameraInputRef.current.value = ""; cameraInputRef.current.click(); } }} className="rounded-full py-2">Camera</button>
+                <button type="button" aria-pressed={contextKind === "club"} onClick={() => setContextKind(contextKind === "club" ? null : "club")} className="rounded-full py-2">Club</button>
+                {composerKind !== "event" && <button type="button" aria-pressed={contextKind === "event"} onClick={() => setContextKind(contextKind === "event" ? null : "event")} className="rounded-full py-2">Event</button>}
+                <button type="button" aria-pressed={contextKind === "location"} onClick={() => setContextKind(contextKind === "location" ? null : "location")} className="rounded-full py-2">Location</button>
+                <button type="button" aria-pressed={contextKind === "settings"} onClick={() => setContextKind(contextKind === "settings" ? null : "settings")} className="rounded-full py-2">Post settings</button>
+                {onSaveDraft && <button type="button" disabled={busy} onClick={() => void saveCurrentDraft()} className="rounded-full py-2">Save draft</button>}
+              </div>
+              {contextKind === "club" && <SearchableSelector label="Tag a club (optional)" value={taggedOrganizationId} options={clubOptions} loading={contextLoading} onChange={setTaggedOrganizationId} placeholder="Search clubs" />}
+              {contextKind === "event" && composerKind !== "event" && <SearchableSelector label="Attach an event" value={existingEventId} options={eventOptions} loading={contextLoading} onChange={setExistingEventId} placeholder="Search campus events" />}
+              {contextKind === "location" && <label className="block text-xs font-semibold">Location<input value={customLocation} onChange={(event) => { setLocationChoice("custom"); setCustomLocation(event.target.value); }} placeholder="A campus spot or meeting place" className={fieldClass} /></label>}
+              {contextKind === "settings" && <div className="space-y-3">
+                <label className="block text-xs font-semibold">Mint privacy<select value={privacy} onChange={(event) => setPrivacy(event.target.value as SocialContentPrivacy)} className={fieldClass}><option value="account">Use account privacy</option><option value="public">Public across Campus Mint</option><option value="connections">Connections only</option><option value="private">Only me</option></select></label>
+                <label className="block text-xs font-semibold">Duration<select value={postType === "event" ? "24" : durationHours} disabled={postType === "event"} onChange={(event) => setDurationHours(event.target.value)} className={fieldClass}>{postType === "event" ? <option value="24">24 hours</option> : personalDurationOptions.map((option) => <option key={option.hours} value={option.hours}>{option.label}</option>)}</select></label>
+                {postableOrganizations.length > 0 && composerKind !== "event" && <SearchableSelector label="Post as a club" value={selectedOrganizationId} options={postableOrganizations.map((club) => ({ id: club.id, label: club.name }))} onChange={(id) => { setSelectedOrganizationId(id); setPostType(id ? "club" : "personal"); }} placeholder="Post as yourself" />}
+                {postType === "club" && <label className="block text-xs font-semibold">Club audience<select value={organizationAudience} onChange={(event) => setOrganizationAudience(event.target.value as OrganizationContentAudience)} className={fieldClass}><option value="public">Everyone</option><option value="members">Club members</option></select></label>}
+                <label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={commentsEnabled} onChange={(event) => setCommentsEnabled(event.target.checked)} className="accent-[var(--app-accent)]" />Allow replies</label>
+              </div>}
+            </div>}
+            {!moreOpen && (taggedOrganizationId || (existingEventId && composerKind !== "event") || customLocation || (postType === "club" && selectedOrganization)) && <div className="flex flex-wrap gap-2 text-xs text-[var(--app-accent)]">
+              {postType === "club" && selectedOrganization && <span>Posting as {selectedOrganization.name}</span>}
+              {taggedOrganizationId && <span>↗ {availableOrganizations.find((club) => club.id === taggedOrganizationId)?.name ?? "Club attached"}</span>}
+              {existingEventId && composerKind !== "event" && <span>↗ {availableEvents.find((event) => event.id === existingEventId)?.title ?? "Event attached"}</span>}
+              {customLocation && <span>⌖ {customLocation}</span>}
+            </div>}
+            {contextError && ((composerKind === "event" && eventMode === "rollcall") || contextKind === "club" || contextKind === "event") && <p role="status" className="text-xs text-[var(--app-text-secondary)]">Club and event choices couldn’t load. <button type="button" onClick={() => { setContextLoading(true); setContextError(false); setContextAttempt((attempt) => attempt + 1); }} className="rounded-full font-semibold text-[var(--app-accent)]">Retry</button></p>}
+            </fieldset>
+          </form>}
+          {draftNotice && <p role="status" className="mt-3 text-xs text-[var(--app-personal)]">{draftNotice}</p>}
+          {submitError && <p role="alert" className="mt-3 text-sm text-[var(--app-danger)]">{submitError}</p>}
         </div>
-
-        <section className="mt-5 rounded-2xl bg-[var(--app-surface-elevated)] p-3" aria-labelledby="mint-drafts-title">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 id="mint-drafts-title" className="text-sm font-black text-[var(--app-text-primary)]">Drafts</h3>
-              <p className="mt-0.5 text-xs text-[var(--app-text-secondary)]">Saved on this device, including photos and videos.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setDraftsOpen((current) => !current)}
-              aria-expanded={draftsOpen}
-              className="rounded-full px-3 py-2 text-xs font-black text-[var(--app-text-primary)] hover:bg-[var(--app-accent-soft)]"
-            >
-              {draftsOpen ? "Hide" : `View ${drafts.length || ""} drafts`.replace("  ", " ")}
-            </button>
-          </div>
-          {draftsOpen && (
-            <div className="mt-3 space-y-2" role="list">
-              {drafts.length === 0 ? (
-                <p className="rounded-xl bg-[var(--app-surface)] px-3 py-3 text-xs text-[var(--app-text-secondary)]">No saved drafts yet.</p>
-              ) : drafts.map((draft) => (
-                <div key={draft.id} role="listitem" className="flex items-center gap-3 rounded-xl bg-[var(--app-surface)] px-3 py-2.5">
-                  <button type="button" disabled={draftBusy || submitting || activeMediaPreparing} onClick={() => void openDraft(draft)} className="min-w-0 flex-1 text-left disabled:opacity-50">
-                    <span className="block truncate text-sm font-bold text-[var(--app-text-primary)]">
-                      {draft.caption.trim() || (draft.postType === "event" ? draft.eventTitle.trim() : "Untitled draft")}
-                    </span>
-                    <span className="mt-0.5 block text-[11px] text-[var(--app-text-secondary)]">
-                      {new Date(draft.updatedAt).toLocaleDateString()} · {draft.mediaCount > 0 ? `${draft.mediaCount} media item${draft.mediaCount === 1 ? "" : "s"}` : "Text"}
-                    </span>
-                  </button>
-                  {onDeleteDraft && (
-                    <button
-                      type="button"
-                      disabled={draftBusy || submitting}
-                      onClick={async () => {
-                        setDraftBusy(true);
-                        try {
-                          await onDeleteDraft(draft.id);
-                          if (activeDraftId === draft.id) setActiveDraftId(undefined);
-                        } catch { setSubmitError("This draft could not be deleted. Try again."); }
-                        finally { setDraftBusy(false); }
-                      }}
-                      className="rounded-full px-2 py-1 text-xs font-bold text-[var(--app-text-secondary)] hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text-primary)]"
-                      aria-label={`Delete ${draft.caption.trim() || "untitled"} draft`}
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {draftNotice && (
-          <p role="status" className="mt-3 rounded-xl bg-[var(--app-surface-elevated)] px-3 py-2 text-xs font-semibold text-[var(--app-text-secondary)]">
-            {draftNotice}
-          </p>
-        )}
-
-        <form onSubmit={submit} className="mt-6 space-y-6">
-          <fieldset className="rounded-2xl bg-[var(--app-surface-elevated)] p-4 sm:p-5">
-            <legend className="px-2 text-sm font-black text-[var(--app-text-primary)]">
-              Media
-            </legend>
-            <input
-              ref={internalFileInputRef}
-              type="file"
-              accept="image/*,video/*"
-              multiple
-              hidden
-              onChange={selectInternalMedia}
-            />
-
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-bold text-[var(--app-text-primary)]">
-                  {activeMediaPreparing
-                    ? "Preparing your selection…"
-                    : activeMedia.length > 0
-                      ? `${activeMedia.length} media item${activeMedia.length === 1 ? "" : "s"} selected`
-                      : "Text-only Mint"}
-                </p>
-                <p className="mt-1 text-xs leading-5 text-[var(--app-text-secondary)]">
-                  {viewer.account.isDevelopment
-                    ? "Development accounts keep media in this browser session."
-                    : "Photos are optimized before upload. Your Mint is saved before this composer closes."}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {activeMedia.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={clearMedia}
-                    className="rounded-full px-3 py-2 text-xs font-bold text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)]"
-                  >
-                    Use text only
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={chooseMedia}
-                  disabled={activeMediaPreparing}
-                  className="rounded-full bg-[var(--app-surface)] px-4 py-2 text-xs font-black text-[var(--app-text-primary)]  disabled:cursor-wait disabled:opacity-60"
-                >
-                  {activeMedia.length > 0 ? "Replace media" : "Add photos or videos"}
-                </button>
-              </div>
-            </div>
-
-            {activeMedia.length > 0 && (
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {activeMedia.map((item) => (
-                  <figure
-                    key={item.media.id}
-                    className="min-w-0 overflow-hidden rounded-xl bg-[var(--app-surface)]"
-                  >
-                    <div className="relative aspect-square overflow-hidden bg-slate-950">
-                      {item.media.type === "image" ? (
-                        <Image
-                          src={item.media.url ?? ""}
-                          alt={`Selected media preview: ${item.fileName}`}
-                          fill
-                          sizes="(max-width: 640px) 50vw, 14rem"
-                          className="object-contain"
-                          unoptimized
-                        />
-                      ) : (
-                        <video
-                          src={item.media.url ?? undefined}
-                          controls
-                          playsInline
-                          preload="metadata"
-                          className="h-full w-full object-contain"
-                        />
-                      )}
-                    </div>
-                    <figcaption className="truncate px-2 py-1.5 text-[10px] font-semibold text-[var(--app-text-secondary)]">
-                      {item.fileName}
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
-            )}
-
-            {activeMediaError && (
-              <p
-                role="alert"
-                className="mt-3 rounded-xl bg-[var(--app-surface-elevated)] px-3 py-2 text-xs font-semibold text-[var(--app-danger)]"
-              >
-                {activeMediaError}
-              </p>
-            )}
-          </fieldset>
-
-          <fieldset>
-            <legend className="font-bold text-[var(--app-text-primary)]">Mint type</legend>
-            <div className="mt-3 grid grid-cols-3 gap-3">
-              {(["personal", "event", "club"] as SocialPostType[]).map(
-                (value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setPostType(value)}
-                    className="rounded-xl p-3 text-sm font-bold capitalize  sm:p-4"
-                    style={{
-                      borderColor:
-                        postType === value
-                          ? "var(--app-accent)"
-                          : "var(--app-border)",
-                      color:
-                        postType === value
-                          ? "var(--app-accent)"
-                          : "var(--app-text-secondary)",
-                      backgroundColor: postType === value ? "var(--app-accent-soft)" : "transparent",
-                    }}
-                  >
-                    {value}
-                  </button>
-                ),
-              )}
-            </div>
-          </fieldset>
-
-          {postType === "event" && <fieldset className="cm-content-swap rounded-2xl bg-[var(--app-accent-soft)] p-5"><legend className="px-2 font-black uppercase tracking-wide text-[var(--app-accent)]">Event details · 24H</legend><label className="block text-sm font-bold text-[var(--app-text-primary)]">Existing Campus Mint Event<select value={existingEventId} onChange={(event) => setExistingEventId(event.target.value)} className={fieldClass}><option value="">Informal/custom event</option>{availableEvents.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>{!existingEventId && <><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold text-[var(--app-text-primary)]">Event title<input value={eventTitle} onChange={(event) => setEventTitle(event.target.value)} className={fieldClass} /></label><label className="text-sm font-black uppercase text-[var(--app-text-primary)]">When · Date<input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} className={fieldClass} /></label><label className="text-sm font-black uppercase text-[var(--app-text-primary)]">When · Start time<input type="time" value={eventStartTime} onChange={(event) => setEventStartTime(event.target.value)} className={fieldClass} /></label><label className="text-sm font-bold text-[var(--app-text-primary)]">End time (optional)<input type="time" value={eventEndTime} onChange={(event) => setEventEndTime(event.target.value)} className={fieldClass} /></label><label className="text-sm font-black uppercase text-[var(--app-text-primary)]">Where<input value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} className={fieldClass} placeholder="Venue or general location" /></label><label className="text-sm font-bold text-[var(--app-text-primary)]">Location details<input value={eventLocationDetails} onChange={(event) => setEventLocationDetails(event.target.value)} className={fieldClass} /></label></div><label className="mt-4 block text-sm font-bold text-[var(--app-text-primary)]">Add details<textarea value={eventDescription} onChange={(event) => setEventDescription(event.target.value)} rows={3} className={fieldClass} /></label></>}</fieldset>}
-
-          {postType === "club" && <fieldset className="cm-content-swap rounded-2xl bg-[var(--app-surface-elevated)] p-5"><legend className="px-2 font-black uppercase tracking-wide text-[var(--app-text-primary)]">Official club identity</legend>{postableOrganizations.length ? <><label className="block text-sm font-bold text-[var(--app-text-primary)]">Select Club<select required value={selectedOrganizationId} onChange={(event) => setSelectedOrganizationId(event.target.value)} className={fieldClass}><option value="">Choose an organization</option>{postableOrganizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}</select></label>{selectedOrganization && <p className="mt-3 rounded-xl bg-[var(--app-surface)] p-3 text-xs leading-5 text-[var(--app-text-secondary)]">Publishing as <span className="font-black text-[var(--app-text-primary)]">{selectedOrganization.name}</span>. The Mint stores only its organization ID.</p>}<label className="mt-4 block text-sm font-bold text-[var(--app-text-primary)]">Club content audience<select value={organizationAudience} onChange={(event) => setOrganizationAudience(event.target.value as OrganizationContentAudience)} className={fieldClass}><option value="public">Public club content</option><option value="members">Members only</option></select></label></> : <p className="rounded-xl bg-[var(--app-surface-elevated)] p-3 text-sm text-[var(--app-text-primary)]">You do not hold a leader, officer, or approved publishing role for a club at this university. Create Personal content and tag a club instead.</p>}</fieldset>}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="relative text-sm font-bold text-[var(--app-text-primary)] sm:col-span-2">
-              Caption or text
-              <textarea
-                ref={captionTextareaRef}
-                required={media.length === 0 && postType !== "event"}
-                value={caption}
-                onChange={(event) => {
-                  setCaption(event.target.value);
-                  setMentionQuery(
-                    getActiveMentionQuery(
-                      event.target.value,
-                      event.target.selectionStart,
-                    ),
-                  );
-                }}
-                onSelect={(event) =>
-                  setMentionQuery(
-                    getActiveMentionQuery(
-                      event.currentTarget.value,
-                      event.currentTarget.selectionStart,
-                    ),
-                  )
-                }
-                rows={4}
-                className={fieldClass}
-                placeholder={
-                  media.length === 0
-                    ? "What do you want to share? Use #topics and @usernames inline."
-                    : "Add a caption with #topics or @mentions (optional)"
-                }
-              />
-              {mentionQuery !== null && mentionSuggestions.length > 0 && (
-                <span className="absolute inset-x-0 top-full z-20 mt-1 block overflow-hidden rounded-2xl bg-[var(--app-surface-elevated)] p-1">
-                  {mentionSuggestions.map((candidate) => (
-                    <button
-                      key={candidate.account.id}
-                      type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => {
-                        const caret = captionTextareaRef.current?.selectionStart ?? caption.length;
-                        const nextCaption = insertMentionAtCaret(
-                          caption,
-                          caret,
-                          candidate.profile.usernameNormalized,
-                        );
-                        setCaption(nextCaption);
-                        setMentionQuery(null);
-                        window.requestAnimationFrame(() => captionTextareaRef.current?.focus());
-                      }}
-                      className="block w-full rounded-xl px-3 py-2 text-left text-xs hover:bg-[var(--app-accent-soft)]"
-                    >
-                      <strong>@{candidate.profile.username}</strong>
-                      <span className="ml-2 font-normal text-[var(--app-text-secondary)]">
-                        {candidate.profile.displayName}
-                      </span>
-                    </button>
-                  ))}
-                </span>
-              )}
-            </label>
-
-            {postType === "club" && (
-              <label className="text-sm font-bold text-[var(--app-text-primary)]">
-                Location
-                <select
-                  value={locationChoice}
-                  onChange={(event) => setLocationChoice(event.target.value)}
-                  className={fieldClass}
-                >
-                  <option value="none">No location</option>
-                  {availableBuildings.map((building) => (
-                    <option key={building.id} value={building.id}>{building.name}</option>
-                  ))}
-                  <option value="custom">Other / Custom Location</option>
-                </select>
-              </label>
-            )}
-            {locationChoice === "custom" && postType === "club" && (
-              <label className="text-sm font-bold text-[var(--app-text-primary)]">
-                Custom location
-                <input
-                  value={customLocation}
-                  onChange={(event) => setCustomLocation(event.target.value)}
-                  className={fieldClass}
-                />
-              </label>
-            )}
-            {postType !== "club" && (
-              <label className="text-sm font-bold text-[var(--app-text-primary)]">
-                Tag a club (optional)
-                <select
-                  value={taggedOrganizationId}
-                  onChange={(event) => setTaggedOrganizationId(event.target.value)}
-                  className={fieldClass}
-                >
-                  <option value="">No club tag</option>
-                  {availableOrganizations.map((organization) => (
-                    <option key={organization.id} value={organization.id}>{organization.name}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <label className="text-sm font-bold text-[var(--app-text-primary)]">
-              Duration
-              <select
-                value={postType === "event" ? "24" : durationHours}
-                disabled={postType === "event"}
-                onChange={(event) => setDurationHours(event.target.value)}
-                className={fieldClass}
-              >
-                {postType === "event" ? (
-                  <option value="24">24 hours (Event default)</option>
-                ) : (
-                  personalDurationOptions.map((option) => (
-                    <option key={option.hours} value={option.hours}>{option.label}</option>
-                  ))
-                )}
-              </select>
-            </label>
-            <label className="text-sm font-bold text-[var(--app-text-primary)]">
-              Mint privacy
-              <select
-                value={privacy}
-                onChange={(event) => setPrivacy(event.target.value as SocialContentPrivacy)}
-                className={fieldClass}
-              >
-                <option value="account">Use account privacy</option>
-                <option value="public">Public across Campus Mint</option>
-                <option value="connections">Connections only</option>
-                <option value="private">Only me</option>
-              </select>
-            </label>
-          </div>
-
-
-          <div className="flex flex-wrap gap-5"><label className="text-sm font-semibold"><input type="checkbox" className="mr-2 accent-[var(--app-accent)]" checked={commentsEnabled} onChange={(event) => setCommentsEnabled(event.target.checked)} />Comments enabled</label></div>
-          {submitError && <p role="alert" className="rounded-xl bg-[var(--app-surface-elevated)] p-3 text-sm font-semibold text-[var(--app-danger)]">{submitError}</p>}
-          <div className="flex flex-wrap gap-3"><button type="button" onClick={requestClose} disabled={submitting || draftBusy} className="rounded-full px-4 py-3 text-sm font-bold disabled:cursor-wait disabled:opacity-50">Cancel</button>{onSaveDraft && <button type="button" onClick={() => void saveCurrentDraft()} disabled={submitting || activeMediaPreparing || draftBusy} className="rounded-full px-4 py-3 text-sm font-bold text-[var(--app-text-primary)] disabled:cursor-wait disabled:opacity-50">Save draft</button>}<button type="submit" disabled={submitting || activeMediaPreparing || draftBusy} className="min-w-32 flex-1 rounded-xl px-4 py-3 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>{submitting ? "Publishing…" : submitError ? "Retry Publish" : "Publish Mint"}</button></div>
-        </form>
+        {composerKind && !draftsOpen && <footer className="flex shrink-0 items-center gap-3 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+          <button type="button" disabled={busy} aria-label={moreOpen ? "Hide optional post options" : "Add to your post"} aria-expanded={moreOpen} aria-controls="composer-extras" onClick={() => setMoreOpen((open) => !open)} className="rounded-full px-2 py-1 text-3xl font-light text-[var(--app-accent)]">{moreOpen ? "−" : "+"}</button>
+          <span className="min-w-0 flex-1 text-xs text-[var(--app-text-secondary)]">{privacy === "private" ? "Only you" : privacy === "connections" ? "Your connections" : privacy === "public" ? "Public" : "Your account audience"}</span>
+          <button type="submit" form="mint-composer-form" disabled={busy || !ready} className="rounded-full bg-[var(--app-accent)] px-6 py-2.5 text-sm font-bold text-[var(--app-accent-contrast)] disabled:opacity-45">{submitting ? "Posting…" : "Post"}</button>
+        </footer>}
       </section>
-    </div>,
-    document.body,
+    </div>, document.body,
   );
 }

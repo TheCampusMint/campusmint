@@ -87,14 +87,14 @@ function DiscoveryDetailOverlay({
         aria-modal="true"
         aria-label={label}
         tabIndex={-1}
-        className="cm-panel-sheet mx-auto my-2 max-w-6xl"
+        className="cm-themed-portal cm-panel-sheet mx-auto my-2 max-w-6xl"
       >
         <MintLeafBackButton
           onClick={onClose}
           data-initial-focus
           label={backLabel}
-          tone="inverse"
-          className="mb-3 focus-visible:outline-white"
+          tone="surface"
+          className="mb-3"
         />
         <div>{children}</div>
       </div>
@@ -204,12 +204,11 @@ export function SearchResultDetails({
 
     return (
       <DiscoveryDetailOverlay label="Event Moment Search detail" onClose={close} backLabel={closeLabel}>
-        <article className="mx-auto max-w-xl overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+        <article className="mx-auto max-w-xl overflow-hidden rounded-[2rem] bg-[var(--app-surface)]">
           <div
-            className="flex aspect-[4/3] items-center justify-center text-white"
-            style={{ background: `linear-gradient(145deg, ${theme.primary}, ${theme.accent})` }}
+            className="flex aspect-[4/3] items-center justify-center bg-[var(--app-discovery-soft)] text-[var(--app-discovery)]"
           >
-            <div className="text-center drop-shadow-md">
+            <div className="text-center">
               <span className="text-5xl" aria-hidden="true">
                 {visibleMoment.media.type === "image" ? "▣" : "▶"}
               </span>

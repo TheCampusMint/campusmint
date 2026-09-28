@@ -15,6 +15,7 @@ import {
 } from "@/components/mintz/MintSocialActions";
 import { MintCommentsSheet } from "@/components/mintz/MintCommentsSheet";
 import { MintMediaCarousel } from "@/components/mintz/MintMediaCarousel";
+import { MintPoll } from "@/components/mintz/MintPoll";
 import {
   PrivateAppreciationBurst,
   type ScreenPoint,
@@ -111,7 +112,7 @@ export function MintCard(props: MintCardProps) {
   const [captionDraft, setCaptionDraft] = useState(mint.caption);
   const ownMint = viewer.account.id === mint.authorId;
   const organization = getOrganizationById(mint.organizationId);
-  const taggedOrganizations = (mint.taggedOrganizationIds ?? []).flatMap(
+  const taggedOrganizations = mint.taggedOrganizations ?? (mint.taggedOrganizationIds ?? []).flatMap(
     (organizationId) => {
       const tagged = getOrganizationById(organizationId);
       return tagged ? [tagged] : [];
@@ -133,11 +134,11 @@ export function MintCard(props: MintCardProps) {
     eventTimeZone,
   );
   const eventWhere =
-    canonicalEvent?.location ?? mint.eventData?.location?.label;
+    canonicalEvent?.location ?? mint.eventData?.location?.label ?? mint.eventData?.locationDetails;
   const attendeeCount = props.attendeeCount ?? canonicalEvent?.rsvpCount ?? null;
   const activeComments = props.comments.filter((item) => item.status === "active");
   const temporaryLabel = expirationLabel(mint.expiresAt, currentTime);
-  const fallbackLabel = eventTitle ?? organization?.name ?? "A new Mint";
+  const fallbackLabel = eventTitle ?? organization?.name ?? mint.poll?.question ?? "A new Mint";
   const fallbackDetail =
     eventWhere ??
     organization?.shortDescription ??
@@ -174,6 +175,7 @@ export function MintCard(props: MintCardProps) {
       title: "The Campus Mint",
       text:
         mint.caption?.trim() ||
+        mint.poll?.question ||
         `Check out @${author.profile.username}'s Mint`,
       url,
     };
@@ -221,18 +223,20 @@ export function MintCard(props: MintCardProps) {
             )}
           </header>
 
-          <MintMediaCarousel media={mint.media} theme={theme} fallbackLabel={fallbackLabel} fallbackDetail={fallbackDetail} autoplayVideo={props.autoplayVideo} onDoubleTap={confirmPrivateAppreciation} onOpenVideo={(mediaId) => props.onOpenVideo?.(mint.id, mediaId)}>
+          {mint.media.length > 0 && <MintMediaCarousel media={mint.media} theme={theme} fallbackLabel={fallbackLabel} fallbackDetail={fallbackDetail} autoplayVideo={props.autoplayVideo} onDoubleTap={confirmPrivateAppreciation} onOpenVideo={(mediaId) => props.onOpenVideo?.(mint.id, mediaId)}>
             <div className="absolute bottom-2 right-1 z-20">
               <PublicEndorsementAction endorsed={props.publiclyEndorsed} onToggle={props.onTogglePublicEndorsement} />
             </div>
             {mint.postType !== "event" && <div className="absolute bottom-3 left-3 z-20"><FriendEndorsementStack users={props.friendEndorsementUsers} additionalCount={props.additionalFriendEndorsementCount ?? 0} theme={theme} /></div>}
-          </MintMediaCarousel>
+          </MintMediaCarousel>}
 
           <div className="p-3 sm:p-4 lg:p-5">
             {eventTitle && <div className="mb-3 rounded-2xl bg-slate-50 p-3 sm:mb-4 sm:p-4"><h3 className="font-black text-slate-950">{eventTitle}</h3>{eventWhen && <p className="mt-1 text-xs font-bold text-emerald-700">{eventWhen}</p>}{eventWhere && <p className="mt-1 text-xs text-slate-600">{eventWhere}</p>}{canonicalEvent?.status === "cancelled" && <p className="mt-2 text-xs font-black text-red-600">Canceled</p>}{canonicalEvent?.source && <a href={canonicalEvent.source.sourceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[10px] font-bold text-slate-500 underline">Event source</a>}</div>}
             {mint.postType === "event" && <EventAttendingContext users={props.attendeeUsers ?? []} attending={Boolean(props.attending)} disabled={props.attendingDisabled} theme={theme} onToggle={props.onToggleAttending} />}
             {organization && <p className="mb-3 text-sm font-black text-slate-900">{organization.name}</p>}
             {mint.caption && <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{mint.caption}</p>}
+            {mint.poll && <MintPoll key={`${mint.id}:${viewer.account.id}`} mintId={mint.id} poll={mint.poll} isDevelopment={mint.isDevelopment} active={props.surfaceActive} />}
+            {mint.media.length === 0 && <div className="mt-2 flex items-center gap-2"><PublicEndorsementAction endorsed={props.publiclyEndorsed} onToggle={props.onTogglePublicEndorsement} /><FriendEndorsementStack users={props.friendEndorsementUsers} additionalCount={props.additionalFriendEndorsementCount ?? 0} theme={theme} /></div>}
             {mint.mentions.length > 0 && <p className="mt-2 text-sm font-bold" style={{ color: theme.primary }}>{mint.mentions.map((mention) => `@${mention.username}`).join(" ")}</p>}
             {mint.hashtags.length > 0 && <p className="mt-2 text-sm font-bold" style={{ color: theme.primary }}>{mint.hashtags.map((tag) => `#${tag}`).join(" ")}</p>}
             {taggedOrganizations.length > 0 && <p className="mt-3 text-xs font-semibold text-slate-500">With {taggedOrganizations.map((tagged) => tagged.name).join(", ")}</p>}

@@ -14,6 +14,15 @@
   --app-accent-contrast: #ffffff;
   --app-danger: #be123c;
   --app-success: #047857;
+  --app-urgent: var(--app-accent);
+  --app-urgent-soft: var(--app-accent-soft);
+  --app-urgent-contrast: var(--app-accent-contrast);
+  --app-discovery: var(--app-accent);
+  --app-discovery-soft: var(--app-accent-soft);
+  --app-discovery-contrast: var(--app-accent-contrast);
+  --app-personal: var(--app-accent);
+  --app-personal-soft: var(--app-accent-soft);
+  --app-personal-contrast: var(--app-accent-contrast);
 }
 
 @theme inline {
@@ -75,64 +84,64 @@ summary {
   -webkit-tap-highlight-color: transparent;
 }
 
-.campus-app-shell {
+:is(.campus-app-shell, .cm-themed-portal) {
   background: var(--app-background);
   color: var(--app-text-primary);
   transition: background-color 220ms ease, color 220ms ease;
 }
 
 /* Token bridge for existing feature surfaces while their university data remains independent. */
-.campus-app-shell .bg-white,
-.campus-app-shell .bg-white\/65,
-.campus-app-shell .bg-white\/70,
-.campus-app-shell .bg-white\/80,
-.campus-app-shell .bg-white\/78,
-.campus-app-shell .bg-white\/90,
-.campus-app-shell .bg-white\/95 {
+:is(.campus-app-shell, .cm-themed-portal) .bg-white,
+:is(.campus-app-shell, .cm-themed-portal) .bg-white\/65,
+:is(.campus-app-shell, .cm-themed-portal) .bg-white\/70,
+:is(.campus-app-shell, .cm-themed-portal) .bg-white\/80,
+:is(.campus-app-shell, .cm-themed-portal) .bg-white\/78,
+:is(.campus-app-shell, .cm-themed-portal) .bg-white\/90,
+:is(.campus-app-shell, .cm-themed-portal) .bg-white\/95 {
   background-color: var(--app-surface) !important;
 }
 
-.campus-app-shell .bg-slate-50,
-.campus-app-shell .bg-slate-50\/75,
-.campus-app-shell .bg-slate-50\/80,
-.campus-app-shell .bg-slate-100 {
+:is(.campus-app-shell, .cm-themed-portal) .bg-slate-50,
+:is(.campus-app-shell, .cm-themed-portal) .bg-slate-50\/75,
+:is(.campus-app-shell, .cm-themed-portal) .bg-slate-50\/80,
+:is(.campus-app-shell, .cm-themed-portal) .bg-slate-100 {
   background-color: var(--app-surface-elevated) !important;
 }
 
-.campus-app-shell .text-slate-950,
-.campus-app-shell .text-slate-900,
-.campus-app-shell .text-slate-800,
-.campus-app-shell .text-slate-700 {
+:is(.campus-app-shell, .cm-themed-portal) .text-slate-950,
+:is(.campus-app-shell, .cm-themed-portal) .text-slate-900,
+:is(.campus-app-shell, .cm-themed-portal) .text-slate-800,
+:is(.campus-app-shell, .cm-themed-portal) .text-slate-700 {
   color: var(--app-text-primary) !important;
 }
 
-.campus-app-shell .text-slate-600,
-.campus-app-shell .text-slate-500,
-.campus-app-shell .text-slate-400,
-.campus-app-shell .text-slate-300 {
+:is(.campus-app-shell, .cm-themed-portal) .text-slate-600,
+:is(.campus-app-shell, .cm-themed-portal) .text-slate-500,
+:is(.campus-app-shell, .cm-themed-portal) .text-slate-400,
+:is(.campus-app-shell, .cm-themed-portal) .text-slate-300 {
   color: var(--app-text-secondary) !important;
 }
 
-.campus-app-shell .border-slate-100,
-.campus-app-shell .border-slate-200,
-.campus-app-shell .border-slate-200\/80,
-.campus-app-shell .border-slate-300,
-.campus-app-shell .border-white\/50,
-.campus-app-shell .border-white\/70,
-.campus-app-shell .border-white\/80 {
+:is(.campus-app-shell, .cm-themed-portal) .border-slate-100,
+:is(.campus-app-shell, .cm-themed-portal) .border-slate-200,
+:is(.campus-app-shell, .cm-themed-portal) .border-slate-200\/80,
+:is(.campus-app-shell, .cm-themed-portal) .border-slate-300,
+:is(.campus-app-shell, .cm-themed-portal) .border-white\/50,
+:is(.campus-app-shell, .cm-themed-portal) .border-white\/70,
+:is(.campus-app-shell, .cm-themed-portal) .border-white\/80 {
   border-color: var(--app-border) !important;
 }
 
 /* Seamless application chrome: retain form fields, focus outlines, tables,
    and simple separators; remove ornamental card/control outlines and depth. */
-.campus-app-shell :where(article, section, [role="dialog"], [role="menu"]),
-.campus-app-shell :where(article, section, div, nav, button, a)[class*="shadow"] {
+:is(.campus-app-shell, .cm-themed-portal) :where(article, section, [role="dialog"], [role="menu"]),
+:is(.campus-app-shell, .cm-themed-portal) :where(article, section, div, nav, button, a)[class*="shadow"] {
   box-shadow: none !important;
 }
 
-.campus-app-shell :where(article, section, [role="dialog"], [role="menu"])[class*="border"],
-.campus-app-shell :where(button, a)[class*="border"],
-.campus-app-shell div[class*="rounded"][class*="border"] {
+:is(.campus-app-shell, .cm-themed-portal) :where(article, section, [role="dialog"], [role="menu"])[class*="border"],
+:is(.campus-app-shell, .cm-themed-portal) :where(button, a)[class*="border"],
+:is(.campus-app-shell, .cm-themed-portal) div[class*="rounded"][class*="border"] {
   border-width: 0 !important;
 }
 
@@ -230,12 +239,12 @@ summary {
   --cm-motion-curve: var(--cm-ease-enter);
 }
 
-.campus-app-shell :where(button, a, input, textarea, select, summary):focus-visible {
+:is(.campus-app-shell, .cm-themed-portal) :where(button, a, input, textarea, select, summary):focus-visible {
   outline: 2px solid var(--app-accent);
   outline-offset: 2px;
 }
 
-.campus-app-shell :where(input, textarea, select) {
+:is(.campus-app-shell, .cm-themed-portal) :where(input, textarea, select) {
   transition:
     border-color var(--cm-duration-fast) ease,
     box-shadow var(--cm-duration-fast) ease,
@@ -246,7 +255,7 @@ summary {
   will-change: auto;
 }
 
-.campus-app-shell button:not(:disabled),
+:is(.campus-app-shell, .cm-themed-portal) button:not(:disabled),
 .interactive-pop,
 .cm-pressable {
   transform: translate3d(0,0,0);
@@ -261,7 +270,7 @@ summary {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .campus-app-shell button:not(:disabled):hover,
+  :is(.campus-app-shell, .cm-themed-portal) button:not(:disabled):hover,
   .interactive-pop:hover,
   .cm-pressable:hover {
     transform: translate3d(0,-1px,0);
@@ -269,7 +278,7 @@ summary {
   }
 }
 
-.campus-app-shell button:not(:disabled):active,
+:is(.campus-app-shell, .cm-themed-portal) button:not(:disabled):active,
 .interactive-pop:active,
 .cm-pressable:active {
   transform: translate3d(0,1px,0) scale(.98);
@@ -304,7 +313,7 @@ summary {
   place-items: center;
   font-size: 3.25rem;
   line-height: 1;
-
+  color: var(--app-personal);
 }
 
 .cm-private-appreciation-burst {
@@ -476,17 +485,17 @@ summary {
 }
 
 /* Direct-manipulation controls keep geometry stable; their own progress drives motion. */
-.campus-app-shell button[data-feed-motion-tab],
-.campus-app-shell button[data-static-badge],
-.campus-app-shell button[data-static-control],
+:is(.campus-app-shell, .cm-themed-portal) button[data-feed-motion-tab],
+:is(.campus-app-shell, .cm-themed-portal) button[data-static-badge],
+:is(.campus-app-shell, .cm-themed-portal) button[data-static-control],
 [data-bottom-bubble-nav] button,
-.campus-app-shell button[data-feed-motion-tab]:hover,
-.campus-app-shell button[data-static-badge]:hover,
-.campus-app-shell button[data-static-control]:hover,
+:is(.campus-app-shell, .cm-themed-portal) button[data-feed-motion-tab]:hover,
+:is(.campus-app-shell, .cm-themed-portal) button[data-static-badge]:hover,
+:is(.campus-app-shell, .cm-themed-portal) button[data-static-control]:hover,
 [data-bottom-bubble-nav] button:hover,
-.campus-app-shell button[data-feed-motion-tab]:active,
-.campus-app-shell button[data-static-badge]:active,
-.campus-app-shell button[data-static-control]:active,
+:is(.campus-app-shell, .cm-themed-portal) button[data-feed-motion-tab]:active,
+:is(.campus-app-shell, .cm-themed-portal) button[data-static-badge]:active,
+:is(.campus-app-shell, .cm-themed-portal) button[data-static-control]:active,
 [data-bottom-bubble-nav] button:active {
   transform: none !important;
 }
@@ -502,9 +511,9 @@ summary {
   }
 }
 
-.campus-app-shell[data-reduced-motion="true"] *,
-.campus-app-shell[data-reduced-motion="true"] *::before,
-.campus-app-shell[data-reduced-motion="true"] *::after,
+:is(.campus-app-shell, .cm-themed-portal)[data-reduced-motion="true"] *,
+:is(.campus-app-shell, .cm-themed-portal)[data-reduced-motion="true"] *::before,
+:is(.campus-app-shell, .cm-themed-portal)[data-reduced-motion="true"] *::after,
 [data-reduced-motion="true"] {
   scroll-behavior: auto !important;
   animation-duration: 0.01ms !important;
@@ -518,23 +527,35 @@ summary {
   }
 }
 
-.campus-app-shell[data-reduced-motion="true"] .mint-float-layer {
+:is(.campus-app-shell, .cm-themed-portal)[data-reduced-motion="true"] .mint-float-layer {
   transform: none !important;
 }
 
 /* Includes inline depth and decorative pseudo-elements, without suppressing outlines. */
-.campus-app-shell :where(div, span, header, footer, nav, article, section, aside, button, a, form, label),
-.campus-app-shell :where(div, span, button, a, label)::before,
-.campus-app-shell :where(div, span, button, a, label)::after {
+:is(.campus-app-shell, .cm-themed-portal) :where(div, span, header, footer, nav, article, section, aside, button, a, form, label),
+:is(.campus-app-shell, .cm-themed-portal) :where(div, span, button, a, label)::before,
+:is(.campus-app-shell, .cm-themed-portal) :where(div, span, button, a, label)::after {
   box-shadow: none !important;
 }
-.campus-app-shell :where(span, label, form)[class*="rounded"][class*="border"] {
+:is(.campus-app-shell, .cm-themed-portal) :where(span, label, form)[class*="rounded"][class*="border"] {
   border-width: 0 !important;
 }
-.campus-app-shell :where(input, textarea, select) {
+:is(.campus-app-shell, .cm-themed-portal) :where(input, textarea, select) {
   accent-color: var(--app-accent);
+  caret-color: var(--app-accent);
 }
-.campus-app-shell ::selection {
+/* Input shadows are decorative; an outline independently preserves keyboard focus. */
+:is(.campus-app-shell, .cm-themed-portal) :where(input, textarea, select)[class*="shadow"] {
+  box-shadow: none !important;
+}
+:is(.campus-app-shell, .cm-themed-portal) :where(input, textarea, select):focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+:is(.campus-app-shell, .cm-themed-portal) :where(details)[class*="rounded"][class*="border"] {
+  border-width: 0;
+}
+:is(.campus-app-shell, .cm-themed-portal) ::selection {
   background: var(--app-accent);
   color: var(--app-accent-contrast);
 }
@@ -558,13 +579,15 @@ summary {
 .cm-choice-control[aria-selected="true"] .cm-choice-highlight,
 .cm-choice-control:active .cm-choice-highlight {
   background-color: var(--app-accent-soft);
+  color: var(--app-accent);
 }
 @media (hover: hover) {
   .cm-choice-control:hover .cm-choice-highlight {
     background-color: var(--app-accent-soft);
+    color: var(--app-accent);
   }
 }
-.campus-app-shell .cm-choice-control:focus-visible {
+:is(.campus-app-shell, .cm-themed-portal) .cm-choice-control:focus-visible {
   outline: none;
 }
 .cm-choice-control:focus-visible .cm-choice-highlight {
@@ -573,7 +596,7 @@ summary {
 }
 
 /* Keep keyboard focus inside the slimmer navigation track. */
-.campus-app-shell [data-bottom-bubble-nav] button:focus-visible {
+:is(.campus-app-shell, .cm-themed-portal) [data-bottom-bubble-nav] button:focus-visible {
   outline-offset: -2px;
 }
 

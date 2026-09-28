@@ -13,7 +13,7 @@ import type { MintzState } from "@/hooks/useMintz";
 import type { OrganizationsState } from "@/hooks/useOrganizations";
 import type { ProfilesState } from "@/hooks/useProfiles";
 import { rankNormalMintFeed } from "@/lib/social/mintFeedRanking";
-import { applyCurrentPinsToGeneration, createFeedGeneration, flattenFeedGeneration } from "@/lib/social/feedGeneration";
+import { advanceFeedGeneration, applyCurrentPinsToGeneration, createFeedGeneration, flattenFeedGeneration } from "@/lib/social/feedGeneration";
 import {
   createMintVideoViewerState,
   getMintVideoViewerReturnScrollY,
@@ -125,40 +125,33 @@ export function CampusMintFeed({
     return rankNormalMintFeed(allMintz, feedState);
   }, [allMintz, feedState]);
 
-  const [feedGeneration, setFeedGeneration] = useState(() => createFeedGeneration({
-    eligibleMintz: visibleMintz,
-    previousEligibleMintIds: null,
-    pins: mintz.pins,
-    viewerId: viewer.account.id,
-    dwell: mintz.dwellRecords,
-    privateAppreciations: mintz.privateAppreciations,
-    publicEndorsements: mintz.publicEndorsements,
-    generationId: 0,
-    now: new Date(mintz.currentTime).toISOString(),
-  }));
   const feedScope = `${viewer.account.id}:${viewer.account.universityIdentityId ?? viewer.account.universityId}`;
-  const [generationCursor, setGenerationCursor] = useState(() => ({
-    feedScope,
-    refreshGeneration: mintz.refreshGeneration,
-  }));
-  if (
-    generationCursor.feedScope !== feedScope ||
-    generationCursor.refreshGeneration !== mintz.refreshGeneration
-  ) {
-    const sameViewerScope = generationCursor.feedScope === feedScope;
-    setGenerationCursor({ feedScope, refreshGeneration: mintz.refreshGeneration });
-    setFeedGeneration(createFeedGeneration({
+  const [generationState, setGenerationState] = useState(() => ({
+    cursor: { feedScope, refreshGeneration: mintz.refreshGeneration, feedRevision: mintz.feedRevision },
+    generation: createFeedGeneration({
       eligibleMintz: visibleMintz,
-      previousEligibleMintIds: sameViewerScope ? feedGeneration.eligibleMintIds : null,
+      previousEligibleMintIds: null,
       pins: mintz.pins,
       viewerId: viewer.account.id,
       dwell: mintz.dwellRecords,
       privateAppreciations: mintz.privateAppreciations,
       publicEndorsements: mintz.publicEndorsements,
-      generationId: sameViewerScope ? feedGeneration.id + 1 : 0,
+      generationId: 0,
+      now: new Date(mintz.currentTime).toISOString(),
+    }),
+  }));
+  const nextGenerationState = advanceFeedGeneration(generationState,
+    { feedScope, refreshGeneration: mintz.refreshGeneration, feedRevision: mintz.feedRevision }, {
+      eligibleMintz: visibleMintz,
+      pins: mintz.pins,
+      viewerId: viewer.account.id,
+      dwell: mintz.dwellRecords,
+      privateAppreciations: mintz.privateAppreciations,
+      publicEndorsements: mintz.publicEndorsements,
       now: new Date().toISOString(),
-    }));
-  }
+    });
+  if (nextGenerationState !== generationState) setGenerationState(nextGenerationState);
+  const feedGeneration = nextGenerationState.generation;
 
   const renderedGeneration = useMemo(
     () => applyCurrentPinsToGeneration(feedGeneration, mintz.pins, viewer.account.id),
@@ -212,7 +205,7 @@ export function CampusMintFeed({
       {notice && (
         <div
           role="status"
-          className="cm-content-swap flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800"
+          className="cm-content-swap flex items-center justify-between gap-3 rounded-2xl bg-[var(--app-accent-soft)] px-4 py-3 text-sm font-semibold text-[var(--app-accent)]"
         >
           <span>{notice}</span>
           <button

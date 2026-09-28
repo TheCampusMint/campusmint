@@ -61,8 +61,8 @@ function GroupCard({
     <article className="cm-surface-card cm-interactive-card flex h-full flex-col p-5">
       <div className="flex items-start justify-between gap-3">
         <span
-          className="flex h-12 w-12 items-center justify-center rounded-2xl text-lg font-black"
-          style={{ backgroundColor: "var(--app-accent-soft)", color: "var(--app-accent)" }}
+          className="flex h-12 w-12 items-center justify-center text-lg font-black"
+          style={{ color: "var(--app-discovery)" }}
           aria-hidden="true"
         >
           ◎
@@ -455,7 +455,7 @@ export function GroupsSkeleton({
               className="rounded-full px-4 py-2 text-xs font-black transition"
               style={
                 selected
-                  ? { backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }
+                  ? { backgroundColor: option.id === "discover" ? "var(--app-discovery-soft)" : "var(--app-personal-soft)", color: option.id === "discover" ? "var(--app-discovery)" : "var(--app-personal)" }
                   : { color: "var(--app-text-secondary)" }
               }
             >

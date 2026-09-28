@@ -246,7 +246,7 @@ export function EditProfileModal({ user, primaryColor, onSave, onClose }: EditPr
                 }
                 className={`rounded-full px-4 py-2 text-xs font-black ${
                   draft.lookingForRoommate
-                    ? "bg-slate-950 text-white"
+                    ? "bg-[var(--app-personal)] text-[var(--app-personal-contrast)]"
                     : "bg-slate-100 text-slate-600"
                 }`}
               >
@@ -311,7 +311,7 @@ export function EditProfileModal({ user, primaryColor, onSave, onClose }: EditPr
                 }
                 className={`rounded-full px-4 py-2 text-xs font-black ${
                   draft.offersTutoring
-                    ? "bg-slate-950 text-white"
+                    ? "bg-[var(--app-personal)] text-[var(--app-personal-contrast)]"
                     : "bg-slate-100 text-slate-600"
                 }`}
               >
@@ -355,7 +355,7 @@ export function EditProfileModal({ user, primaryColor, onSave, onClose }: EditPr
                       }
                       className={`rounded-full border px-3 py-2 text-xs font-bold ${
                         selected
-                          ? "border-slate-950 bg-slate-950 text-white"
+                          ? "bg-[var(--app-personal)] text-[var(--app-personal-contrast)]"
                           : "border-slate-200 bg-white text-slate-600"
                       }`}
                     >

@@ -58,10 +58,10 @@ export function MintLeafBackButton({
 }: MintLeafBackButtonProps) {
   const toneClass =
     tone === "inverse"
-      ? "bg-transparent text-white [filter:drop-shadow(0_1px_2px_rgb(0_0_0/.65))]"
+      ? "bg-transparent text-white"
       : tone === "minimal"
         ? "bg-transparent text-current"
-        : "bg-transparent text-slate-800";
+        : "bg-transparent text-[var(--app-text-primary)]";
 
   return (
     <button
@@ -69,7 +69,7 @@ export function MintLeafBackButton({
       type="button"
       aria-label={props["aria-label"] ?? label}
       title={props.title ?? label}
-      className={`interactive-pop inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full font-black focus-visible:outline-2 focus-visible:outline-offset-2 ${
+      className={`interactive-pop inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full font-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] ${
         showLabel ? "px-3.5 text-xs" : "w-10 p-0"
       } ${toneClass} ${className}`}
     >

@@ -122,7 +122,7 @@ export function EventMomentEventDetail({
         role="dialog"
         aria-modal="true"
         aria-labelledby="event-moment-detail-title"
-        className="cm-panel-sheet max-h-[92dvh] w-full overflow-y-auto rounded-t-[2rem] border border-white/80 bg-slate-50 shadow-2xl sm:max-w-3xl sm:rounded-[2rem]"
+        className="cm-themed-portal cm-panel-sheet max-h-[92dvh] w-full overflow-y-auto rounded-t-[2rem] bg-[var(--app-surface-elevated)] sm:max-w-3xl sm:rounded-[2rem]"
       >
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200/80 bg-white/95 p-5 backdrop-blur-xl sm:p-6">
           <div className="min-w-0">
@@ -386,12 +386,9 @@ export function EventMomentEventDetail({
                         onClick={() => onOpenMoment?.(moment.id)}
                         disabled={!onOpenMoment}
                         aria-label={onOpenMoment ? `Open Event Moment by ${author?.profile.displayName ?? "Campus Mint user"}` : undefined}
-                        className="flex aspect-[4/3] w-full items-center justify-center disabled:cursor-default"
-                        style={{
-                          background: `linear-gradient(145deg, ${theme.primary}, ${theme.accent})`,
-                        }}
+                        className="flex aspect-[4/3] w-full items-center justify-center bg-[var(--app-discovery-soft)] text-[var(--app-discovery)] disabled:cursor-default"
                       >
-                        <div className="text-center text-white drop-shadow-md">
+                        <div className="text-center">
                           <span className="text-4xl" aria-hidden="true">
                             {moment.media.type === "image" ? "▣" : "▶"}
                           </span>

@@ -61,7 +61,7 @@ export function TopUtilityBar({
             onClick={onOpenSettings}
             aria-label="Open settings"
             title="Settings"
-            className="interactive-pop flex h-10 w-10 items-center justify-center border-0 bg-transparent p-0 text-slate-700 shadow-none focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="interactive-pop flex h-10 w-10 items-center justify-center border-0 bg-transparent p-0 text-[var(--app-accent)] shadow-none focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{
               outlineColor: "var(--app-accent)",
               background: "transparent",
@@ -85,12 +85,12 @@ export function TopUtilityBar({
                 bottom: bounds.bottom,
               });
             }}
-            className="cm-icon-control interactive-pop relative flex items-center justify-center border-0 bg-transparent text-slate-700 shadow-none focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="cm-icon-control interactive-pop relative flex items-center justify-center border-0 bg-transparent text-[var(--app-accent)] shadow-none focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{ outlineColor: "var(--app-accent)" }}
           >
             <span className="h-[19px] w-[19px]" aria-hidden="true"><BellIcon /></span>
             {unreadNotificationCount > 0 && (
-              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[8px] font-black leading-none text-white" aria-label={`${unreadNotificationCount} unread notifications`}>
+              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--app-personal)] px-1 text-[8px] font-black leading-none text-[var(--app-personal-contrast)]" aria-label={`${unreadNotificationCount} unread notifications`}>
                 {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
               </span>
             )}
@@ -99,7 +99,7 @@ export function TopUtilityBar({
 
         <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-center">
           <p
-            className={`cm-eyebrow hidden overflow-hidden text-slate-400 transition-[max-height,opacity,transform] duration-200 min-[430px]:block ${
+            className={`cm-eyebrow hidden overflow-hidden text-[var(--app-text-secondary)] transition-[max-height,opacity,transform] duration-200 min-[430px]:block ${
               compact
                 ? "max-h-0 -translate-y-1 opacity-0"
                 : "max-h-4 translate-y-0 opacity-100"
@@ -124,7 +124,7 @@ export function TopUtilityBar({
             aria-label="Open Search"
             title="Search"
             onClick={onOpenSearch}
-            className="cm-icon-control interactive-pop flex items-center justify-center border-0 bg-transparent text-slate-700 shadow-none focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="cm-icon-control interactive-pop flex items-center justify-center border-0 bg-transparent text-[var(--app-accent)] shadow-none focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{
               outlineColor: "var(--app-accent)",
             }}
@@ -138,7 +138,7 @@ export function TopUtilityBar({
             onClick={onOpenProfile}
             className="relative overflow-visible rounded-full focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{
-              outlineColor: theme.primary,
+              outlineColor: "var(--app-accent)",
             }}
           >
             <ProfileAvatar

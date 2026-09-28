@@ -501,7 +501,7 @@ export function PeopleSkeleton({ viewer, theme, profiles, onOpenProfile }: Peopl
           }}
           className={`rounded-full border px-3 py-2 text-xs font-black ${
             tutoringOnly
-              ? "border-slate-950 bg-slate-950 text-white"
+              ? "bg-[var(--app-personal)] text-[var(--app-personal-contrast)]"
               : "border-slate-200 bg-white text-slate-700"
           }`}
         >
@@ -534,7 +534,7 @@ export function PeopleSkeleton({ viewer, theme, profiles, onOpenProfile }: Peopl
               }
               className={`rounded-full border px-3 py-2 text-xs font-bold ${
                 tutoringSubject === subject
-                  ? "border-slate-950 bg-slate-950 text-white"
+                  ? "bg-[var(--app-personal)] text-[var(--app-personal-contrast)]"
                   : "border-slate-200 bg-white text-slate-600"
               }`}
             >

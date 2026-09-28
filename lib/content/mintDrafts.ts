@@ -8,6 +8,12 @@ import type {
 export type MintDraftFields = {
   /** Preserve publication idempotency if the server saved a post but its response was lost. */
   publishRequestId?: string;
+  /** Exact user intent at the last publish attempt; edits must use a new request. */
+  publishIntent?: string;
+  composerKind?: "post" | "poll" | "event";
+  eventMode?: "rollcall" | "host";
+  pollQuestion?: string;
+  pollOptions?: string[];
   caption: string;
   postType: SocialPostType;
   commentsEnabled: boolean;
@@ -70,14 +76,26 @@ function normalizeDraft(value: unknown, userId: string): MintDraft | null {
   const updatedAt = stringValue(value.updatedAt);
   if (!id || !updatedAt) return null;
   const names = mediaNames(value.mediaFileNames);
+  const postType = value.postType === "event" || value.postType === "club" ? value.postType : "personal";
+  const composerKind = value.composerKind === "post" || value.composerKind === "poll" || value.composerKind === "event"
+    ? value.composerKind
+    : postType === "event" ? "event" : "post";
+  const eventMode = value.eventMode === "rollcall" || value.eventMode === "host"
+    ? value.eventMode
+    : postType === "event" && !stringValue(value.existingEventId) ? "host" : "rollcall";
   return {
     id,
     userId,
     createdAt: stringValue(value.createdAt) || updatedAt,
     updatedAt,
     ...(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(stringValue(value.publishRequestId)) ? { publishRequestId: stringValue(value.publishRequestId) } : {}),
+    ...(typeof value.publishIntent === "string" && value.publishIntent ? { publishIntent: value.publishIntent } : {}),
     caption: stringValue(value.caption),
-    postType: value.postType === "event" || value.postType === "club" ? value.postType : "personal",
+    composerKind,
+    eventMode,
+    pollQuestion: stringValue(value.pollQuestion),
+    pollOptions: Array.isArray(value.pollOptions) ? value.pollOptions.filter((option): option is string => typeof option === "string").slice(0, 6) : ["", ""],
+    postType,
     commentsEnabled: booleanValue(value.commentsEnabled, true),
     privacy: value.privacy === "public" || value.privacy === "connections" || value.privacy === "private" ? value.privacy : "account",
     durationHours: stringValue(value.durationHours) || "permanent",

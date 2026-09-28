@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { accumulateMeaningfulDwell, applyCurrentPinsToGeneration, createFeedGeneration, flattenFeedGeneration, isFeedRefreshArmed, migrateSavedMintzToPins, normalizedDwellScore, rankOldMintz } from "../lib/social/feedGeneration.ts";
+import { accumulateMeaningfulDwell, advanceFeedGeneration, applyCurrentPinsToGeneration, createFeedGeneration, flattenFeedGeneration, isFeedRefreshArmed, migrateSavedMintzToPins, normalizedDwellScore, rankOldMintz } from "../lib/social/feedGeneration.ts";
 
 const cardSource = readFileSync(new URL("../components/mintz/MintCard.tsx", import.meta.url), "utf8");
 const fullscreenSource = readFileSync(new URL("../components/mintz/FullscreenVideoViewer.tsx", import.meta.url), "utf8");
@@ -47,4 +47,25 @@ test("consumer Save and Repost controls are absent while Pin is shared across fe
   assert.match(fullscreenSource, /Pin Mint/);
   assert.doesNotMatch(cardSource, /Repost Mint|Save Mint|Unsave Mint/);
   assert.doesNotMatch(fullscreenSource, /Repost Mint|Save Mint|Unsave Mint/);
+});
+
+test("initial server arrival, publication and one completed refresh reveal their new posts without resetting finite sessions on every render", () => {
+  const input = { eligibleMintz: [], pins: [], viewerId: "viewer", dwell: [], privateAppreciations: [], publicEndorsements: [], now: "2026-09-27T12:00:00Z" };
+  const cursor = { feedScope: "viewer:tamu", refreshGeneration: 0, feedRevision: 0 };
+  const initial = { cursor, generation: createFeedGeneration({ ...input, previousEligibleMintIds: null, generationId: 0 }) };
+  const existing = mint("existing", "2026-09-27T11:00:00Z");
+  const loaded = advanceFeedGeneration(initial, { ...cursor, feedRevision: 1 }, { ...input, eligibleMintz: [existing] });
+  assert.deepEqual(flattenFeedGeneration(loaded.generation), ["existing"]);
+  const own = mint("just-published", "2026-09-27T12:00:00Z");
+  const published = advanceFeedGeneration(loaded, { ...cursor, feedRevision: 2 }, { ...input, eligibleMintz: [existing, own] });
+  assert.deepEqual(flattenFeedGeneration(published.generation), ["just-published", "existing"]);
+  const future = mint("server-arrival", "2026-09-27T12:05:00Z");
+  const unchanged = advanceFeedGeneration(published, published.cursor, { ...input, now: "2026-09-27T12:05:00Z", eligibleMintz: [existing, own, future] });
+  assert.equal(unchanged, published, "incidental rerenders preserve the finite session and scroll order");
+  const refreshed = advanceFeedGeneration(published, { ...cursor, feedRevision: 3 }, { ...input, eligibleMintz: [existing, own, future] });
+  assert.equal(flattenFeedGeneration(refreshed.generation)[0], "server-arrival");
+  assert.equal(flattenFeedGeneration(refreshed.generation).length, 3);
+  const switched = advanceFeedGeneration(refreshed, { ...cursor, feedScope: "different:tamu", feedRevision: 3 }, input);
+  assert.deepEqual(flattenFeedGeneration(switched.generation), []);
+  assert.deepEqual(switched.generation.previousEligibleMintIds, []);
 });

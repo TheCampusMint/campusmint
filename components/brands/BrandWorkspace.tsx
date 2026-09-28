@@ -50,14 +50,14 @@ export function BrandWorkspace({ brand, onLogout }: { brand: BrandSessionProfile
   const inputClass = "mt-1 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3 text-sm text-[var(--app-text-primary)] outline-none focus:ring-2 focus:ring-[var(--app-accent)]";
 
   return (
-    <main className="min-h-dvh bg-[var(--app-background)] px-5 py-8 text-[var(--app-text-primary)]">
+    <main className="cm-themed-portal min-h-dvh bg-[var(--app-background)] px-5 py-8 text-[var(--app-text-primary)]">
       <div className="mx-auto max-w-2xl space-y-5">
         <header className="flex items-start justify-between gap-4">
           <div><p className="cm-eyebrow text-[var(--app-accent)]">The Campus Mint · Brand</p><h1 className="mt-2 text-3xl font-black">{brand.displayName}</h1><p className="mt-1 text-sm text-[var(--app-text-secondary)]">@{brand.username}</p></div>
           <button type="button" onClick={onLogout} className="rounded-full border border-[var(--app-border)] px-4 py-2 text-xs font-black">Sign out</button>
         </header>
         <section className="rounded-[1.75rem] border border-[var(--app-border)] bg-[var(--app-surface)] p-5">
-          <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-black">Brand profile</h2>{brand.verificationStatus === "verified" ? <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase text-emerald-700">Verified Brand</span> : <span className="rounded-full bg-[var(--app-accent-soft)] px-2 py-1 text-[9px] font-black uppercase text-[var(--app-accent)]">{brand.verificationStatus}</span>}</div>
+          <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-black">Brand profile</h2>{brand.verificationStatus === "verified" ? <span className="rounded-full bg-[var(--app-personal-soft)] px-2 py-1 text-[9px] font-black uppercase text-[var(--app-personal)]">Verified Brand</span> : <span className="rounded-full bg-[var(--app-accent-soft)] px-2 py-1 text-[9px] font-black uppercase text-[var(--app-accent)]">{brand.verificationStatus}</span>}</div>
           {brand.bio && <p className="mt-3 text-sm leading-6 text-[var(--app-text-secondary)]">{brand.bio}</p>}
           {brand.websiteUrl && <a href={brand.websiteUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-sm font-bold text-[var(--app-accent)] underline underline-offset-4">Visit external website ↗</a>}
           {brand.businessCategory && <p className="mt-3 text-xs font-semibold text-[var(--app-text-secondary)]">{brand.businessCategory}</p>}

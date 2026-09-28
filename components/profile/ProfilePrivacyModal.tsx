@@ -74,7 +74,7 @@ export function ProfilePrivacyModal({ settings, socialSettings, primaryColor, on
 
         <div className="mt-6 flex justify-end gap-3">
           <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</button>
-          <button type="button" onClick={() => { onSave(draft); onSaveSocial(socialDraft); onClose(); }} className="rounded-xl px-4 py-2.5 text-sm font-bold text-white" style={{ backgroundColor: primaryColor }}>Save privacy</button>
+          <button type="button" onClick={() => { onSave(draft); onSaveSocial(socialDraft); onClose(); }} className="rounded-xl px-4 py-2.5 text-sm font-bold text-[var(--app-accent-contrast)]" style={{ backgroundColor: primaryColor }}>Save privacy</button>
         </div>
       </section>
     </div>

@@ -1,7 +1,7 @@
 import type { UniversityTheme } from "@/data/universities";
-import type { AppearancePreferences, CuratedTintId } from "@/types/preferences";
+import type { AppearancePreferences, CuratedTintId, SurfaceScheme } from "@/types/preferences";
 
-export type AppearanceTokens = {
+type SurfaceTokens = {
   background: string;
   surface: string;
   surfaceElevated: string;
@@ -16,11 +16,23 @@ export type AppearanceTokens = {
   colorScheme: "light" | "dark";
 };
 
+export type AppearanceTokens = SurfaceTokens & {
+  urgent: string;
+  urgentSoft: string;
+  urgentContrast: string;
+  discovery: string;
+  discoverySoft: string;
+  discoveryContrast: string;
+  personal: string;
+  personalSoft: string;
+  personalContrast: string;
+};
+
 export type CuratedTint = {
   id: CuratedTintId;
   label: string;
   preview: string;
-  tokens: AppearanceTokens;
+  tokens: SurfaceTokens;
 };
 
 const sharedSemanticTokens = {
@@ -99,14 +111,14 @@ export const curatedTints: CuratedTint[] = [
   },
 ];
 
-export const campusMintLightTokens: AppearanceTokens = {
+export const campusMintLightTokens: SurfaceTokens = {
   background: "#fafafa", surface: "#ffffff", surfaceElevated: "#f0f0f0",
   textPrimary: "#171717", textSecondary: "#595959", border: "#cccccc",
   accent: campusMintBrand.maroon, accentSoft: campusMintBrand.maroonSoft, accentContrast: "#fffaf9",
   colorScheme: "light", ...sharedSemanticTokens,
 };
 
-export const campusMintDarkTokens: AppearanceTokens = {
+export const campusMintDarkTokens: SurfaceTokens = {
   background: "#0a0a0a", surface: "#141414", surfaceElevated: "#242424",
   textPrimary: "#fafafa", textSecondary: "#bcbcbc", border: "#484848",
   accent: "#d37a8c", accentSoft: "#42242b", accentContrast: "#1c1114",
@@ -161,23 +173,61 @@ function readableAccent(accent: string, background: string, scheme: "light" | "d
   return result;
 }
 
-export function getAppearanceTokens(preferences: AppearancePreferences, university: UniversityTheme): AppearanceTokens {
-  const base = preferences.scheme === "dark"
+function semanticColor(color: string, base: SurfaceTokens) {
+  const foreground = readableAccent(color, base.surfaceElevated, base.colorScheme);
+  let weight = base.colorScheme === "dark" ? 0.22 : 0.1;
+  let soft = mixHex(foreground, base.background, weight);
+  while (contrastRatio(foreground, soft) < 4.5 && weight > 0.02) {
+    weight -= 0.02;
+    soft = mixHex(foreground, base.background, weight);
+  }
+  return {
+    foreground,
+    soft,
+    contrast: contrastRatio(foreground, "#111111") >= contrastRatio(foreground, "#ffffff") ? "#111111" : "#ffffff",
+  };
+}
+
+/** One shared Colorful palette. Hue indicates meaning, never identity or permission. */
+export const colorfulPalette = {
+  light: { urgent: "#b74346", discovery: "#a85a20", personal: "#287650" },
+  dark: { urgent: "#ee9697", discovery: "#e8ad78", personal: "#79c39d" },
+} as const;
+
+export function getAppearanceTokens(preferences: AppearancePreferences, university: UniversityTheme, systemScheme: SurfaceScheme = "light"): AppearanceTokens {
+  const scheme = preferences.scheme === "colorful" ? systemScheme : preferences.scheme;
+  const base = scheme === "dark"
     ? campusMintDarkTokens
     : campusMintLightTokens;
-  const configuredAccent = preferences.accentSource === "campus"
+  const configuredAccent = preferences.scheme === "colorful"
+    ? colorfulPalette[scheme].personal
+    : preferences.accentSource === "campus"
     ? university.primary
     : preferences.accentSource === "curated"
       ? (curatedTints.find((tint) => tint.id === preferences.tint) ?? curatedTints[0]).preview
       : base.accent;
-  const accent = readableAccent(configuredAccent, base.surfaceElevated, preferences.scheme);
-  const blackContrast = contrastRatio(accent, "#111111");
-  const whiteContrast = contrastRatio(accent, "#ffffff");
+  const accent = semanticColor(configuredAccent, base);
+  const colors = preferences.scheme === "colorful" ? colorfulPalette[scheme] : {
+    urgent: configuredAccent, discovery: configuredAccent, personal: configuredAccent,
+  };
+  const urgent = semanticColor(colors.urgent, base);
+  const discovery = semanticColor(colors.discovery, base);
+  const personal = semanticColor(colors.personal, base);
 
   return {
     ...base,
-    accent,
-    accentSoft: mixHex(accent, base.background, preferences.scheme === "dark" ? 0.3 : 0.16),
-    accentContrast: blackContrast >= whiteContrast ? "#111111" : "#ffffff",
+    accent: accent.foreground,
+    accentSoft: accent.soft,
+    accentContrast: accent.contrast,
+    urgent: urgent.foreground, urgentSoft: urgent.soft, urgentContrast: urgent.contrast,
+    discovery: discovery.foreground, discoverySoft: discovery.soft, discoveryContrast: discovery.contrast,
+    personal: personal.foreground, personalSoft: personal.soft, personalContrast: personal.contrast,
   };
+}
+
+/** Used by both the shell and document root so portaled composers share the palette. */
+export function getAppearanceCssVariables(tokens: AppearanceTokens) {
+  return Object.fromEntries(Object.entries(tokens)
+    .filter(([name]) => name !== "colorScheme")
+    .map(([name, value]) => [`--app-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`, value]));
 }

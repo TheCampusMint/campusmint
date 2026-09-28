@@ -8,6 +8,7 @@ import {
   insertMentionAtCaret,
 } from "../lib/content/mentions.ts";
 import { createLinkedMusicMetadata } from "../lib/content/music.ts";
+import { getMintContentType } from "../lib/content/localMintMedia.ts";
 
 const createSource = readFileSync(
   new URL("../components/content/CreateContentFlow.tsx", import.meta.url),
@@ -36,12 +37,11 @@ test("Create Mint resolves and inserts inline mention queries", () => {
   assert.doesNotMatch(createSource, /Tag Users/i);
 });
 
-test("Create Mint keeps Tag Club and makes Location contextual", () => {
-  assert.match(createSource, /Tag a club \(optional\)/);
-  assert.match(createSource, /postType === "club"/);
-  assert.match(createSource, /postType === "event"/);
-  assert.match(createSource, /postType === "club"\s*\? resolvedLocation\(\)/);
-  assert.match(createSource, /postType === "club"\s*\? resolvedLocation\(\)/);
+test("plain community posts need no media and media posts preserve their content type", () => {
+  assert.equal(getMintContentType([]), "text");
+  assert.equal(getMintContentType([{ type: "image" }]), "image");
+  assert.equal(getMintContentType([{ type: "video" }]), "video");
+  assert.equal(getMintContentType([{ type: "image" }, { type: "video" }]), "carousel");
 });
 
 test("Create Mint says Duration, preserves privacy, and retains media selection", () => {

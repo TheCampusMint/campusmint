@@ -171,7 +171,7 @@ test("production Mint publishing waits for authenticated storage and database pe
   assert.match(mintHook, /fetch\("\/api\/mintz"/);
   assert.match(mintHook, /uploadToSignedUrl/);
   assert.match(source("../lib/content/publishMint.ts"), /JSON\.stringify\(body\)/);
-  assert.match(mintComposer, /Retry Publish/);
+  assert.match(mintComposer, /if \(!result.ok\)/);
   assert.doesNotMatch(mintComposer, /onCreateMint\(input\);\s*onClose/);
 });
 

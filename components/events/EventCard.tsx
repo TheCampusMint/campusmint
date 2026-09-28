@@ -23,9 +23,10 @@ export function EventCard({
 }: EventCardProps) {
   const displayedRsvpCount = event.rsvpCount + (isGoing ? 1 : 0);
   const ended = (typeof currentTime === "number" && new Date(event.eventEndAt ?? event.eventStartAt).getTime() <= currentTime) || event.status === "cancelled";
+  const happeningNow = !ended && typeof currentTime === "number" && new Date(event.eventStartAt).getTime() <= currentTime;
 
   return (
-    <article className="cm-interactive-card flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <article className="cm-interactive-card flex h-full flex-col rounded-2xl bg-[var(--app-surface)] p-6">
       <div className="flex flex-wrap items-center gap-2">
         <span
           className="rounded-full px-3 py-1 text-xs font-semibold"
@@ -36,9 +37,10 @@ export function EventCard({
         >
           {campusName}
         </span>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+        <span className="rounded-full bg-[var(--app-discovery-soft)] px-3 py-1 text-xs font-semibold text-[var(--app-discovery)]">
           {event.category}
         </span>
+        {happeningNow && <span className="rounded-full bg-[var(--app-urgent-soft)] px-3 py-1 text-xs font-semibold text-[var(--app-urgent)]">Happening now</span>}
       </div>
 
       <h3 className="mt-4 text-xl font-bold text-slate-950">{event.title}</h3>
@@ -90,9 +92,8 @@ export function EventCard({
             onClick={() => onToggleRsvp(event.id)}
             className="min-w-24 rounded-xl border px-4 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{
-              backgroundColor: isGoing ? theme.accent : theme.primary,
-              borderColor: theme.primary,
-              color: isGoing ? theme.primary : theme.secondary,
+              backgroundColor: isGoing ? "var(--app-personal-soft)" : "var(--app-personal)",
+              color: isGoing ? "var(--app-personal)" : "var(--app-personal-contrast)",
               outlineColor: theme.primary,
             }}
           >

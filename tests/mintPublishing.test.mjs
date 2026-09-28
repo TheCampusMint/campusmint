@@ -8,6 +8,7 @@ import * as policy from "../lib/content/mintUploadPolicy.ts";
 import * as tickets from "../lib/content/mintUploadTicket.ts";
 import * as mediaPolicy from "../lib/content/mediaPolicy.ts";
 import { publishMint } from "../lib/content/publishMint.ts";
+import * as polls from "../lib/content/polls.ts";
 
 const userId = "85a07f98-0a8e-41f9-825c-847c094f33da";
 const requestId = "1218db39-aea3-43b7-b7b0-2391b734ab46";
@@ -62,9 +63,19 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
     campus_network_universities: [{ university_id: "tamu", campus_network_id: randomUUID() }],
   };
   const objects = new Map();
+  const pollReads = [];
+  const unavailablePollIds = new Set();
   let signedUploads = 0;
   let removedObjects = 0;
   const admin = {
+    async rpc(name, args) {
+      assert.equal(name, "read_mint_poll");
+      pollReads.push(args.target_content_id);
+      if (unavailablePollIds.has(args.target_content_id)) return { data: null, error: { code: "P0002" } };
+      const content = rows.social_content.find((row) => row.id === args.target_content_id);
+      assert.ok(content?.poll_definition);
+      return { data: { ...content.poll_definition, options: content.poll_definition.options.map((option) => ({ ...option, voteCount: 0 })), totalVotes: 0, selectedOptionId: null }, error: null };
+    },
     from(table) {
       rows[table] ??= [];
       let mode = "select", value, one = false;
@@ -105,7 +116,7 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
   };
   const bindings = {
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
-    "@/data/universities": { configuredUniversityIds: ["tamu"] },
+    "@/data/universities": { configuredUniversityIds: ["tamu"], universities: { tamu: { accessibleCampuses: ["tamu"] } } },
     "@/lib/supabase/server": {
       hasSupabasePublicConfig: () => configured,
       hasSupabaseServerConfig: () => configured,
@@ -115,6 +126,7 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
     "@/lib/content/mediaPolicy": mediaPolicy,
     "@/lib/content/mintUploadPolicy": policy,
     "@/lib/content/mintUploadTicket": tickets,
+    "@/lib/content/polls": polls,
   };
   const source = readFileSync(new URL("../app/api/mintz/route.ts", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -124,7 +136,7 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
     return bindings[name];
   }, exports);
   const request = (body) => exports.POST(new Request("http://campusmint.test/api/mintz", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }));
-  return { request, rows, objects, signedUploads: () => signedUploads, removedObjects: () => removedObjects };
+  return { request, getFeed: exports.GET, rows, objects, pollReads, unavailablePollIds, signedUploads: () => signedUploads, removedObjects: () => removedObjects };
 }
 
 const payload = { requestId, caption: "A campus moment", postType: "personal", privacy: "public", mediaMetadata: [{ width: 640, height: 480 }] };
@@ -201,4 +213,100 @@ test("client does not finalize failed media uploads or report publication before
   assert.equal(result.retryable, true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].action, "prepare");
+});
+
+test("a community poll publishes without media or a caption and is reloaded from persisted poll definition", async () => {
+  const app = routeHarness();
+  const response = await app.request({ action: "publish", payload: { ...payload, caption: "", poll: { question: "Roommates for next year?", options: ["Looking", "Already set"] } } });
+  assert.equal(response.status, 201);
+  const { mint } = await response.json();
+  assert.equal(mint.contentType, "text");
+  assert.equal(mint.media.length, 0);
+  assert.equal(mint.poll.question, "Roommates for next year?");
+  assert.equal(mint.poll.totalVotes, 0);
+  assert.equal(app.rows.social_content[0].poll_definition.options.length, 2);
+  const invalid = routeHarness();
+  assert.equal((await invalid.request({ action: "publish", payload: { ...payload, poll: { question: "Where?", options: ["A", "a"] } } })).status, 400);
+  assert.equal(invalid.rows.social_content?.length ?? 0, 0);
+});
+
+test("an Event-only community roll call attaches canonical campus details without becoming a new Event", async () => {
+  const eventId = randomUUID();
+  const app = routeHarness();
+  app.rows.campus_events = [{ id: eventId, campus_id: "tamu", status: "scheduled", title: "Official campus fair", starts_at: new Date(Date.now() + 86400_000).toISOString(), ends_at: null, timezone: "America/Chicago", location_name: "Campus lawn", brief_description: "Meet your community." }];
+  const response = await app.request({ action: "publish", payload: { ...payload, caption: "", eventData: { eventId, title: "Spoofed event title", locationDetails: "Spoofed place" } } });
+  assert.equal(response.status, 201);
+  const { mint } = await response.json();
+  assert.equal(mint.postType, "personal");
+  assert.equal(mint.expiresAt, null);
+  assert.equal(mint.eventData.eventId, eventId);
+  assert.equal(mint.eventData.title, "Official campus fair");
+  assert.equal(mint.eventData.location.label, "Campus lawn");
+  assert.equal(app.rows.campus_events.length, 1, "attaching an event never creates another canonical event");
+  assert.equal(app.rows.content_event_details[0].canonical_event_key, eventId);
+});
+
+test("unknown, ended, cancelled and other-campus Event context cannot publish, even with convincing client metadata", async () => {
+  for (const patch of [{ id: randomUUID() }, { status: "cancelled" }, { campus_id: "texas" }, { starts_at: new Date(Date.now() - 86400_000).toISOString() }]) {
+    const eventId = randomUUID();
+    const app = routeHarness();
+    app.rows.campus_events = [{ id: eventId, campus_id: "tamu", status: "scheduled", title: "Real event", starts_at: new Date(Date.now() + 86400_000).toISOString(), ...patch }];
+    assert.equal((await app.request({ action: "publish", payload: { ...payload, eventData: { eventId, title: "Claimed event" } } })).status, 400);
+    assert.equal(app.rows.social_content?.length ?? 0, 0);
+  }
+});
+
+test("Club discussion context persists canonical IDs/names and rejects unavailable or other-campus clubs", async () => {
+  const organizationId = randomUUID();
+  const organization = { id: organizationId, name: "Astronomy Club", university_id: "tamu", status: "active", is_development: false, official_status: "university_verified", confidence_level: "official" };
+  const app = routeHarness();
+  app.rows.organizations = [organization];
+  const response = await app.request({ action: "publish", payload: { ...payload, caption: "When is the next meeting?", taggedOrganizationIds: [organizationId], taggedOrganizations: [{ id: organizationId, name: "Spoofed club" }] } });
+  assert.equal(response.status, 201);
+  const { mint } = await response.json();
+  assert.deepEqual(mint.taggedOrganizationIds, [organizationId]);
+  assert.deepEqual(mint.taggedOrganizations, [{ id: organizationId, name: "Astronomy Club" }]);
+  assert.equal(mint.organizationId, null, "discussing a Club does not claim its official publishing identity");
+  for (const patch of [{ id: randomUUID() }, { university_id: "texas" }, { status: "archived" }, { is_development: true }, { official_status: "pending" }, { confidence_level: "pending" }]) {
+    const invalid = routeHarness();
+    invalid.rows.organizations = [{ ...organization, ...patch }];
+    assert.equal((await invalid.request({ action: "publish", payload: { ...payload, taggedOrganizationIds: [organizationId] } })).status, 400);
+    assert.equal(invalid.rows.social_content?.length ?? 0, 0);
+  }
+});
+
+test("feed filters private author content before calling the poll RPC and restores it only for eligible connections", async () => {
+  const app = routeHarness();
+  await app.request({ action: "publish", payload });
+  const authorId = randomUUID();
+  const pollId = randomUUID();
+  const textId = randomUUID();
+  app.rows.profiles.push({ ...app.rows.profiles[0], user_id: authorId, social_account_type: "private" });
+  app.rows.profile_identities.push({ ...app.rows.profile_identities[0], user_id: authorId });
+  for (const [id, poll] of [[pollId, polls.createPollDefinition({ question: "Private poll", options: ["A", "B"] })], [textId, null]]) {
+    app.rows.social_content.push({ ...app.rows.social_content[0], id, author_id: authorId, poll_definition: poll });
+    app.rows.mints.push({ content_id: id, privacy: "public", archived_at: null });
+  }
+  let result = await (await app.getFeed()).json();
+  assert.equal(result.ok, true);
+  assert.equal(result.mintz.length, 1);
+  assert.equal(app.pollReads.length, 0, "private-author poll must be excluded before aggregate RPC authorization");
+  assert.ok(result.authors.every((author) => author.account.id !== authorId));
+  app.rows.profile_follows.push({ follower_id: userId, following_id: authorId });
+  result = await (await app.getFeed()).json();
+  assert.equal(result.ok, true);
+  assert.equal(result.mintz.length, 3);
+  assert.deepEqual(app.pollReads, [pollId]);
+});
+
+test("a poll becoming inaccessible during feed loading hides only that post", async () => {
+  const app = routeHarness();
+  const published = await (await app.request({ action: "publish", payload: { ...payload, poll: { question: "Visible initially", options: ["A", "B"] } } })).json();
+  assert.equal(published.ok, true);
+  app.unavailablePollIds.add(published.mint.id);
+  await app.request({ action: "publish", payload: { ...payload, requestId: randomUUID(), caption: "Still visible" } });
+  const result = await (await app.getFeed()).json();
+  assert.equal(result.ok, true);
+  assert.equal(result.mintz.length, 1);
+  assert.equal(result.mintz[0].caption, "Still visible");
 });

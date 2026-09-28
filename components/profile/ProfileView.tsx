@@ -236,7 +236,7 @@ export function ProfileView({
                 <button
                   type="button"
                   onClick={onEdit}
-                  className="rounded-full px-5 py-2.5 text-sm font-bold text-white"
+                  className="rounded-full px-5 py-2.5 text-sm font-bold text-[var(--app-accent-contrast)]"
                   style={{
                     backgroundColor:
                       theme.primary,
@@ -270,8 +270,8 @@ export function ProfileView({
                   onClick={onToggleFollow}
                   className={`rounded-full px-5 py-2.5 text-sm font-bold ${
                     following
-                      ? "bg-slate-200 text-slate-600"
-                      : "text-white"
+                      ? "bg-[var(--app-personal-soft)] text-[var(--app-personal)]"
+                      : "text-[var(--app-accent-contrast)]"
                   }`}
                   style={
                     following
@@ -404,7 +404,7 @@ export function ProfileView({
                   <button
                     type="button"
                     onClick={() => onAcceptClubInvitation(club.id)}
-                    className="rounded-xl px-3 py-2 text-xs font-bold text-white"
+                    className="rounded-xl px-3 py-2 text-xs font-bold text-[var(--app-accent-contrast)]"
                     style={{ backgroundColor: theme.primary }}
                   >
                     Accept

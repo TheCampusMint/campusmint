@@ -44,6 +44,7 @@ const categories: Array<{ id: SettingsCategory; label: string }> = [
 const schemeChoices: Array<{ id: AppearanceScheme; label: string; detail: string }> = [
   { id: "light", label: "Light", detail: "Bright surfaces" },
   { id: "dark", label: "Dark", detail: "Low-light surfaces" },
+  { id: "colorful", label: "Colorful", detail: "Color with meaning" },
 ];
 
 const accentChoices: Array<{ id: AppearanceAccentSource; label: string }> = [
@@ -53,6 +54,7 @@ const accentChoices: Array<{ id: AppearanceAccentSource; label: string }> = [
 ];
 
 function schemePreviewStyle(scheme: AppearanceScheme) {
+  if (scheme === "colorful") return { background: "linear-gradient(115deg,#b74346 33%,#a85a20 33%,#a85a20 66%,#287650 66%)" };
   return scheme === "dark"
     ? { background: "linear-gradient(135deg,#0a0a0a 50%,#242424 50%)" }
     : { background: "linear-gradient(135deg,#ffffff 50%,#f0f0f0 50%)" };
@@ -174,8 +176,8 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
     if (activeCategory === "appearance") return (
       <div>
         <h3 className="text-lg font-black text-slate-950">Appearance</h3>
-        <p className="mt-1 text-sm leading-6 text-slate-500">Choose surfaces and accent independently, including any accent in dark mode.</p>
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        <p className="mt-1 text-sm leading-6 text-slate-500">Choose your look. Light and Dark use your accent throughout the interface.</p>
+        <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
           {schemeChoices.map((choice) => (
             <button key={choice.id} type="button" aria-pressed={preferences.appearance.scheme === choice.id} onClick={() => updateAppearance({ scheme: choice.id })} className="cm-choice-control rounded-3xl p-3 text-left transition active:scale-[0.98]">
               <span aria-hidden="true" className="block h-12 rounded-full" style={schemePreviewStyle(choice.id)} />
@@ -184,7 +186,14 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
             </button>
           ))}
         </div>
-        <div className="mt-6">
+        {preferences.appearance.scheme === "colorful" ? <div className="mt-5 space-y-3 text-sm">
+          <p className="text-[var(--app-text-secondary)]">One shared palette, with light or dark surfaces that follow your device.</p>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 font-semibold">
+            <span className="text-[var(--app-urgent)]">Red · happening now</span>
+            <span className="text-[var(--app-discovery)]">Orange · discover</span>
+            <span className="text-[var(--app-personal)]">Green · for you</span>
+          </div>
+        </div> : <div className="mt-6">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Accent source</p>
           <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1">
             {accentChoices.map((choice) => (
@@ -201,7 +210,7 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
               </button>
             ))}
           </div>
-        </div>
+        </div>}
       </div>
     );
 
@@ -277,7 +286,7 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
             data-direction={categoryDirection}
           >
             {section}
-          </div>{notice && <div role="status" className="mt-5 flex items-start justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"><span>{notice}</span><CloseButton tone="minimal" className="-mr-2 -mt-2" label="Dismiss notice" onClick={() => setNotice(null)} /></div>}</div>
+          </div>{notice && <div role="status" className="mt-5 flex items-start justify-between gap-3 rounded-2xl bg-[var(--app-accent-soft)] p-4 text-sm font-semibold text-[var(--app-accent)]"><span>{notice}</span><CloseButton tone="minimal" className="-mr-2 -mt-2" label="Dismiss notice" onClick={() => setNotice(null)} /></div>}</div>
       </section>
     </div>
   );

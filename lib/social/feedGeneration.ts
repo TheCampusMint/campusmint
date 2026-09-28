@@ -93,6 +93,23 @@ export function flattenFeedGeneration(generation: MintFeedGeneration) {
   return [...generation.pinnedMintIds, ...generation.newMintIds, ...generation.oldMintIds];
 }
 
+export type MintFeedGenerationCursor = { feedScope: string; refreshGeneration: number; feedRevision: number };
+
+/** Keep a finite session stable until a deliberate refresh, confirmed post, or loaded feed arrives. */
+export function advanceFeedGeneration(
+  state: { cursor: MintFeedGenerationCursor; generation: MintFeedGeneration },
+  cursor: MintFeedGenerationCursor,
+  input: Omit<Parameters<typeof createFeedGeneration>[0], "previousEligibleMintIds" | "generationId">,
+) {
+  if (state.cursor.feedScope === cursor.feedScope && state.cursor.refreshGeneration === cursor.refreshGeneration && state.cursor.feedRevision === cursor.feedRevision) return state;
+  const sameScope = state.cursor.feedScope === cursor.feedScope;
+  return { cursor, generation: createFeedGeneration({
+    ...input,
+    previousEligibleMintIds: sameScope ? state.generation.eligibleMintIds : null,
+    generationId: sameScope ? state.generation.id + 1 : 0,
+  }) };
+}
+
 export function applyCurrentPinsToGeneration(
   generation: MintFeedGeneration,
   pins: readonly MintPin[],

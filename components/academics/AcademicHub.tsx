@@ -100,7 +100,7 @@ export function AcademicHub({
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
-        <div className="p-6 text-white" style={{ backgroundColor: theme.primary }}>
+        <div className="p-6 text-[var(--app-accent-contrast)]" style={{ backgroundColor: theme.primary }}>
           <p className="text-sm font-semibold opacity-80">Academic Hub</p>
           <h3 className="mt-1 text-3xl font-bold">Plan classes. Find your people.</h3>
           <p className="mt-2 max-w-2xl text-sm opacity-85">

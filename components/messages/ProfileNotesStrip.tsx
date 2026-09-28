@@ -56,11 +56,11 @@ function NoteBubble({
   own?: boolean;
 }) {
   return (
-    <span className="absolute left-1/2 top-0 z-10 flex min-h-8 w-[4.75rem] -translate-x-1/2 items-center justify-center rounded-2xl border border-slate-200 bg-white px-1.5 py-1 text-center text-[9px] font-semibold leading-3 text-slate-700 shadow-[0_6px_20px_-14px_rgba(15,23,42,.75)] before:absolute before:-bottom-1 before:left-1/2 before:h-2 before:w-2 before:-translate-x-1/2 before:rotate-45 before:bg-[var(--app-surface)]">
+    <span className="absolute left-1/2 top-0 z-10 flex min-h-8 w-[4.75rem] -translate-x-1/2 items-center justify-center rounded-2xl bg-[var(--app-surface)] px-1.5 py-1 text-center text-[9px] font-semibold leading-3 text-[var(--app-text-primary)] before:absolute before:-bottom-1 before:left-1/2 before:h-2 before:w-2 before:-translate-x-1/2 before:rotate-45 before:bg-[var(--app-surface)]">
       <span className="line-clamp-2 break-words">
         {text}
         {hasLink && (
-          <span className="ml-1 whitespace-nowrap text-[8px] text-slate-400" aria-hidden="true">
+          <span className="ml-1 whitespace-nowrap text-[8px] text-[var(--app-accent)]" aria-hidden="true">
             ↗
           </span>
         )}
@@ -156,7 +156,7 @@ export function ProfileNotesStrip({
             <ProfileAvatar user={viewer} size="md" primaryColor={theme.primary} accentColor={theme.accent} />
             <span className="absolute -bottom-0.5 -right-0.5 text-lg font-medium leading-none" style={{ color: "var(--app-accent)" }} aria-hidden="true">+</span>
           </span>
-          <span className="absolute inset-x-0 bottom-0 block truncate px-1 text-center text-[10px] font-bold text-slate-700">You</span>
+          <span className="absolute inset-x-0 bottom-0 block truncate px-1 text-center text-[10px] font-bold text-[var(--app-text-primary)]">You</span>
         </ProfileNoteUnit>
 
         {relatedUsers.slice(0, 8).map((user, index) => {
@@ -167,7 +167,7 @@ export function ProfileNotesStrip({
               <span className={`absolute left-1/2 -translate-x-1/2 ${note ? "top-[2.65rem]" : "top-4"}`}>
                 <ProfileAvatar user={user} size="md" primaryColor={theme.primary} accentColor={theme.accent} />
               </span>
-              <span className="absolute inset-x-0 bottom-0 block truncate px-1 text-center text-[10px] font-semibold text-slate-600">{user.profile.firstName}</span>
+              <span className="absolute inset-x-0 bottom-0 block truncate px-1 text-center text-[10px] font-semibold text-[var(--app-text-secondary)]">{user.profile.firstName}</span>
             </ProfileNoteUnit>
           );
         })}

@@ -90,7 +90,7 @@ export function MarketplaceDetailModal(props: MarketplaceDetailModalProps) {
 
   return (
     <div className="cm-overlay-backdrop fixed inset-0 z-[100] overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) props.onClose(); }}>
-      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="marketplace-detail-title" className="cm-panel-sheet mx-auto my-2 max-w-6xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="marketplace-detail-title" className="cm-themed-portal cm-panel-sheet mx-auto my-2 max-w-6xl overflow-hidden rounded-3xl text-[var(--app-text-primary)]" style={{ backgroundColor: "var(--app-surface)" }}>
         <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-7">
           <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase text-amber-800">Development listing</span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase text-slate-700">{statusLabel(listing.status)}</span><span className="text-xs text-slate-500">No real seller or item</span></div>
           {props.closeLabel ? (

@@ -43,6 +43,19 @@ export type ContentLocation = {
   details: string | null;
 };
 
+/** A single-choice campus poll. Voter identities are never part of a feed response. */
+export type ContentPollInput = {
+  question: string;
+  options: string[];
+};
+
+export type ContentPoll = {
+  question: string;
+  options: Array<{ id: string; label: string; voteCount: number }>;
+  totalVotes: number;
+  selectedOptionId: string | null;
+};
+
 export type MusicProvider = "development" | "licensed_provider" | "spotify" | "apple_music";
 
 /** Provider-neutral music reference shared by Mintz and Profile Notes. */

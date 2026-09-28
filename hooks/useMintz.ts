@@ -9,6 +9,8 @@ import {
 import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import type { LocalMintMediaSelection } from "@/lib/content/localMintMedia";
 import { publishMint } from "@/lib/content/publishMint";
+import { emptyPoll } from "@/lib/content/polls";
+import { accountScopedValue, activateAccountRequestScope, beginAccountRequest, createAccountRequestScope } from "@/lib/content/accountRequestScope";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { resolveContentStatus } from "@/lib/content/expiration";
 import { validateCommentAttachment } from "@/lib/content/commentMedia";
@@ -92,12 +94,25 @@ function readLegacyDrafts(userId: string) {
 export function useMintz(currentUserId: string) {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [refreshGeneration, setRefreshGeneration] = useState(0);
-  const [storedMintz, setStoredMintz] = useState<Mint[]>(() =>
+  const [feedRevision, setFeedRevision] = useState(0);
+  const [rawStoredMintz, setStoredMintz] = useState<Mint[]>(() =>
     FIXTURES_ENABLED ? createDevelopmentMintz(currentTime) : [],
   );
-  const [persistedAuthors, setPersistedAuthors] = useState<CampusMintUser[]>([]);
-  const [persistenceError, setPersistenceError] = useState<string | null>(null);
-  const [persistedMintzLoading, setPersistedMintzLoading] = useState(false);
+  const [rawPersistedAuthors, setPersistedAuthors] = useState<CampusMintUser[]>([]);
+  const [feedOwnerId, setFeedOwnerId] = useState(currentUserId);
+  const [persistenceStatus, setPersistenceStatus] = useState<{ userId: string; error: string | null; loading: boolean }>({ userId: currentUserId, error: null, loading: false });
+  const persistenceError = accountScopedValue(persistenceStatus.userId, currentUserId, persistenceStatus.error, null);
+  const persistedMintzLoading = accountScopedValue(persistenceStatus.userId, currentUserId, persistenceStatus.loading, uuidPattern.test(currentUserId));
+  const persistedAuthors = accountScopedValue(feedOwnerId, currentUserId, rawPersistedAuthors, []);
+  // Hide the prior account's feed during render, before effect cleanup runs.
+  // This includes private poll choices present on otherwise public Mintz.
+  const storedMintz = useMemo(() => accountScopedValue(feedOwnerId, currentUserId, rawStoredMintz, rawStoredMintz.filter((mint) => mint.isDevelopment)), [feedOwnerId, currentUserId, rawStoredMintz]);
+  const feedRequestScope = useRef(createAccountRequestScope(currentUserId));
+  useLayoutEffect(() => {
+    const scope = feedRequestScope.current;
+    activateAccountRequestScope(scope, currentUserId);
+    return () => activateAccountRequestScope(scope, "");
+  }, [currentUserId]);
   const [privateAppreciations, setPrivateAppreciations] = useState<
     MintPrivateAppreciation[]
   >([]);
@@ -227,10 +242,13 @@ export function useMintz(currentUserId: string) {
 
   const loadPersistedMintz = useCallback(async () => {
     if (!uuidPattern.test(currentUserId)) return;
-    setPersistedMintzLoading(true);
+    const request = beginAccountRequest(feedRequestScope.current, currentUserId);
+    if (!request) return;
+    setPersistenceStatus({ userId: currentUserId, loading: true, error: null });
     try {
-      const response = await fetch("/api/mintz", { cache: "no-store" });
+      const response = await fetch("/api/mintz", { cache: "no-store", signal: request.signal });
       const result = await response.json().catch(() => null) as MintFeedResponse | null;
+      if (!request.isCurrent()) return;
       if (!response.ok || !result?.ok) {
         throw new Error(result && !result.ok ? result.message : "Mintz are temporarily unavailable.");
       }
@@ -239,11 +257,11 @@ export function useMintz(currentUserId: string) {
         return [...result.mintz, ...current.filter((mint) => mint.isDevelopment && !persistedIds.has(mint.id))];
       });
       setPersistedAuthors(result.authors);
-      setPersistenceError(null);
+      setFeedOwnerId(currentUserId);
+      setFeedRevision((revision) => revision + 1);
+      setPersistenceStatus({ userId: currentUserId, loading: false, error: null });
     } catch (error) {
-      setPersistenceError(error instanceof Error ? error.message : "Mintz are temporarily unavailable.");
-    } finally {
-      setPersistedMintzLoading(false);
+      if (request.isCurrent()) setPersistenceStatus({ userId: currentUserId, loading: false, error: error instanceof Error ? error.message : "Mintz are temporarily unavailable." });
     }
   }, [currentUserId]);
 
@@ -254,7 +272,9 @@ export function useMintz(currentUserId: string) {
 
   function refreshMintz() {
     setCurrentTime(Date.now());
-    setRefreshGeneration((current) => current + 1);
+    // Fixture releases are immediate. Real feeds advance only after their new
+    // rows arrive, so one refresh includes the records it actually fetched.
+    if (!uuidPattern.test(currentUserId)) setRefreshGeneration((current) => current + 1);
     void loadPersistedMintz();
   }
 
@@ -293,6 +313,7 @@ export function useMintz(currentUserId: string) {
     const now = new Date().toISOString();
     const mint: Mint = {
       ...input,
+      poll: input.poll ? emptyPoll(input.poll) : null,
       id: localId("mint"),
       createdAt: now,
       updatedAt: now,
@@ -306,6 +327,7 @@ export function useMintz(currentUserId: string) {
       status: "active",
     };
     setStoredMintz((current) => [mint, ...current]);
+    setFeedRevision((revision) => revision + 1);
     const recipients = new Map<string, "mention" | "tag">();
     mint.mentions.forEach((mention) => recipients.set(mention.userId, "mention"));
     mint.taggedUserIds.forEach((userId) => recipients.set(userId, "tag"));
@@ -334,6 +356,7 @@ export function useMintz(currentUserId: string) {
     const payload = {
       requestId,
       caption: input.caption,
+      poll: input.poll ?? null,
       postType: input.postType,
       privacy: input.privacy,
       expiresAt: input.expiresAt,
@@ -368,9 +391,16 @@ export function useMintz(currentUserId: string) {
           retryable: result.retryable,
         };
       }
-      setStoredMintz((current) => [result.mint, ...current.filter((mint) => mint.id !== result.mint.id)]);
-      setPersistedAuthors((current) => [result.author, ...current.filter((author) => author.account.id !== result.author.account.id)]);
-      setPersistenceError(null);
+      if (feedRequestScope.current.accountId === currentUserId && result.author.account.id === currentUserId) {
+        // A feed request started before this publish must not replace the
+        // newly confirmed post with an older snapshot when it arrives late.
+        activateAccountRequestScope(feedRequestScope.current, currentUserId);
+        setStoredMintz((current) => [result.mint, ...current.filter((mint) => (feedOwnerId === currentUserId || mint.isDevelopment) && mint.id !== result.mint.id)]);
+        setPersistedAuthors((current) => [result.author, ...current.filter((author) => feedOwnerId === currentUserId && author.account.id !== result.author.account.id)]);
+        setFeedOwnerId(currentUserId);
+        setFeedRevision((revision) => revision + 1);
+        setPersistenceStatus({ userId: currentUserId, loading: false, error: null });
+      }
       return { ok: true as const, mint: result.mint, message: null };
     } catch {
       return {
@@ -666,6 +696,7 @@ export function useMintz(currentUserId: string) {
     pins,
     dwellRecords,
     refreshGeneration,
+    feedRevision,
     shares,
     reports,
     pendingNotifications,

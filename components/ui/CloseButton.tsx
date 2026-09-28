@@ -17,7 +17,7 @@ type CloseButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"
 
 export function CloseButton({ label = "Close", tone = "surface", className = "", ...props }: CloseButtonProps) {
   const toneClass = tone === "inverse"
-    ? "text-white [filter:drop-shadow(0_1px_2px_rgb(0_0_0/.65))]"
+    ? "bg-transparent text-white"
     : tone === "minimal"
       ? "bg-transparent text-current"
       : "bg-transparent text-[var(--app-text-secondary,#64748b)]";
