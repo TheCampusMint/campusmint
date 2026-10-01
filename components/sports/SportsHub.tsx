@@ -6,20 +6,18 @@ import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 
 import {
   defaultSportsEntitlement,
-  getAvailableCampusPrograms,
+  getRecommendedCampusPrograms,
   getCampusAthleticsProfile,
   getCampusGameDetail,
   getCampusRankingBoards,
-  getLiveCampusGames,
-  getNextCampusGame,
   launchCampusSports,
-  resolveDefaultCampusSport,
   resolveCampusGameState,
   type CampusScheduleGame,
   type CampusAthleticsProfile,
   type CampusSportProgram,
   type LaunchCampusSportId,
 } from "@/data/sports";
+import { seasonRecord } from "@/lib/sports/selection";
 import type { UniversityId, UniversityTheme } from "@/data/universities";
 
 type SportsHubProps = {
@@ -81,9 +79,7 @@ function ScheduleRow({ game, program, currentTime, onOpen }: { game: CampusSched
 }
 
 function SchedulePanel({ program, currentTime, onOpenGame }: { program: CampusSportProgram; currentTime: number; onOpenGame: (game: CampusScheduleGame) => void }) {
-  const stale = program.source.staleAfter
-    ? currentTime > new Date(program.source.staleAfter).getTime()
-    : false;
+  const record = seasonRecord(program, currentTime);
   return (
     <section aria-labelledby="campus-schedule-title">
       <div className="flex items-end justify-between gap-3">
@@ -96,8 +92,7 @@ function SchedulePanel({ program, currentTime, onOpenGame }: { program: CampusSp
           </h2>
         </div>
         <span className="text-right text-[9px] font-semibold text-slate-400">
-          {program.schedulePublished ? <>{stale ? "Last verified" : "Updated"} {program.source.lastFetchedAt ?? program.source.verifiedAt}</> : "Official schedule linked"}
-          {program.record ? <><br/>{program.record}</> : null}
+          {record ? <><span className="sr-only">Season record </span>{record}</> : "Record unavailable"}
         </span>
       </div>
 
@@ -151,12 +146,12 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
   const [remoteProfile, setRemoteProfile] = useState<CampusAthleticsProfile | null>(null);
   const resolvedProfile = remoteProfile?.universityId === universityId ? remoteProfile : profile;
   const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [sportsInterests, setSportsInterests] = useState<string[]>([]);
   const defaultSport = resolvedProfile
-    ? resolveDefaultCampusSport(resolvedProfile, currentTime)
+    ? getRecommendedCampusPrograms(resolvedProfile, currentTime, sportsInterests)[0]?.sport ?? null
     : null;
-  const [activeSport, setActiveSport] = useState<LaunchCampusSportId | null>(
-    defaultSport,
-  );
+  const [manualSelection, setManualSelection] = useState<{campus: UniversityId | null; sport: LaunchCampusSportId} | null>(null);
+  const activeSport = manualSelection?.campus === universityId ? manualSelection.sport : initialSport ?? defaultSport;
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [refreshFailureCampus, setRefreshFailureCampus] = useState<UniversityId | null>(null);
   const refreshUnavailable = refreshFailureCampus === universityId;
@@ -176,10 +171,10 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
       pending = true;
       try {
         const response = await fetch(`/api/sports?universityId=${encodeURIComponent(universityId)}`, { cache: "no-store", signal: controller.signal });
-        const payload = await response.json() as { ok?: boolean; profile?: CampusAthleticsProfile | null; refreshUnavailable?: boolean };
+        const payload = await response.json() as { ok?: boolean; profile?: CampusAthleticsProfile | null; refreshUnavailable?: boolean; sportsInterests?: string[] };
         if (!active) return;
         setRefreshFailureCampus(!response.ok || !payload.ok || payload.refreshUnavailable === true ? universityId : null);
-        if (response.ok && payload.ok && payload.profile?.universityId === universityId) setRemoteProfile(payload.profile);
+        if (response.ok && payload.ok && payload.profile?.universityId === universityId) { setRemoteProfile(payload.profile); setSportsInterests(payload.sportsInterests ?? []); }
       } catch { if (active) setRefreshFailureCampus(universityId); }
       finally { pending = false; }
     };
@@ -197,47 +192,31 @@ export function SportsHub({ theme, universityId, initialSport = null, onBack }: 
     };
   }, [universityId]);
 
-  useEffect(() => {
-    if (!resolvedProfile) return;
-    const storageKey = `campusmint:sports:${resolvedProfile.universityId}:sport:v1`;
-    const stored = window.localStorage.getItem(storageKey) as LaunchCampusSportId | null;
-    const available = getAvailableCampusPrograms(resolvedProfile).map((program) => program.sport);
-    const next = initialSport && available.includes(initialSport)
-      ? initialSport
-      : stored && available.includes(stored)
-        ? stored
-        : defaultSport;
-    // University identity is an external boundary for this local preference.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActiveSport(next);
-  }, [defaultSport, initialSport, resolvedProfile]);
 
   if (!resolvedProfile) {
     return (
-      <section className="rounded-[1.75rem] bg-white p-7 text-center" data-sports-hub>
+      <section className="rounded-[1.75rem] bg-[var(--app-surface)] p-7 text-center" data-sports-hub>
         <h1 className="text-xl font-black text-slate-950">Campus Sports</h1>
         <p className="mt-2 text-sm text-slate-500">No sports data yet</p>
       </section>
     );
   }
 
-  const programs = getAvailableCampusPrograms(resolvedProfile);
+  const programs = getRecommendedCampusPrograms(resolvedProfile, currentTime, sportsInterests);
   const selectedProgram =
     programs.find((program) => program.sport === activeSport) ?? programs[0] ?? null;
-  const liveGames = getLiveCampusGames(resolvedProfile, currentTime);
-  const nextGame = getNextCampusGame(resolvedProfile, currentTime);
+  const liveGames = programs.flatMap(program => program.games.filter(game => resolveCampusGameState(game, program.source, currentTime) === "live"));
+  const nextGame = programs.flatMap(program => program.games.filter(game => resolveCampusGameState(game, program.source, currentTime) === "scheduled"))
+    .sort((a,b) => Date.parse(a.date)-Date.parse(b.date))[0] ?? null;
   const rankingBoards = selectedProgram
     ? getCampusRankingBoards(resolvedProfile, selectedProgram.sport)
     : [];
   const selectedGame = selectedProgram?.games.find((game) => game.id === selectedGameId) ?? null;
 
   function selectSport(sport: LaunchCampusSportId) {
-    setActiveSport(sport);
+    setManualSelection({campus: universityId, sport});
     setSelectedGameId(null);
-    window.localStorage.setItem(
-      `campusmint:sports:${resolvedProfile!.universityId}:sport:v1`,
-      sport,
-    );
+
   }
 
   return (

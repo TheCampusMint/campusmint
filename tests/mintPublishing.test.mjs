@@ -86,7 +86,10 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
         eq(key, expected) { filters.push((row) => row[key] === expected); return query; },
         is(key, expected) { filters.push((row) => (row[key] ?? null) === expected); return query; },
         in(key, expected) { filters.push((row) => expected.includes(row[key])); return query; },
-        order() { return query; }, limit() { return query; }, or() { return query; },
+        order() { return query; }, limit() { return query; }, or(expression) {
+          if (table === "organizations" && expression.startsWith("user_created.eq.true")) filters.push(row => row.user_created === true || (["university_verified","community_verified"].includes(row.official_status) && ["official","community_verified"].includes(row.confidence_level)));
+          return query;
+        },
         maybeSingle() { one = true; return query; }, single() { one = true; return query; },
         insert(data) { mode = "insert"; value = data; return query; },
         delete() { mode = "delete"; return query; },

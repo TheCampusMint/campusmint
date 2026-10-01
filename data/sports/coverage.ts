@@ -14,6 +14,26 @@ export const campusSportsCoverage = {
     {
       "sport": "baseball",
       "url": "https://12thman.com/sports/baseball/schedule/"
+    },
+    {
+      "sport": "volleyball",
+      "url": "https://12thman.com/sports/womens-volleyball/schedule/"
+    },
+    {
+      "sport": "equestrian",
+      "url": "https://12thman.com/sports/equestrian/schedule/"
+    },
+    {
+      "sport": "golf",
+      "url": "https://12thman.com/sports/mens-golf/schedule/"
+    },
+    {
+      "sport": "softball",
+      "url": "https://12thman.com/sports/softball/schedule/"
+    },
+    {
+      "sport": "tennis",
+      "url": "https://12thman.com/sports/womens-tennis/schedule/"
     }
   ],
   "blinn": [
@@ -101,6 +121,18 @@ export const campusSportsCoverage = {
     {
       "sport": "football",
       "url": "https://gocrimson.com/sports/football/schedule/"
+    },
+    {
+      "sport": "basketball",
+      "url": "https://gocrimson.com/sports/mens-basketball/schedule/"
+    },
+    {
+      "sport": "lacrosse",
+      "url": "https://gocrimson.com/sports/mens-lacrosse/schedule/"
+    },
+    {
+      "sport": "golf",
+      "url": "https://gocrimson.com/sports/mens-golf/schedule/"
     }
   ],
   "michigan": [

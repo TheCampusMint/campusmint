@@ -30,6 +30,7 @@ import type { CampusGroup } from "@/types/group";
 import type { Organization } from "@/types/organization";
 import type { TemporaryUser } from "@/types/user";
 import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
+import { LiveClubs } from "@/components/clubs/LiveClubs";
 
 const fixtureCampusGroups = areDevelopmentFixturesEnabled() ? developmentCampusGroups : [];
 const fixtureOrganizations = areDevelopmentFixturesEnabled() ? developmentOrganizations : [];
@@ -217,7 +218,11 @@ function OrganizationGroupCard({
   );
 }
 
-export function GroupsSkeleton({
+export function GroupsSkeleton(props: Parameters<typeof DevelopmentGroups>[0]) {
+  return areDevelopmentFixturesEnabled() ? <DevelopmentGroups {...props}/> : <LiveClubs key={`${props.currentUserId}:${props.configuredUniversityId}`} universityId={props.configuredUniversityId} currentUserId={props.currentUserId}/>;
+}
+
+function DevelopmentGroups({
   currentUserId,
   user,
   configuredUniversityId,

@@ -1,4 +1,4 @@
-import { getCampusAthleticsProfile, getAvailableCampusPrograms, type CampusAthleticsProfile } from "../../data/sports/campus.ts";
+import { getCampusAthleticsProfile, getCampusProgramCatalog, type CampusAthleticsProfile } from "../../data/sports/campus.ts";
 import type { UniversityId } from "../../data/universities.ts";
 import { createSupabaseAdminClient } from "../supabase/server";
 import { FOOTBALL_REFRESH_INTERVAL_MS, officialFootballUrl, parseOfficialFootballSchedule, updateOfficialFootballProgram } from "./officialFootball.ts";
@@ -16,7 +16,7 @@ export function sportsSnapshotNeedsRefresh(snapshot: SportsSnapshot | null, now 
 export function mergeCampusSports(universityId: UniversityId, snapshot: SportsSnapshot | null): CampusAthleticsProfile {
   const configured = getCampusAthleticsProfile(universityId)!;
   if (snapshot?.payload.universityId !== universityId) return configured;
-  return { ...configured, programs: Object.fromEntries(getAvailableCampusPrograms(configured).map((program) => {
+  return { ...configured, programs: Object.fromEntries(getCampusProgramCatalog(configured).map((program) => {
     const saved = snapshot.payload.programs[program.sport];
     return [program.sport, saved?.source.lastFetchedAt ? { ...saved, label: program.label, source: { ...saved.source, sourceUrl: program.source.sourceUrl } } : program];
   })), rankingBoards: snapshot.payload.rankingBoards };
@@ -31,9 +31,9 @@ export async function refreshCampusSports(universityId: UniversityId, snapshot: 
   retryAfter.set(universityId, Date.now() + 60_000);
   const operation = (async () => {
     const now = new Date();
-    const season = String(now.getUTCFullYear());
+    const season = String(now.getUTCFullYear() - (now.getUTCMonth() === 0 ? 1 : 0));
     const base = mergeCampusSports(universityId, snapshot);
-    const results = await Promise.allSettled(getAvailableCampusPrograms(base).map(async (program) => {
+    const results = await Promise.allSettled(getCampusProgramCatalog(base).map(async (program) => {
       const isTamuFootball = universityId === "tamu" && program.sport === "football";
       const response = await fetch(isTamuFootball ? officialFootballUrl(season) : program.source.sourceUrl, { cache: "no-store", signal: AbortSignal.timeout(12_000), headers: { Accept: "text/html" } });
       if (!response.ok) throw new Error("Official schedule unavailable.");

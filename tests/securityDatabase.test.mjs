@@ -66,7 +66,7 @@ before(async () => {
     alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
   `);
   const directory = new URL('../supabase/migrations/', import.meta.url);
-  const migrations = (await readdir(directory)).filter(file => file.endsWith('.sql') && file <= '20260928003000_native_attestation.sql').sort();
+  const migrations = (await readdir(directory)).filter(file => file.endsWith('.sql')).sort();
   for (const migration of migrations) {
     await db.exec(await readFile(new URL(migration, directory), 'utf8'));
   }
@@ -329,4 +329,48 @@ test('read-only live drift inventory executes against the complete schema withou
   const before = (await db.query('select count(*)::int n from public.security_audit_events')).rows;
   await db.exec(sql);
   assert.deepEqual((await db.query('select count(*)::int n from public.security_audit_events')).rows, before);
+});
+
+test('private clubs enforce owner/admin/member permissions, explicit invitations and campus scope', async () => {
+  // Earlier privacy tests intentionally left a block in place.
+  await db.exec(`delete from public.profile_blocks where blocker_id='${owner}' and blocked_id='${stranger}'`);
+  const call = (actor, action, club = null, target = null, data = {}) => asRole('service_role', null,
+    `select public.mutate_club('${actor}','${action}',${club ? `'${club}'` : 'null'},${target ? `'${target}'` : 'null'},'${JSON.stringify(data).replaceAll("'","''")}'::jsonb) id`);
+  const club = (await call(owner,'create',null,null,{name:'Security Test Club',handle:'security-test-club',description:'Private club details'})).rows[0].id;
+  assert.deepEqual((await db.query(`select visibility,member_count from public.organizations where id='${club}'`)).rows,[{visibility:'private',member_count:1}]);
+  for (const role of ['anon','authenticated']) {
+    assert.equal((await asRole(role,stranger,`select id from public.organizations where id='${club}'`)).rows.length,0);
+    await assert.rejects(asRole(role,owner,`select public.mutate_club('${owner}','approve','${club}','${stranger}')`),{code:'42501'});
+    await assert.rejects(asRole(role,owner,'select * from public.club_invitations'),{code:'42501'});
+  }
+  await call(stranger,'request',club);
+  await assert.rejects(call(stranger,'approve',club,stranger),{code:'42501'});
+  await assert.rejects(call(stranger,'invite',club,administrator),{code:'42501'});
+  await call(owner,'approve',club,stranger);
+  await call(owner,'promote',club,stranger);
+  await assert.rejects(call(stranger,'remove',club,owner),{code:'42501'});
+  await assert.rejects(call(stranger,'promote',club,administrator),{code:'42501'});
+  await assert.rejects(call(stranger,'update',club,null,{name:'Test club',description:'Details',visibility:'public'}),{code:'42501'});
+  await call(stranger,'invite',club,administrator);
+  assert.equal((await db.query(`select 1 from public.organization_memberships where organization_id='${club}' and user_id='${administrator}'`)).rows.length,0);
+  await call(administrator,'accept_invite',club);
+  await assert.rejects(call(administrator,'accept_invite',club),{code:'42501'});
+  await call(owner,'promote',club,administrator);
+  await assert.rejects(call(stranger,'remove',club,administrator),{code:'42501'});
+  await call(owner,'demote',club,administrator);
+  const conversation = (await db.query(`insert into public.conversations(kind,organization_id,created_by) values ('organization_group','${club}','${owner}') returning id`)).rows[0].id;
+  await db.exec(`insert into public.conversation_participants(conversation_id,user_id) values('${conversation}','${administrator}')`);
+  await call(stranger,'remove',club,administrator);
+  assert.equal((await db.query(`select 1 from public.organization_roles where organization_id='${club}' and user_id='${administrator}'`)).rows.length,0);
+  assert.ok((await db.query(`select removed_at from public.conversation_participants where conversation_id='${conversation}' and user_id='${administrator}'`)).rows[0].removed_at);
+  await db.exec(`update public.profile_identities set university_id='texas' where user_id='${administrator}'`);
+  await assert.rejects(call(administrator,'request',club),{code:'42501'});
+  await assert.rejects(call(owner,'invite',club,administrator),{code:'42501'});
+  await db.exec(`update public.profile_identities set university_id='tamu' where user_id='${administrator}'; insert into public.profile_blocks(blocker_id,blocked_id) values('${owner}','${administrator}')`);
+  await assert.rejects(call(administrator,'request',club),{code:'42501'});
+  await assert.rejects(call(owner,'leave',club),{code:'42501'});
+  await call(stranger,'leave',club);
+  assert.equal((await db.query(`select member_count from public.organizations where id='${club}'`)).rows[0].member_count,1);
+  await call(owner,'update',club,null,{name:'Security Test Club',description:'Now public',visibility:'public'});
+  assert.equal((await db.query(`select visibility from public.organizations where id='${club}'`)).rows[0].visibility,'public');
 });

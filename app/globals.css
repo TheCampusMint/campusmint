@@ -612,6 +612,13 @@ summary {
   border: 0 !important;
   box-shadow: none !important;
 }
+.cm-create-composer :where(button, input, textarea, select, summary, [role="option"]) {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.cm-create-composer :where(button, input, textarea, select, summary, [role="option"]):not(:focus-visible) {
+  outline: none !important;
+}
 .cm-create-composer textarea.cm-composer-field { background: transparent; }
 .cm-create-composer fieldset { border: 0; min-inline-size: 0; padding: 0; }
 .cm-composer-reveal { animation: composer-reveal 240ms ease-out both; }

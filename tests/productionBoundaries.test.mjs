@@ -77,7 +77,7 @@ test("student completion uses the minimal verified profile contract and reports 
   assert.match(studentOnboarding, /firstName: string/);
   assert.match(studentOnboarding, /lastName: string/);
   assert.match(studentOnboarding, /username: string/);
-  assert.doesNotMatch(studentOnboarding, /interests|hobbies|academicArea|tutoring|roommate|clubIds|phoneNumber/);
+  assert.doesNotMatch(studentOnboarding, /hobbies|academicArea|tutoring|roommate|clubIds|phoneNumber/);
   assert.match(accountCompletion, /user\.email_confirmed_at/);
   assert.match(accountCompletion, /firstName = cleanText/);
   assert.match(accountCompletion, /lastName = cleanText/);

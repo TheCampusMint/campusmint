@@ -383,8 +383,7 @@ async function loadMintFeed(
   const taggedOrganizationNames = new Map<string, string>();
   if (taggedOrganizationIds.length > 0) {
     const { data, error } = await admin.from("organizations").select("id,name").in("id", taggedOrganizationIds)
-      .eq("status", "active").eq("is_development", false).in("official_status", ["university_verified", "community_verified"])
-      .in("confidence_level", ["official", "community_verified"]);
+      .eq("status", "active").eq("is_development", false).or("user_created.eq.true,and(official_status.in.(university_verified,community_verified),confidence_level.in.(official,community_verified))");
     if (error) throw error;
     (data ?? []).forEach((row) => taggedOrganizationNames.set(row.id, row.name));
   }
@@ -683,8 +682,7 @@ export async function POST(request: Request) {
       const accessibleCampuses = universities[identity.university_id as UniversityId]?.accessibleCampuses ?? [];
       const { data: organizations, error } = await admin.from("organizations").select("id")
         .in("id", payload.taggedOrganizationIds).in("university_id", accessibleCampuses)
-        .eq("status", "active").eq("is_development", false).in("official_status", ["university_verified", "community_verified"])
-        .in("confidence_level", ["official", "community_verified"]);
+        .eq("status", "active").eq("is_development", false).or("user_created.eq.true,and(official_status.in.(university_verified,community_verified),confidence_level.in.(official,community_verified))");
       if (error) throw error;
       if (organizations?.length !== payload.taggedOrganizationIds.length) return json<MintPublishResponse>({ ok: false, message: "A selected Club is no longer available. Update your Club attachment.", retryable: false }, 400);
     }

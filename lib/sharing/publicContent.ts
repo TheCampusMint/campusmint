@@ -29,7 +29,7 @@ export const publicMint = cache(async (id:string) => {
 });
 export const publicClub = cache(async (handle:string) => {
   if (!/^[a-z0-9-]{2,80}$/.test(handle)) return null;
-  const result = await createSupabaseAdminClient().from("organizations").select("name,short_description,full_description,photo_url,website,meeting_location,meeting_schedule").eq("handle",handle).eq("status","active").eq("is_development",false).in("official_status",["university_verified","community_verified"]).in("confidence_level",["official","community_verified"]).maybeSingle();
+  const result = await createSupabaseAdminClient().from("organizations").select("name,short_description,full_description,photo_url,website,meeting_location,meeting_schedule").eq("handle",handle).eq("visibility","public").eq("status","active").eq("is_development",false).or("user_created.eq.true,and(official_status.in.(university_verified,community_verified),confidence_level.in.(official,community_verified))").maybeSingle();
   if(result.error || !result.data) return null;
   return {...result.data,photo_url:safeWebUrl(result.data.photo_url),website:safeWebUrl(result.data.website)};
 });

@@ -5,6 +5,7 @@ import { getSportsTeam } from "./teams.ts";
 import type { SportsDataSource } from "./types.ts";
 import { campusSportsCoverage } from "./coverage.ts";
 import { universities } from "../universities.ts";
+import { rankCampusPrograms } from "../../lib/sports/selection.ts";
 
 export const launchCampusSports = [
   { id: "football", label: "Football" },
@@ -17,6 +18,10 @@ export const launchCampusSports = [
   { id: "track", label: "Track & Field" },
   { id: "hockey", label: "Ice Hockey" },
   { id: "rowing", label: "Rowing" },
+  { id: "golf", label: "Golf" },
+  { id: "equestrian", label: "Equestrian" },
+  { id: "lacrosse", label: "Lacrosse" },
+  { id: "tennis", label: "Tennis" },
 ] as const;
 
 export type LaunchCampusSportId = (typeof launchCampusSports)[number]["id"];
@@ -406,14 +411,33 @@ export const campusAthleticsProfiles: Readonly<Record<UniversityId, CampusAthlet
 };
 
 export function getCampusAthleticsProfile(universityId: UniversityId | null) {
-  return universityId ? campusAthleticsProfiles[universityId] ?? null : null;
+  if (!universityId) return null;
+  const base = campusAthleticsProfiles[universityId];
+  if (!base) return null;
+  const coverage = campusSportsCoverage[universityId];
+  const programs = { ...base.programs };
+  for (const item of coverage) {
+    const sport = item.sport as LaunchCampusSportId;
+    if (!programs[sport]) programs[sport] = { sport, label: launchCampusSports.find(s=>s.id===sport)!.label,
+      seasonLabel: 'Current season', seasonStart: '', seasonEnd: '', schedulePublished: false, games: [],
+      source: { ...base.featuredSportsSource, sourceUrl: item.url } };
+  }
+  return { ...base, supportedSports: coverage.map(item=>item.sport as LaunchCampusSportId), programs };
 }
 
 export function getAvailableCampusPrograms(profile: CampusAthleticsProfile) {
-  return [...new Set(profile.featuredSports)].filter((sport) => profile.supportedSports.includes(sport)).flatMap((sport) => {
+  return getCampusProgramCatalog(profile).slice(0,3);
+}
+
+export function getRecommendedCampusPrograms(profile: CampusAthleticsProfile, currentTime: number, favorites: readonly string[] = []) {
+  return rankCampusPrograms(getCampusProgramCatalog(profile), currentTime, favorites).slice(0,3);
+}
+
+export function getCampusProgramCatalog(profile: CampusAthleticsProfile) {
+  return [...new Set([...profile.featuredSports,...profile.supportedSports])].filter((sport) => profile.supportedSports.includes(sport)).flatMap((sport) => {
     const program = profile.programs[sport];
     return program?.source.sourceUrl.startsWith("https://") ? [program] : [];
-  }).slice(0, 3);
+  });
 }
 
 export function getLiveCampusGames(
@@ -509,11 +533,13 @@ export function resolveCampusGameState(
   if (game.status === "final") return "final" as const;
   const startsAt = new Date(game.date).getTime();
   if (!Number.isFinite(startsAt)) return "verification_pending" as const;
+  if (startsAt > currentTime) return "scheduled" as const;
   if (game.status === "live") {
     const staleAt = source?.staleAfter ? new Date(source.staleAfter).getTime() : Number.NaN;
     return Number.isFinite(staleAt) && currentTime > staleAt ? "verification_pending" as const : "live" as const;
   }
-  if (startsAt <= currentTime || game.status === "verification_pending") return "verification_pending" as const;
+  if (startsAt > currentTime) return "scheduled" as const;
+  if (startsAt <= currentTime) return "verification_pending" as const;
   return "scheduled" as const;
 }
 

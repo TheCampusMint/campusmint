@@ -27,6 +27,7 @@ export function profileValuesFromRow(row: Record<string, unknown>): EditableProf
     graduationYear: typeof row.graduation_year === "number" ? row.graduation_year : null,
     classIds: list(details.classIds), clubIds: list(details.clubIds), interests: list(row.interests),
     hobbies: list(details.hobbies), lookingForRoommate: details.lookingForRoommate === true,
+    sportsInterests: list(details.sportsInterests),
     roommatePreferences: list(details.roommatePreferences), offersTutoring: details.offersTutoring === true,
     tutoringSubjects: list(details.tutoringSubjects), hometown: nullableText(row.hometown, 160),
     instagram: nullableText(row.instagram, 500), linkedin: nullableText(row.linkedin, 500),
@@ -55,6 +56,7 @@ export function normalizeProfileUpdate(input: Record<string, unknown>) {
     profile_photo_placeholder: nullableText(photo.placeholderId, 80),
     profile_details: {
       academicArea: nullableText(input.academicArea, 160), hobbies: list(input.hobbies),
+      sportsInterests: list(input.sportsInterests),
       classIds: list(input.classIds), clubIds: list(input.clubIds),
       lookingForRoommate: input.lookingForRoommate === true, roommatePreferences: list(input.roommatePreferences),
       offersTutoring: input.offersTutoring === true, tutoringSubjects: list(input.tutoringSubjects),

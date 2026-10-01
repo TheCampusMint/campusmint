@@ -107,6 +107,7 @@ export type CampusMintProfile = {
   clubIds: string[];
   interests: string[];
   hobbies?: string[];
+  sportsInterests?: string[];
   lookingForRoommate?: boolean;
   roommatePreferences?: string[];
   offersTutoring?: boolean;

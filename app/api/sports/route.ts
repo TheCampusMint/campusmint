@@ -18,6 +18,9 @@ export async function GET(request: Request) {
   if (!user || user.app_metadata?.account_type !== "student") return NextResponse.json({ ok: false, message: "Sign in to view campus Sports." }, { status: 401 });
   const { data: identity } = await session.from("profile_identities").select("university_id").eq("user_id", user.id).maybeSingle();
   const admin = createSupabaseAdminClient();
+  const { data: preferences, error: preferencesError } = await admin.from('profiles').select('profile_details').eq('user_id',user.id).maybeSingle();
+  if (preferencesError) return NextResponse.json({ok:false,message:'Sports preferences unavailable.'},{status:503});
+  const sportsInterests = Array.isArray(preferences?.profile_details?.sportsInterests) ? preferences.profile_details.sportsInterests.filter((sport: unknown): sport is string=>typeof sport==='string') : [];
   if (identity?.university_id !== requestedUniversityId) {
     const { data: testerCapability } = await admin.from("account_capabilities")
       .select("capability")
@@ -35,5 +38,5 @@ export async function GET(request: Request) {
   let refreshUnavailable = false;
   try { snapshot = await refreshCampusSports(requestedUniversityId, snapshot); }
   catch { refreshUnavailable = true; }
-  return NextResponse.json({ ok: true, profile: mergeCampusSports(requestedUniversityId, snapshot), refreshUnavailable, freshness: snapshot ? { fetchedAt: snapshot.fetched_at, verifiedAt: snapshot.verified_at, staleAfter: snapshot.stale_after } : null }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({ ok: true, sportsInterests, profile: mergeCampusSports(requestedUniversityId, snapshot), refreshUnavailable, freshness: snapshot ? { fetchedAt: snapshot.fetched_at, verifiedAt: snapshot.verified_at, staleAfter: snapshot.stale_after } : null }, { headers: { "Cache-Control": "private, no-store" } });
 }

@@ -5,6 +5,7 @@ import { normalizeSafeBrandWebsite } from "@/lib/auth/accountTypes";
 import { isStudentSmsVerificationRequired } from "@/lib/auth/studentSmsPolicy";
 import { assessStudentEmail } from "@/lib/auth/studentEmail";
 import { validateUsername } from "@/lib/social/usernames";
+import { getCampusAthleticsProfile, getCampusProgramCatalog } from "@/data/sports/campus";
 import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig, hasSupabaseServerConfig } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -76,6 +77,9 @@ export async function POST(request: Request) {
     const lastName = cleanText("lastName" in body ? body.lastName : null, 80);
     if (!firstName) return NextResponse.json({ ok: false, message: "First name is required." }, { status: 400 });
     const displayName = [firstName, lastName].filter(Boolean).join(" ").slice(0, 160);
+    const offered = getCampusProgramCatalog(getCampusAthleticsProfile(universityId)!);
+    const requestedSports = 'sportsInterests' in body && Array.isArray(body.sportsInterests) ? body.sportsInterests : [];
+    const sportsInterests = offered.map(program=>program.sport).filter(sport=>requestedSports.includes(sport));
     const profileImageStoragePath = cleanText("profileImageStoragePath" in body ? body.profileImageStoragePath : null, 1000) || null;
 
     if (isStudentSmsVerificationRequired()) {
@@ -101,7 +105,7 @@ export async function POST(request: Request) {
     );
     if (identityError) return databaseFailure("student identity upsert", identityError);
     const { error: profileError } = await admin.from("profiles").upsert(
-      { user_id: user.id, first_name: firstName, last_name: lastName, display_name: displayName, username, profile_photo_storage_path: profileImageStoragePath, interests: [] },
+      { user_id: user.id, first_name: firstName, last_name: lastName, display_name: displayName, username, profile_photo_storage_path: profileImageStoragePath, interests: [], profile_details: { sportsInterests } },
       { onConflict: "user_id", ignoreDuplicates: true },
     );
     if (profileError) return databaseFailure("student profile upsert", profileError);

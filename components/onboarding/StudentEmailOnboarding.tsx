@@ -8,6 +8,7 @@ import { requestEmailOtp, verifyEmailOtp } from "@/lib/auth/emailOtpClient";
 import { assessStudentEmail, getStudentEmailRejectionMessage } from "@/lib/auth/studentEmail";
 import type { EmailOtpRequestResponse } from "@/types/auth";
 import type { VerifiedStudentEmail } from "@/types/studentVerification";
+import { getCampusAthleticsProfile, getCampusProgramCatalog } from "@/data/sports/campus";
 
 type VerificationRequestSuccess = Extract<EmailOtpRequestResponse, { ok: true }>;
 
@@ -16,6 +17,7 @@ type OnboardingProfileSetup = {
   lastName: string;
   username: string;
   profileImageStoragePath: string | null;
+  sportsInterests: string[];
 };
 
 type StudentEmailOnboardingProps = {
@@ -50,6 +52,7 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
   const [selectedPrimaryEmail, setSelectedPrimaryEmail] = useState<string | null>(null);
   const [profileSetupOpen, setProfileSetupOpen] = useState(false);
   const [firstName, setFirstName] = useState("");
+  const [sportsInterests, setSportsInterests] = useState<string[]>([]);
   const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");
   const [completionPending, setCompletionPending] = useState(false);
@@ -134,6 +137,7 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
           lastName: lastName.trim(),
           username: username.trim().toLowerCase(),
           profileImageStoragePath: null,
+          sportsInterests,
         },
       );
       if (result && !result.ok) setCompletionError(result.message ?? "We couldn't finish account setup.");
@@ -196,6 +200,11 @@ export function StudentEmailOnboarding({ onBack, onVerified }: StudentEmailOnboa
               )}
             </label>
           </div>
+          {(() => {
+            const athletics = getCampusAthleticsProfile(verifiedTarget.identity.knownUniversityId);
+            const sports = athletics ? getCampusProgramCatalog(athletics) : [];
+            return sports.length > 0 && <fieldset className="mt-6 border-0"><legend className="text-sm font-bold">Sports interests <span className="font-normal">(optional)</span></legend><div className="mt-3 flex flex-wrap gap-2">{sports.map(sport=><button key={sport.sport} type="button" aria-pressed={sportsInterests.includes(sport.sport)} onClick={()=>setSportsInterests(current=>current.includes(sport.sport) ? current.filter(id=>id!==sport.sport) : [...current,sport.sport])} className="rounded-full px-3 py-2 text-sm" style={{background:sportsInterests.includes(sport.sport) ? 'var(--app-accent-soft)' : 'transparent',color:'var(--app-text-primary)'}}>{sport.label}</button>)}</div></fieldset>;
+          })()}
           <TactileButton
             type="button"
             disabled={!profileValid || completionPending}

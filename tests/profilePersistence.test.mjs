@@ -4,6 +4,7 @@ import test from "node:test";
 import * as requestBody from "../lib/security/requestBody.ts";
 import ts from "typescript";
 import { normalizeProfileUpdate, persistProfile, profileValuesFromRow } from "../lib/auth/profilePersistence.ts";
+import { getCampusAthleticsProfile, getCampusProgramCatalog } from "../data/sports/campus.ts";
 import { validateUsername } from "../lib/social/usernames.ts";
 
 const profileRow = {
@@ -34,6 +35,7 @@ function database(resolve, authError = null) {
 function loadRoute(name, db) {
   const modules = {
     "@/lib/security/requestBody": requestBody,
+    "@/data/sports/campus": { getCampusAthleticsProfile, getCampusProgramCatalog },
     "next/server": { NextResponse: { json: Response.json } },
     "@/lib/auth/profilePersistence": { normalizeProfileUpdate, profileValuesFromRow },
     "@/lib/supabase/server": { hasSupabasePublicConfig: () => true, hasSupabaseServerConfig: () => true, createSupabaseServerClient: async () => db, createSupabaseAdminClient: () => db },

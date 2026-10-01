@@ -19,7 +19,7 @@ export async function GET() {
     if (!campus || !universities[campus]) return NextResponse.json({ ok: true, clubs: [], events: [] }, { headers });
     const [clubs, roles, events, memberships] = await Promise.all([
       admin.from("organizations").select("id,name").eq("university_id", campus).eq("status", "active").eq("is_development", false)
-        .in("confidence_level", ["official", "community_verified"]).in("official_status", ["university_verified", "community_verified"]).order("name").limit(500),
+        .or("user_created.eq.true,and(official_status.in.(university_verified,community_verified),confidence_level.in.(official,community_verified))").order("name").limit(500),
       admin.from("organization_roles").select("organization_id").eq("user_id", user.id).eq("can_publish", true),
       admin.from("campus_events").select("id,title,starts_at,location_name").in("campus_id", universities[campus].accessibleCampuses)
         .in("status", ["scheduled", "updated"])

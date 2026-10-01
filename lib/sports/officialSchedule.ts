@@ -114,6 +114,8 @@ export function parseOfficialSchedule(html: string, universityId: UniversityId, 
     return old?.status === "final" && game.status !== "final" ? old : { ...game, detail: old?.detail ?? null };
   });
   if (previous.seasonLabel === season && previous.games.some((old) => old.status === "final" && !merged.some((game) => game.date.slice(0, 10) === old.date.slice(0, 10) && game.opponentName === old.opponentName))) throw new Error("Official schedule lost a verified result.");
+  const dates = games.map(game=>game.date.slice(0,10)).sort();
   return { ...previous, schedulePublished: true, seasonLabel: season, games: merged,
+    seasonStart: dates[0], seasonEnd: dates[dates.length-1], record: null,
     source: { ...previous.source, season, verifiedAt: now.toISOString(), lastFetchedAt: now.toISOString(), staleAfter: new Date(now.getTime() + 5 * 60_000).toISOString() } };
 }
