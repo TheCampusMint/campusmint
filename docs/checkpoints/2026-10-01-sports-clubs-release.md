@@ -35,3 +35,12 @@ Connector-generated history timestamps were reconciled to the repository migrati
 - App Attest and Apple account linking remain disabled pending paid-team provisioning, real-device validation and review. Music and unlicensed provider catalogs remain absent. Google Places remains ready for a key but disabled.
 
 Official catalog references: [Texas A&M](https://12thman.com/), [Harvard](https://gocrimson.com/).
+
+## Published evidence
+
+- Application commit: `7524134`; pushed to `origin/main` with the prior security/native commit included. Vercel reported success for [deployment 3oFnt3MgSTgtXQwHJ3KdC9QgAHTS](https://vercel.com/thecampusmints-projects/campusmint/3oFnt3MgSTgtXQwHJ3KdC9QgAHTS).
+- Public website: https://www.thecampusmint.com. Homepage HTTP 200; native configuration HTTP 200 with Apple linking/App Attest disabled; account hydration correctly reports signed out; club access and cleanup reject anonymous requests with 401. Security headers, private API cache policy and request IDs are present.
+- Clean anonymous browser reaches Choose your account; no browser errors reported. No real OTP, upload, account change or club invitation was sent during production verification.
+- Secret scan: 492 working-tree files and 14 browser artifacts, no findings. Historical scan evidence remains in SEC-NATIVE-02; the release scan did not repeat Git history.
+- Hosted migration history now matches repository versions through private_clubs. Post-migration advisor reports two remaining warnings: [pg_trgm in public](https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public) and [leaked-password protection disabled](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection). Its no-policy INFO notices are expected for deliberately server-only tables. Function-search-path warnings are resolved.
+- Vercel connector access to the project returned 403. Git-based deployment succeeded and GitHub's Vercel commit status plus live HTTP/browser checks supplied release evidence; a Vercel runtime-log scan and drain inventory were not available.
