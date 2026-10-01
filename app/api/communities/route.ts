@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/security/requestBody";
 import { NextResponse } from "next/server";
 
 import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig, hasSupabaseServerConfig } from "@/lib/supabase/server";
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
   if (!user) return json({ ok: false, message: "Sign in again." }, 401);
 
   let input: unknown;
-  try { input = await request.json(); } catch { input = null; }
+  try { input = await readJsonBody(request); } catch { input = null; }
   if (!input || typeof input !== "object") return json({ ok: false, message: "Enter the community details." }, 400);
   const value = input as Record<string, unknown>;
   const kind = value.kind === "group" || value.kind === "channel" ? value.kind : null;

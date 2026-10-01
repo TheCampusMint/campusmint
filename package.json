@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npm run test:social",
+    "test": "npm run test:all",
+    "test:all": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=4 tests/*.test.mjs",
+    "test:security": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/securityDatabase.test.mjs tests/securityHttp.test.mjs tests/appAttestSecurity.test.mjs",
+    "test:places": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/placesArchitecture.test.mjs",
     "test:event-timing": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/eventTiming.test.mjs",
     "test:organizations": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/organizationMembership.test.mjs",
     "test:organization-identity": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/organizationIdentity.test.mjs",
@@ -47,19 +50,22 @@
     "test:nearby-recommendations": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/nearbyRecommendations.test.mjs tests/publicShares.test.mjs"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.12.7",
-    "@supabase/supabase-js": "^2.112.2",
-    "next": "16.3.0",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.112.2",
+    "cbor": "^10.0.12",
+    "next": "^16.3.6",
+    "node-app-attest": "^1.0.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.0",
+    "eslint-config-next": "^16.3.6",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

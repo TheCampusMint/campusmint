@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/security/requestBody";
 import { NextResponse } from "next/server";
 
 import { campusDataSources } from "@/data/development/campusData";
@@ -8,7 +9,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   try {
-    const body = await request.json() as { sourceId?: string };
+    const body = await readJsonBody(request) as { sourceId?: string };
     const source = campusDataSources.find((item) => item.id === body.sourceId);
     if (!source) return NextResponse.json({ error: "Unknown data source." }, { status: 404 });
     const result = await syncUniversitySource(source);

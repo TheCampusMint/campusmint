@@ -13,6 +13,7 @@ export function insideNearby(origin: Coordinates, point: unknown) {
 export const cuisines = ["All", "Asian", "Fast food", "Indian", "Mexican", "Italian", "American", "Cafes"] as const;
 export type Cuisine = typeof cuisines[number];
 export type NearbyItem = {
+  googlePlaceId?: string; campusMintPlaceId?: string;
   id: string; title: string; description: string; address: string; latitude: number; longitude: number;
   website?: string | null; image?: string | null; imageCredit?: string; imageCreditUrl?: string | null; imageSourceUrl?: string | null; attributions?: {name:string;url:string|null}[];
   source: string; sourceUrl: string; startsAt?: string; endsAt?: string; timeZone?: string; rating?: number | null; ratingCount?: number | null;

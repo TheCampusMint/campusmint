@@ -1,3 +1,4 @@
+import { readJsonObject } from "@/lib/security/requestBody";
 import { NextResponse } from "next/server";
 import { blockedUsers, marketplaceSession, MarketplaceError } from "@/lib/marketplace/server";
 export const dynamic = "force-dynamic";
@@ -29,8 +30,8 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { admin, user, listing, blocked } = await context(body.listingId);
+    const body = await readJsonObject(request);
+    const { admin, user, listing, blocked } = await context(typeof body.listingId === "string" ? body.listingId : null);
     const sellerReply = user.id === listing.seller_user_id;
     const buyerId = sellerReply ? body.buyerId : user.id;
     if (!uuid(buyerId) || buyerId === listing.seller_user_id || blocked.has(buyerId)) throw new MarketplaceError("Conversation unavailable.", 403);

@@ -1,3 +1,4 @@
+import { readJsonObject } from "@/lib/security/requestBody";
 import { NextResponse } from "next/server";
 
 import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig, hasSupabaseServerConfig } from "@/lib/supabase/server";
@@ -17,7 +18,7 @@ async function handle(request: Request, context: Context, voting: boolean) {
     if (authError || !user) return NextResponse.json({ ok: false, message: "Sign in to use polls." }, { status: 401, headers });
     let optionId: string | null = null;
     if (voting) {
-      const body = await request.json().catch(() => null);
+      const body = await readJsonObject(request).catch(() => null);
       if (!body || typeof body.optionId !== "string" || !/^[1-6]$/.test(body.optionId)) {
         return NextResponse.json({ ok: false, message: "Choose an available poll answer." }, { status: 400, headers });
       }

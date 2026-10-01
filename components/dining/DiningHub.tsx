@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { fetchPlaceJson, requestPlaceSession, refreshPlaceSession } from "@/lib/providers/places/session";
 
 import { DiningLocationCard } from "@/components/dining/DiningLocationCard";
 import { DiningLocationDetail } from "@/components/dining/DiningLocationDetail";
@@ -14,6 +15,7 @@ import type { DiningCategory, DiningLocation } from "@/types/discovery";
 const categories: Array<"All" | DiningCategory> = ["All", "Dining hall", "Restaurant", "Coffee shop", "Fast food", "On-campus dining"];
 
 type DiningHubProps = {
+  sessionKey: string;
   universityId: UniversityId;
   accessibleCampuses: string[];
   theme: UniversityTheme;
@@ -23,7 +25,10 @@ function locationRating(location: DiningLocation) {
   return location.externalReviews?.rating ?? location.campusMintReviews.rating;
 }
 
-export function DiningHub({ universityId, accessibleCampuses, theme }: DiningHubProps) {
+export function DiningHub(props: DiningHubProps) { return <DiningSession key={`${props.sessionKey}:${props.universityId}`} {...props} />; }
+function DiningSession({ sessionKey, universityId, accessibleCampuses, theme }: DiningHubProps) {
+  const sequence = useRef(0);
+  useEffect(() => () => { sequence.current++; }, []);
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<"all" | DiningLocation["scope"]>("all");
   const [category, setCategory] = useState<(typeof categories)[number]>("All");
@@ -66,23 +71,24 @@ export function DiningHub({ universityId, accessibleCampuses, theme }: DiningHub
 
   async function searchProvider(event: FormEvent) {
     event.preventDefault();
-    if (providerQuery.trim().length < 2) {
-      setProviderMessage("Enter at least two characters.");
+    if (providerQuery.trim().length < 3 || providerQuery.trim().length > 200) {
+      setProviderMessage("Enter 3–200 characters.");
       return;
     }
     setProviderLoading(true);
     setProviderMessage(null);
     setProviderResults([]);
+    const current = ++sequence.current;
     try {
-      const response = await fetch(`/api/places/search?query=${encodeURIComponent(providerQuery.trim())}&universityId=${universityId}`, { cache: "no-store" });
-      const body = await response.json() as { error?: string; results?: PlaceProviderResult[] };
-      if (!response.ok) throw new Error(body.error ?? "External place search is unavailable.");
+      const url = `/api/places/search?query=${encodeURIComponent(providerQuery.trim())}&universityId=${universityId}`;
+      const body = await requestPlaceSession(sessionKey, url, () => fetchPlaceJson<{ results: PlaceProviderResult[] }>(url));
+      if (current !== sequence.current) return;
       setProviderResults(body.results ?? []);
       setProviderMessage((body.results ?? []).length ? null : "No provider results found.");
     } catch (error) {
-      setProviderMessage(error instanceof Error ? error.message : "External place search is unavailable.");
+      if (current === sequence.current) setProviderMessage(error instanceof Error ? error.message : "External place search is unavailable.");
     } finally {
-      setProviderLoading(false);
+      if (current === sequence.current) setProviderLoading(false);
     }
   }
 
@@ -133,10 +139,10 @@ export function DiningHub({ universityId, accessibleCampuses, theme }: DiningHub
 
         <form onSubmit={searchProvider} className="mt-5 flex flex-col gap-3 sm:flex-row">
           <label htmlFor="provider-search" className="sr-only">Search live nearby places</label>
-          <input id="provider-search" value={providerQuery} onChange={(event) => setProviderQuery(event.target.value)} placeholder="Try coffee, tacos, or late-night food" className="min-w-0 flex-1 rounded-xl bg-white px-4 py-3 text-sm text-slate-950" />
+          <input id="provider-search" value={providerQuery} maxLength={200} onChange={(event) => { sequence.current++; setProviderQuery(event.target.value); setProviderLoading(false); setProviderResults([]); setProviderMessage(null); }} placeholder="Try coffee, tacos, or late-night food" className="min-w-0 flex-1 rounded-xl bg-white px-4 py-3 text-sm text-slate-950" />
           <button disabled={providerLoading} className="rounded-xl px-5 py-3 text-sm font-bold disabled:opacity-60" style={{ backgroundColor: theme.secondary, color: theme.primary }}>{providerLoading ? "Searching…" : "Search live places"}</button>
         </form>
-        {providerMessage && <p className="mt-4 rounded-xl bg-white/10 px-4 py-3 text-sm text-slate-200">{providerMessage}</p>}
+        {providerMessage && <p className="mt-4 rounded-xl bg-white/10 px-4 py-3 text-sm text-slate-200">{providerMessage}<button type="button" className="ml-3 underline" onClick={() => { refreshPlaceSession(sessionKey, "/api/places/search?"); setProviderMessage("Ready to search again."); }}>Retry</button></p>}
         {providerResults.length > 0 && <div className="mt-5 grid gap-4 text-slate-950 lg:grid-cols-2">{providerResults.map((place) => <ProviderPlaceCard key={place.placeId} place={place} />)}</div>}
         {providerResults.length > 0 && <p translate="no" className="mt-4 text-sm font-normal text-slate-300">Google Maps</p>}
       </section>

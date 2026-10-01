@@ -23,9 +23,8 @@ export type MintPermissionContext = SocialConnectionContext & {
 };
 
 export function hasEligibleSocialConnection(context: SocialConnectionContext) {
-  return context.friendshipStatus === "friends" ||
-    context.viewerFollowsAuthor ||
-    context.authorFollowsViewer;
+  // Following is unilateral; it is a ranking signal, never a privacy grant.
+  return context.friendshipStatus === "friends";
 }
 
 export function canViewPrivateAccountContent(context: SocialConnectionContext) {

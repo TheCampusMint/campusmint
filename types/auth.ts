@@ -29,6 +29,7 @@ export type EmailOtpVerifyResponse =
       email: string;
       accountType: SignupAccountType;
       verifiedStudent?: VerifiedStudentEmail;
+      session?: { accessToken: string; refreshToken: string; expiresAt?: number; userId: string };
     }
   | {
       ok: false;

@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/security/requestBody";
 import { NextResponse } from "next/server";
 
 import { normalizeSafeBrandWebsite } from "@/lib/auth/accountTypes";
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
   if (userError || !user?.email) return NextResponse.json({ ok: false, message: "Sign in again to finish account setup." }, { status: 401 });
 
   let body: unknown;
-  try { body = await request.json(); } catch { body = null; }
+  try { body = await readJsonBody(request); } catch { body = null; }
   if (!body || typeof body !== "object" || !("accountType" in body)) return NextResponse.json({ ok: false, message: "Invalid account setup." }, { status: 400 });
 
   const accountType = user.app_metadata?.account_type;
@@ -92,6 +93,7 @@ export async function POST(request: Request) {
     const { data: existingProfile, error: existingError } = await admin.from("profiles").select("user_id").eq("user_id", user.id).maybeSingle();
     if (existingError) return databaseFailure("student profile lookup", existingError);
     if (existingProfile) return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "private, no-store" } });
+    if (profileImageStoragePath) return NextResponse.json({ ok: false, message: "Profile photo uploads aren't available yet." }, { status: 409 });
 
     const { error: identityError } = await admin.from("profile_identities").upsert(
       { user_id: user.id, university_id: universityId, account_type: "student", role: "student", verified_student: true, email_verified_at: user.email_confirmed_at },

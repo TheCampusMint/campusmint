@@ -1,3 +1,4 @@
+import { readJsonObject } from "@/lib/security/requestBody";
 import {NextResponse} from "next/server";
 import {createSupabaseServerClient,createSupabaseAdminClient} from "@/lib/supabase/server";
 import {canRecordPreference} from "@/lib/social/preferencePermissions";
@@ -16,7 +17,7 @@ export async function POST(request:Request) {
   try {
     const user=await session();if(!user)return json({message:"Sign in."},401);
     if(Number(request.headers.get("content-length")) > 24000)return json({message:"Request too large."},413);
-    const body=await request.json();
+    const body=await readJsonObject(request);
     if(!Array.isArray(body.signals)||body.signals.length>50)return json({message:"Invalid preferences."},400);
     const admin=createSupabaseAdminClient();
     const incoming=body.signals as {mintId:string;weight:number;reason:string|null;updatedAt:string}[];
@@ -32,11 +33,11 @@ export async function POST(request:Request) {
       admin.from("profile_blocks").select("blocker_id,blocked_id").or(`blocker_id.eq.${user.id},blocked_id.eq.${user.id}`),
       admin.from("profile_follows").select("follower_id,following_id").or(`follower_id.eq.${user.id},following_id.eq.${user.id}`),
       admin.from("friendships").select("requester_id,addressee_id").eq("status","friends").or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`),
-      admin.from("organization_memberships").select("organization_id").eq("user_id",user.id).in("status",["member","leader"]),
+      admin.from("organization_memberships").select("organization_id").eq("user_id",user.id).in("status",["member","officer","leader"]),
     ]);
     if([mints,authors,identity,blocks,follows,friends,memberships].some(r=>r.error))throw new Error("Read failed");
     const blocked=new Set((blocks.data ?? []).flatMap(b=>[b.blocker_id,b.blocked_id]).filter(id=>id!==user.id));
-    const connected=new Set([...(follows.data ?? []).flatMap(f=>[f.follower_id,f.following_id]),...(friends.data ?? []).flatMap(f=>[f.requester_id,f.addressee_id])]);
+    const connected=new Set([...(friends.data ?? []).flatMap(f=>[f.requester_id,f.addressee_id])]);
     const member=new Set((memberships.data ?? []).map(m=>m.organization_id));
     const allowed=(content.data ?? []).filter(m=>{
       const post=mints.data?.find(p=>p.content_id===m.id);const author=authors.data?.find(p=>p.user_id===m.author_id);

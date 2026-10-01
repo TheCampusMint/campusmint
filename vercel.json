@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/events/refresh", "schedule": "17 6 * * *" },
-    { "path": "/api/sports/refresh", "schedule": "37 6 * * *" }
+    { "path": "/api/sports/refresh", "schedule": "37 6 * * *" },
+    { "path": "/api/security/cleanup", "schedule": "47 6 * * *" }
   ]
 }

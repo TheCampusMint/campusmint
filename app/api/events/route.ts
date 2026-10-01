@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { universities, type UniversityId } from "@/data/universities";
-import { createSupabaseServerClient, hasSupabasePublicConfig } from "@/lib/supabase/server";
+import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig } from "@/lib/supabase/server";
 import { areDeveloperControlsEnabled } from "@/lib/runtime/fixturePolicy";
 import { eventCategories, type Event, type EventCategory } from "@/types/event";
 
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       campus = requestedCampus;
     }
     const accessible = universities[campus].accessibleCampuses;
-    const { data, error } = await supabase.from("campus_events").select("*")
+    const { data, error } = await createSupabaseAdminClient().from("campus_events").select("id,title,brief_description,campus_id,category,timezone,starts_at,ends_at,location_name,address,city,latitude,longitude,organizer,audience,status,is_campus_mint_system_post,author_brand_id,author_user_id,source_kind,distance_from_campus_miles,source_name,source_url,source_event_id,source_updated_at,ingested_at,verified_at,image_url")
       .in("campus_id", accessible).in("status", ["scheduled", "updated"])
       .or(`ends_at.gt.${new Date().toISOString()},and(ends_at.is.null,starts_at.gt.${new Date().toISOString()})`)
       .order("starts_at", { ascending: true }).limit(250);

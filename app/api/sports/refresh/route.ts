@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/security/requestBody";
 import { NextResponse } from "next/server";
 
 import { configuredUniversityIds, type UniversityId } from "@/data/universities";
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
   if (!expected || request.headers.get("authorization") !== `Bearer ${expected}`) return NextResponse.json({ ok: false }, { status: 401 });
   if (!hasSupabaseServerConfig()) return NextResponse.json({ ok: false, message: "Sports storage is not configured." }, { status: 503 });
   let input: unknown;
-  try { input = await request.json(); } catch { input = null; }
+  try { input = await readJsonBody(request); } catch { input = null; }
   const envelope = record(input); const profile = record(envelope?.profile);
   const universityId = profile?.universityId as UniversityId | undefined;
   const programs = record(profile?.programs);

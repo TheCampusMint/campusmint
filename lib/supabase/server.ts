@@ -2,7 +2,7 @@ import "server-only";
 
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 import { getSupabasePublicConfig } from "./config";
 
@@ -14,6 +14,19 @@ export async function createSupabaseServerClient() {
   const config = getSupabasePublicConfig();
   if (!config) {
     throw new Error("Supabase public server configuration is missing.");
+  }
+
+  // Native callers use the same verified Supabase identity as cookie callers.
+  // Never decode a caller token and treat its claims as verified authorization.
+  const authorization = (await headers()).get("authorization");
+  if (authorization) {
+    if (!/^Bearer [A-Za-z0-9._~-]+$/.test(authorization) || authorization.length > 8192) {
+      throw new Error("Invalid authorization header.");
+    }
+    return createClient(config.url, config.publishableKey, {
+      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
   }
 
   const cookieStore = await cookies();

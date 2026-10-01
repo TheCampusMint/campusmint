@@ -1,3 +1,4 @@
+import { readJsonBody, readSmallFormData } from "@/lib/security/requestBody";
 import { NextResponse } from "next/server";
 
 import { configuredUniversityIds, universities, type UniversityId } from "@/data/universities";
@@ -345,7 +346,7 @@ async function loadMintFeed(
     admin.from("content_tags").select("content_id,tagged_user_id").in("content_id", contentIds),
     admin.from("content_locations").select("id,source,campus_entity_id,canonical_event_key,label,details").in("id", locationIds.length > 0 ? locationIds : [emptyRelationId]),
     admin.from("content_event_details").select("id,canonical_event_key,title,event_start_at,event_end_at,event_timezone,location_id,location_details,description").in("id", eventDetailsIds.length > 0 ? eventDetailsIds : [emptyRelationId]),
-    admin.from("organization_memberships").select("organization_id,status").eq("user_id", viewerId).in("status", ["member", "leader"]),
+    admin.from("organization_memberships").select("organization_id,status").eq("user_id", viewerId).in("status", ["member", "officer", "leader"]),
     admin.from("profile_follows").select("follower_id,following_id").or(`follower_id.eq.${viewerId},following_id.eq.${viewerId}`),
     admin.from("friendships").select("requester_id,addressee_id,status").or(`requester_id.eq.${viewerId},addressee_id.eq.${viewerId}`).eq("status", "friends"),
     admin.from("profile_blocks").select("blocker_id,blocked_id").or(`blocker_id.eq.${viewerId},blocked_id.eq.${viewerId}`),
@@ -361,7 +362,6 @@ async function loadMintFeed(
   const authorPrivacyById = new Map((authorPrivacyResult.data ?? []).map((row) => [row.user_id, row.social_account_type]));
   const blockedIds = new Set((blockResult.data ?? []).map((row) => row.blocker_id === viewerId ? row.blocked_id : row.blocker_id));
   const connectedIds = new Set<string>();
-  (followResult.data ?? []).forEach((row) => connectedIds.add(row.follower_id === viewerId ? row.following_id : row.follower_id));
   (friendshipResult.data ?? []).forEach((row) => connectedIds.add(row.requester_id === viewerId ? row.addressee_id : row.requester_id));
   const memberOrganizationIds = new Set((membershipResult.data ?? []).map((row) => row.organization_id));
   let visibleRows = (contentRows ?? []).filter((row) => {
@@ -372,7 +372,7 @@ async function loadMintFeed(
     if (previewUniversityId && (mint.privacy !== "public" || authorPrivacyById.get(row.author_id) !== "public" || row.organization_audience === "members")) return false;
     if (row.author_id === viewerId) return true;
     if (!authorPrivacyById.has(row.author_id) || (authorPrivacyById.get(row.author_id) === "private" && !connectedIds.has(row.author_id))) return false;
-    if (row.organization_audience === "members" && row.organization_id && !memberOrganizationIds.has(row.organization_id)) return false;
+    if (row.organization_audience === "members" && (!row.organization_id || !memberOrganizationIds.has(row.organization_id))) return false;
     if (mint.privacy === "public") return true;
     if (mint.privacy === "connections") return connectedIds.has(row.author_id);
     if (mint.privacy === "private") return false;
@@ -605,7 +605,7 @@ export async function POST(request: Request) {
   let uploadTicket: unknown;
   try {
     if (request.headers.get("content-type")?.includes("application/json")) {
-      const body = await request.json();
+      const body = await readJsonBody(request) as Record<string, unknown> | null;
       if (!body || typeof body !== "object" || (body.action !== "prepare" && body.action !== "publish")) throw new Error("Invalid action");
       action = body.action;
       rawPayload = body.payload;
@@ -614,7 +614,7 @@ export async function POST(request: Request) {
     } else {
       // Retain compatibility with older tabs for small uploads. New clients send
       // binary data directly to Storage so the hosting request limit cannot reject it.
-      const formData = await request.formData();
+      const formData = await readSmallFormData(request);
       rawPayload = JSON.parse(String(formData.get("payload") ?? ""));
       files = formData.getAll("media").filter((value): value is File => value instanceof File);
     }

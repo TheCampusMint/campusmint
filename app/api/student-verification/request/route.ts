@@ -1,3 +1,5 @@
+import { consumeRateLimit } from "@/lib/security/server";
+import { readJsonBody } from "@/lib/security/requestBody";
 import { NextResponse } from "next/server";
 
 import { isSignupAccountType, isValidBrandEmail, normalizeAuthEmail } from "@/lib/auth/accountTypes";
@@ -13,7 +15,7 @@ function json(payload: EmailOtpRequestResponse, status: number) {
 
 export async function POST(request: Request) {
   let body: unknown;
-  try { body = await request.json(); } catch { body = null; }
+  try { body = await readJsonBody(request); } catch { body = null; }
 
   if (!body || typeof body !== "object") {
     return json({ ok: false, reason: "invalid_request", message: "Enter a valid email address." }, 400);
@@ -38,6 +40,10 @@ export async function POST(request: Request) {
     return json({ ok: false, reason: "auth_unavailable", message: "Email verification is not configured for this environment." }, 503);
   }
 
+  try {
+    const budget = await consumeRateLimit("otp.email.request", email, 4, 600);
+    if (!budget.allowed) return json({ ok: false, reason: "rate_limited", message: "Please wait before trying again." }, 429);
+  } catch { return json({ ok: false, reason: "auth_unavailable", message: "Sign-in is temporarily unavailable." }, 503); }
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithOtp({
     email,

@@ -1,3 +1,6 @@
+import { clearPlacesSession } from "../providers/places/session.ts";
+import { clearNearbyLocationSession } from "../providers/places/locationSession.ts";
+
 const privateUserKeyPrefixes = [
   "campusmint:private-messages:",
   "campusmint:mint-interactions:",
@@ -11,6 +14,8 @@ export function clearPrivateSessionCache(
   storage: Pick<Storage, "length" | "key" | "removeItem">,
   userId: string,
 ) {
+  clearPlacesSession();
+  clearNearbyLocationSession();
   const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index))
     .filter((key): key is string => Boolean(key));
   for (const key of keys) {

@@ -1,3 +1,5 @@
+import { readJsonBody } from "@/lib/security/requestBody";
+import { auditSecurityEvent } from "@/lib/security/server";
 import { NextResponse } from "next/server";
 
 import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig, hasSupabaseServerConfig } from "@/lib/supabase/server";
@@ -24,6 +26,13 @@ export async function POST(
   if (!user) return json({ ok: false, message: "Sign in again." }, 401);
 
   const admin = createSupabaseAdminClient();
+  const { data: administrator, error: administratorError } = await admin.from("security_administrators")
+    .select("role").eq("user_id", user.id).is("revoked_at", null).maybeSingle();
+  const claims = await session.auth.getClaims(request.headers.get("authorization")?.replace(/^Bearer /, ""));
+  if (administratorError || !administrator || !["security_admin", "moderator"].includes(administrator.role) || claims.data?.claims.aal !== "aal2") {
+    await auditSecurityEvent("creator.review", "denied", user.id);
+    return json({ ok: false, message: "A separate administrator account with two-factor authentication is required." }, 403);
+  }
   const { data: reviewerCapability, error: reviewerError } = await admin.from("account_capabilities")
     .select("capability")
     .eq("user_id", user.id)
@@ -33,7 +42,7 @@ export async function POST(
   if (reviewerError || !reviewerCapability) return json({ ok: false, message: "Creator reviewer authorization is required." }, 403);
 
   let input: unknown;
-  try { input = await request.json(); } catch { input = null; }
+  try { input = await readJsonBody(request); } catch { input = null; }
   if (!input || typeof input !== "object") return json({ ok: false, message: "Choose a review action." }, 400);
   const value = input as Record<string, unknown>;
   const action = typeof value.action === "string" ? value.action : "";
@@ -46,6 +55,7 @@ export async function POST(
     review_action: action,
     internal_notes: notes,
   });
+  await auditSecurityEvent("creator.review", error ? "error" : "allowed", user.id);
   if (error) {
     if (process.env.NODE_ENV !== "production") console.error("[creator-review] review transition failed", error);
     const errorMessage = error.message ?? "";

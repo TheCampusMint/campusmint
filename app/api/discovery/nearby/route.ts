@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { coordinates, cuisines, type Cuisine } from "@/lib/discovery/nearby";
 import { googleFood } from "@/lib/discovery/googleFood";
+import { placesConfigured } from "@/lib/providers/places/google";
 import { nearbyEvents } from "@/lib/discovery/events";
 export const dynamic = "force-dynamic";
 const json = (value:unknown,status=200) => NextResponse.json(value,{status,headers:{"Cache-Control":"private, no-store"}});
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
     if (query.get("kind") === "events") return json(await nearbyEvents(origin));
     if (query.get("kind") !== "food") return json({message:"Choose Food or Events."},400);
     const key = process.env.GOOGLE_PLACES_API_KEY;
-    if (!key) return json({items:[],configured:false});
+    if (!placesConfigured() || !key) return json({items:[],configured:false});
     const cuisine = query.get("cuisine") ?? "All";
     if (!cuisines.includes(cuisine as Cuisine)) return json({message:"Choose a cuisine."},400);
     return json({items:await googleFood(origin,cuisine as Cuisine,key),configured:true});

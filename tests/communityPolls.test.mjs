@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import * as requestBody from "../lib/security/requestBody.ts";
 import ts from "typescript";
 
 import { createPollDefinition, emptyPoll, validatePollInput } from "../lib/content/polls.ts";
@@ -34,6 +35,7 @@ function pollRoute({ signedIn = true, error = null } = {}) {
   const calls = [];
   const poll = emptyPoll({ question: "Where?", options: ["Library", "Cafe"] });
   const bindings = {
+    "@/lib/security/requestBody": requestBody,
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
     "@/lib/supabase/server": {
       hasSupabasePublicConfig: () => true, hasSupabaseServerConfig: () => true,

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import * as requestBody from "../lib/security/requestBody.ts";
 import ts from "typescript";
 import { normalizeProfileUpdate, persistProfile, profileValuesFromRow } from "../lib/auth/profilePersistence.ts";
 import { validateUsername } from "../lib/social/usernames.ts";
@@ -32,6 +33,7 @@ function database(resolve, authError = null) {
 
 function loadRoute(name, db) {
   const modules = {
+    "@/lib/security/requestBody": requestBody,
     "next/server": { NextResponse: { json: Response.json } },
     "@/lib/auth/profilePersistence": { normalizeProfileUpdate, profileValuesFromRow },
     "@/lib/supabase/server": { hasSupabasePublicConfig: () => true, hasSupabaseServerConfig: () => true, createSupabaseServerClient: async () => db, createSupabaseAdminClient: () => db },
@@ -54,6 +56,24 @@ function loadRoute(name, db) {
 }
 
 const request = (body, method = "PATCH") => new Request("https://campusmint.test/api/account/profile", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+test("profile JSON cannot claim an unverified private avatar object", async () => {
+  for (const path of ["another-user/photo.jpg", "user-one/../another-user/photo.jpg", "user-one/not-verified.jpg"]) {
+    const writes = [];
+    const db = database(query => {
+      if (query.operation !== "select") writes.push(query);
+      return { data: query.table === "profiles" ? profileRow : null, error: null };
+    });
+    assert.equal((await loadRoute("profile", db).PATCH(request({ photo: { storagePath: path } }))).status, 409);
+    assert.equal(writes.length, 0);
+    const signupDb = database(query => {
+      if (query.operation !== "select") writes.push(query);
+      return { data: null, error: null };
+    });
+    assert.equal((await loadRoute("complete", signupDb).POST(request({ accountType: "student", firstName: "Sam", username: "sam.student", profileImageStoragePath: path }, "POST"))).status, 409);
+    assert.equal(writes.length, 0);
+  }
+});
 
 test("single names remain single and all editable profile details round-trip", () => {
   const values = profileValuesFromRow(profileRow);

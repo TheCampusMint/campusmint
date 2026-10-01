@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { BrandChannelMembershipButton } from "@/components/brands/BrandChannelMembershipButton";
 import { MintBackLeafIcon } from "@/components/ui/MintLeafBackButton";
-import { createSupabaseServerClient, hasSupabasePublicConfig } from "@/lib/supabase/server";
+import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -20,16 +20,19 @@ export default async function BrandChannelPage({ params }: { params: Promise<{ h
       </main>
     );
   }
-  const { data: channel } = await supabase.from("brand_channels")
-    .select("id,name,handle,description,status,brand_profiles(display_name,bio,website_url,verification_status)")
+  const admin = createSupabaseAdminClient();
+  const { data: channel } = await admin.from("brand_channels")
+    .select("id,name,handle,description,status,brand_profiles(user_id,display_name,bio,website_url,verification_status,suspended_at)")
     .eq("handle", handle).eq("status", "active").maybeSingle();
   if (!channel) notFound();
   const brandValue = Array.isArray(channel.brand_profiles) ? channel.brand_profiles[0] : channel.brand_profiles;
-  if (!brandValue || brandValue.verification_status !== "verified") notFound();
-  const [{ data: membership }, { data: posts }] = await Promise.all([
-    supabase.from("brand_channel_memberships").select("channel_id").eq("channel_id", channel.id).eq("user_id", user.id).maybeSingle(),
-    supabase.from("brand_channel_posts").select("id,body,created_at").eq("channel_id", channel.id).eq("status", "active").order("created_at", { ascending: false }).limit(50),
-  ]);
+  if (!brandValue || brandValue.verification_status !== "verified" || brandValue.suspended_at) notFound();
+  const { data: membership, error: membershipError } = await admin.from("brand_channel_memberships").select("channel_id").eq("channel_id", channel.id).eq("user_id", user.id).maybeSingle();
+  if (membershipError) throw new Error("Channel membership unavailable.");
+  const { data: posts, error: postsError } = membership || brandValue.user_id === user.id
+    ? await admin.from("brand_channel_posts").select("id,body,created_at").eq("channel_id", channel.id).eq("status", "active").order("created_at", { ascending: false }).limit(50)
+    : { data: [], error: null };
+  if (postsError) throw new Error("Channel posts unavailable.");
 
   return (
     <main className="campus-app-shell min-h-dvh bg-[var(--app-background)] px-5 py-8 text-[var(--app-text-primary)]">

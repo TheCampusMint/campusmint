@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import * as requestBody from '../lib/security/requestBody.ts';
 import ts from 'typescript';
 import * as listing from '../lib/marketplace/listing.ts';
 import * as nearby from '../lib/discovery/nearby.ts';
@@ -12,7 +13,7 @@ function harness({userId=buyer,verified=true,authenticated=true,network='campus'
  const tables={profile_identities:[{user_id:userId,university_id:'tamu',account_type:'student',verified_student:verified}],campus_network_universities:[{university_id:'tamu',campus_network_id:network}],campus_networks:[{id:network,enabled_features:['marketplace']}],marketplace_verified_students:[{user_id:userId,university_id:'tamu',revoked_at:revoked?'2026-01-01':null}],university_marketplace_policies:disabled?[{university_id:'tamu',marketplace_enabled:false}]:[],profile_blocks:[],profiles:[{user_id:seller,first_name:'Seller'},{user_id:buyer,first_name:'Buyer'},{user_id:stranger,first_name:'Other buyer'}],marketplace_listings:[{id:item,seller_user_id:seller,university_id:'tamu',campus_network_id:'campus',status:'active',title:'Desk',description:'Desk',condition:'good',asking_price:10,pickup_area:'Library'}],marketplace_messages:[],...rows};
  const admin={from(table){tables[table]??=[];let mode='select',value,one=false;const filters=[];const q={select(){return q},eq(k,v){filters.push(r=>r[k]===v);return q},in(k,v){filters.push(r=>v.includes(r[k]));return q},or(expr){const parts=expr.split(',').map(part=>part.split('.eq.'));filters.push(r=>parts.some(([k,v])=>r[k]===v));return q},order(){return q},limit(){return q},maybeSingle(){one=true;return q},insert(v){mode='insert';value=v;return q},update(v){mode='update';value=v;return q},then(resolve){let result=tables[table].filter(r=>filters.every(f=>f(r)));if(mode==='insert'){if(tables[table].some(r=>r.id===value.id))return Promise.resolve({data:null,error:{code:'23505'}}).then(resolve);result=[{created_at:new Date().toISOString(),...value}];tables[table].push(...result)}if(mode==='update'){result.forEach(r=>Object.assign(r,value))}return Promise.resolve({data:one?result[0]??null:result,error:null}).then(resolve)}};return q}};
  const server=compile('../lib/marketplace/server.ts',{'server-only':{},'@/lib/supabase/server':{hasSupabaseServerConfig:()=>true,createSupabaseAdminClient:()=>admin,createSupabaseServerClient:async()=>({auth:{getUser:async()=>({data:{user:authenticated?{id:userId}:null}})}})}});
- const bindings={'@/lib/discovery/nearby':nearby,'next/server':{NextResponse:{json:Response.json}},'@/lib/marketplace/server':server,'@/lib/marketplace/listing':listing,'@/lib/marketplaceSafety':safety};
+ const bindings={'@/lib/security/requestBody':requestBody,'@/lib/discovery/nearby':nearby,'next/server':{NextResponse:{json:Response.json}},'@/lib/marketplace/server':server,'@/lib/marketplace/listing':listing,'@/lib/marketplaceSafety':safety};
  return {tables,items:compile('../app/api/marketplace/route.ts',bindings),messages:compile('../app/api/marketplace/messages/route.ts',bindings)};
 }
 const request=(method,body)=>new Request('https://example.test/api/marketplace',{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});

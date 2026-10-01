@@ -1,0 +1,12 @@
+// Select your Personal Team in Xcode; organization enrollment comes later.
+PRODUCT_BUNDLE_IDENTIFIER = com.campusmint.app
+DEVELOPMENT_TEAM =
+// xcconfig treats // as a comment; the empty substitution preserves https://.
+CAMPUS_MINT_SERVER_URL = https:/$()/www.thecampusmint.com
+IPHONEOS_DEPLOYMENT_TARGET = 17.0
+SWIFT_VERSION = 5.0
+SWIFT_STRICT_CONCURRENCY = complete
+TARGETED_DEVICE_FAMILY = 1
+CURRENT_PROJECT_VERSION = 1
+MARKETING_VERSION = 0.1.0
+#include? "Local.xcconfig"

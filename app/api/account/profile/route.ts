@@ -1,7 +1,8 @@
+import { readJsonBody } from "@/lib/security/requestBody";
 import { NextResponse } from "next/server";
 
 import { normalizeProfileUpdate, profileValuesFromRow } from "@/lib/auth/profilePersistence";
-import { createSupabaseServerClient, hasSupabasePublicConfig } from "@/lib/supabase/server";
+import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,7 @@ export async function PATCH(request: Request) {
   if (userError || !user) return json({ ok: false, message: "Sign in again to save your profile." }, 401);
 
   let body: unknown;
-  try { body = await request.json(); } catch { body = null; }
+  try { body = await readJsonBody(request); } catch { body = null; }
   if (!body || typeof body !== "object") return json({ ok: false, message: "Invalid profile update." }, 400);
 
   const { data: current, error: readError } = await supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle();
@@ -31,8 +32,14 @@ export async function PATCH(request: Request) {
   // Omitted fields are preserved; explicit nulls clear an optional field.
   const normalized = normalizeProfileUpdate({ ...profileValuesFromRow(current), ...body });
   if (!normalized.ok) return json(normalized, 400);
+  // Only a future verified avatar-upload finalizer may assign a new private object.
+  // Profile JSON cannot turn an arbitrary Storage path into an authorized avatar.
+  const nextPhoto = normalized.update.profile_photo_storage_path;
+  if (nextPhoto && nextPhoto !== current.profile_photo_storage_path) {
+    return json({ ok: false, message: "Profile photo uploads aren't available yet." }, 409);
+  }
 
-  const { data: saved, error } = await supabase.from("profiles").update(normalized.update).eq("user_id", user.id).select("*").maybeSingle();
+  const { data: saved, error } = await createSupabaseAdminClient().from("profiles").update(normalized.update).eq("user_id", user.id).select("*").maybeSingle();
   if (error) {
     if (error.code === "23505") return json({ ok: false, message: "That username is already taken." }, 409);
     if (error.code === "42703" || error.code === "PGRST204") {

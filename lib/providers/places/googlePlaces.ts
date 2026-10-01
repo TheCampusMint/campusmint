@@ -2,6 +2,13 @@ import "server-only";
 
 import type { UniversityId } from "@/types/campus";
 import type { PlaceProviderResult, PlacesProvider } from "./types";
+import { googleRequest, placesConfigured } from "./google";
+import { createSingleFlight } from "./requestStore";
+import { validPlaceId } from "./identity";
+import { coordinates, safeWebUrl } from "@/lib/discovery/nearby";
+
+const singleFlight = createSingleFlight();
+export const TEXT_SEARCH_FIELDS = "places.id,places.displayName,places.formattedAddress,places.location,places.googleMapsUri,places.attributions";
 
 const campusSearchAreas = {
   tamu: "College Station, Texas",
@@ -31,51 +38,23 @@ type GooglePlace = {
   displayName?: { text?: string };
   formattedAddress?: string;
   location?: { latitude?: number; longitude?: number };
-  nationalPhoneNumber?: string;
-  websiteUri?: string;
-  currentOpeningHours?: { weekdayDescriptions?: string[]; openNow?: boolean };
-  rating?: number;
-  userRatingCount?: number;
-  priceLevel?: string;
   googleMapsUri?: string;
-  photos?: Array<{
-    name?: string;
-    widthPx?: number;
-    heightPx?: number;
-    authorAttributions?: Array<{ displayName?: string; uri?: string }>;
-  }>;
   attributions?: Array<{ provider?: string; providerUri?: string }>;
 };
 
 function normalizePlace(place: GooglePlace): PlaceProviderResult | null {
-  if (!place.id || !place.displayName?.text) return null;
+  if (!validPlaceId(place.id) || !place.displayName?.text) return null;
   const latitude = place.location?.latitude;
   const longitude = place.location?.longitude;
   return {
     placeId: place.id,
     name: place.displayName.text,
     address: place.formattedAddress ?? null,
-    coordinates: typeof latitude === "number" && typeof longitude === "number" ? { latitude, longitude } : null,
-    phone: place.nationalPhoneNumber ?? null,
-    website: place.websiteUri ?? null,
-    openingHours: place.currentOpeningHours?.weekdayDescriptions ?? [],
-    openNow: place.currentOpeningHours?.openNow ?? null,
-    rating: place.rating ?? null,
-    userRatingCount: place.userRatingCount ?? null,
-    priceLevel: place.priceLevel ?? null,
-    googleMapsUri: place.googleMapsUri ?? null,
-    photoReferences: (place.photos ?? []).map((photo) => ({
-      name: photo.name ?? "",
-      widthPx: photo.widthPx ?? null,
-      heightPx: photo.heightPx ?? null,
-      authorAttributions: (photo.authorAttributions ?? []).map((author) => ({
-        displayName: author.displayName ?? "Google Maps contributor",
-        uri: author.uri ?? null,
-      })),
-    })).filter((photo) => photo.name),
+    coordinates: typeof latitude === "number" && typeof longitude === "number" ? coordinates({ latitude, longitude }) : null,
+    googleMapsUri: safeWebUrl(place.googleMapsUri),
     attributions: (place.attributions ?? []).map((attribution) => ({
       provider: attribution.provider ?? "Google Maps",
-      providerUri: attribution.providerUri ?? null,
+      providerUri: safeWebUrl(attribution.providerUri),
     })),
   };
 }
@@ -84,27 +63,20 @@ export function createGooglePlacesProvider(apiKey: string): PlacesProvider {
   return {
     name: "Google Places API (New)",
     async search(request) {
-      const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
-        method: "POST",
-        cache: "no-store",
-        headers: {
-          "content-type": "application/json",
-          "X-Goog-Api-Key": apiKey,
-          "X-Goog-FieldMask": [
-            "places.id", "places.displayName", "places.formattedAddress", "places.location",
-            "places.nationalPhoneNumber", "places.websiteUri", "places.currentOpeningHours",
-            "places.rating", "places.userRatingCount", "places.priceLevel", "places.googleMapsUri",
-            "places.photos", "places.attributions",
-          ].join(","),
-        },
-        body: JSON.stringify({
-          textQuery: `${request.query} near ${campusSearchAreas[request.universityId]}`,
-          maxResultCount: Math.min(Math.max(request.maximumResults ?? 10, 1), 20),
-        }),
+      if (!placesConfigured()) throw new Error("Places unavailable");
+      const query = request.query.trim().replace(/\s+/g, " ");
+      if (query.length < 3 || query.length > 200 || !Object.hasOwn(campusSearchAreas, request.universityId)) throw new Error("Invalid place search");
+      const maximumResults = Number.isInteger(request.maximumResults) ? Math.min(Math.max(request.maximumResults!, 1), 20) : 10;
+      return singleFlight(`text:${request.universityId}:${query.toLowerCase()}:${maximumResults}`, async () => {
+        const body = await googleRequest<{ places?: GooglePlace[] }>("search", "text-location", "places:searchText", apiKey, TEXT_SEARCH_FIELDS, {
+          textQuery: `${query} near ${campusSearchAreas[request.universityId]}`, maxResultCount: maximumResults,
+        });
+        const seen = new Set<string>();
+        return (body.places ?? []).map(normalizePlace).filter((place): place is PlaceProviderResult => {
+          if (!place || seen.has(place.placeId)) return false;
+          seen.add(place.placeId); return true;
+        });
       });
-      if (!response.ok) throw new Error(`Google Places request failed with status ${response.status}.`);
-      const body = await response.json() as { places?: GooglePlace[] };
-      return (body.places ?? []).map(normalizePlace).filter((place): place is PlaceProviderResult => Boolean(place));
     },
   };
 }

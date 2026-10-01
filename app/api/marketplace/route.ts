@@ -1,3 +1,4 @@
+import { readJsonObject } from "@/lib/security/requestBody";
 import { NextResponse } from "next/server";
 import { blockedUsers, marketplaceSession, MarketplaceError } from "@/lib/marketplace/server";
 import { listingFromRow, parseQuickListing, type ListingRow } from "@/lib/marketplace/listing";
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     const { admin, user, campus, networkId, policy } = await marketplaceSession();
     let input: ReturnType<typeof parseQuickListing>;
     let body;
-    try { body = await request.json(); input = parseQuickListing(body); } catch (error) { throw new MarketplaceError(error instanceof Error ? error.message : "Check the item details."); }
+    try { body = await readJsonObject(request); input = parseQuickListing(body); } catch (error) { throw new MarketplaceError(error instanceof Error ? error.message : "Check the item details."); }
     if (typeof body.requestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestId)) throw new MarketplaceError("Reopen the listing form and try again.");
     // Explicit per-listing consent; device position is otherwise never persisted.
     const location = body.shareNearbyArea === true ? coordinates(body.nearbyLocation) : null;
@@ -50,8 +51,8 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const { admin, user, networkId } = await marketplaceSession();
-    const body = await request.json();
-    if (typeof body.id !== "string" || !["active", "sold"].includes(body.status)) throw new MarketplaceError("Choose an available listing status.");
+    const body = await readJsonObject(request);
+    if (typeof body.id !== "string" || (typeof body.status !== "string" || !["active", "sold"].includes(body.status))) throw new MarketplaceError("Choose an available listing status.");
     const result = await admin.from("marketplace_listings").update({ status: body.status }).eq("id", body.id).eq("seller_user_id", user.id).eq("campus_network_id", networkId).in("status", ["active", "sold"]).select("id").maybeSingle();
     if (result.error) throw result.error;
     if (!result.data) throw new MarketplaceError("Listing unavailable.", 404);

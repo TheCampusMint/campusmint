@@ -1,3 +1,4 @@
+import { readJsonBody } from "@/lib/security/requestBody";
 import { NextResponse } from "next/server";
 
 import { createSupabaseAdminClient, createSupabaseServerClient, hasSupabasePublicConfig, hasSupabaseServerConfig } from "@/lib/supabase/server";
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
   if (accountType !== "creator" && accountType !== "student") return failure("This account cannot submit a creator application.", 403);
 
   let body: unknown;
-  try { body = await request.json(); } catch { body = null; }
+  try { body = await readJsonBody(request); } catch { body = null; }
   if (!body || typeof body !== "object") return failure("Enter the required creator information.", 400);
   const value = body as Record<string, unknown>;
   const platform = clean(value.platform, 30).toLocaleLowerCase();

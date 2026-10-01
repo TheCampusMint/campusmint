@@ -1,49 +1,30 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { UniversityTheme } from "@/data/universities";
 import { distanceMiles } from "@/lib/events/geography";
-import type { Coordinates } from "@/lib/discovery/nearby";
-/** Coordinates live in memory only. Stop the watch when the app is hidden. */
-export function useNearbyLocation(theme: UniversityTheme) {
-  const [position, setPosition] = useState<Coordinates | null>(null);
-  const [enabled, setEnabled] = useState(false);
+import { nearbyLocationGeneration, readNearbyLocationSession, writeNearbyLocationSession } from "@/lib/providers/places/locationSession";
+/** One-shot, explicit location requests only. No watch, interval, focus, or app-open query. */
+export function useNearbyLocation(theme: UniversityTheme, userId = "session") {
+  const [snapshot, setSnapshot] = useState(() => readNearbyLocationSession(userId));
   const [error, setError] = useState("");
-  const [revision, setRevision] = useState(0);
-  const request = useCallback(() => { setError(""); setEnabled(true); setRevision(r => r + 1); }, []);
-  useEffect(() => {
-    let active = true;
-    navigator.permissions?.query({ name: "geolocation" }).then(permission => {
-      const change = () => { if (active) { setEnabled(permission.state === "granted"); if (permission.state !== "granted") setPosition(null); } };
-      change(); permission.addEventListener("change", change);
-      cleanup = () => permission.removeEventListener("change", change);
-    }).catch(() => {});
-    let cleanup = () => {};
-    return () => { active = false; cleanup(); };
-  }, []);
-  useEffect(() => {
-    if (!enabled) return;
-    let watch: number | undefined;
-    const stop = () => { if (watch !== undefined) navigator.geolocation?.clearWatch(watch); watch = undefined; };
-    const start = () => {
-      stop(); if (document.hidden) return;
-      if (!navigator.geolocation) { setError("Location unavailable"); return; }
-      watch = navigator.geolocation.watchPosition(result => {
-        // An inaccurate fix must not pretend to enforce a ten-mile boundary.
-        if (result.coords.accuracy > 1600) { setPosition(null); setError("Location is approximate"); return; }
-        setError("");
-        const next = { latitude: result.coords.latitude, longitude: result.coords.longitude };
-        setPosition(old => !old || distanceMiles(old,next) > .1 ? next : old);
-      }, () => { setPosition(null); setError("Location unavailable"); }, { enableHighAccuracy: false, maximumAge: 60_000, timeout: 15_000 });
-    };
-    start(); document.addEventListener("visibilitychange", start);
-    return () => { stop(); document.removeEventListener("visibilitychange",start); };
-  }, [enabled, revision]);
-  useEffect(() => {
-    const refresh = () => { if (!document.hidden) setRevision(r => r + 1); };
-    const interval = window.setInterval(refresh, 300_000);
-    window.addEventListener("focus",refresh);
-    return () => { clearInterval(interval); window.removeEventListener("focus",refresh); };
-  }, []);
-  const origin = useMemo(() => position ?? { latitude: theme.campusLatitude, longitude: theme.campusLongitude }, [position,theme.campusLatitude,theme.campusLongitude]);
-  return { origin, isDeviceLocation: !!position, label: position ? "Within 10 miles" : "Near campus · 10 miles", error, request, revision };
+  const request = useCallback(() => {
+    setError("");
+    if (!navigator.geolocation) { setError("Location unavailable"); return; }
+    const generation = nearbyLocationGeneration();
+    navigator.geolocation.getCurrentPosition(result => {
+      if (generation !== nearbyLocationGeneration()) return;
+      if (result.coords.accuracy > 1600) { setError("Location is approximate"); return; }
+      const next = { latitude: result.coords.latitude, longitude: result.coords.longitude };
+      setSnapshot(old => {
+        const previous = old.userId === userId ? old.position : null;
+        // Small location jitter doesn't change the search area or cause a paid search.
+        const position = !previous || distanceMiles(previous, next) >= .5 ? next : previous;
+        const value = { userId, position, revision: position !== previous ? old.revision + 1 : old.revision };
+        return writeNearbyLocationSession(value, generation) ? value : old;
+      });
+    }, () => setError("Location unavailable"), { enableHighAccuracy: false, maximumAge: 60_000, timeout: 15_000 });
+  }, [userId]);
+  const position = snapshot.userId === userId ? snapshot.position : null;
+  const origin = useMemo(() => position ?? { latitude: theme.campusLatitude, longitude: theme.campusLongitude }, [position, theme.campusLatitude, theme.campusLongitude]);
+  return { origin, isDeviceLocation: !!position, label: position ? "Within 10 miles" : "Near campus · 10 miles", error, request, revision: snapshot.revision };
 }

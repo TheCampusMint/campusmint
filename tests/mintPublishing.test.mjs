@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
+import * as requestBody from "../lib/security/requestBody.ts";
 import ts from "typescript";
 
 import * as policy from "../lib/content/mintUploadPolicy.ts";
@@ -115,6 +116,7 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
     } },
   };
   const bindings = {
+    "@/lib/security/requestBody": requestBody,
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
     "@/data/universities": { configuredUniversityIds: ["tamu", "harvard"], universities: { tamu: { accessibleCampuses: ["tamu"] }, harvard: { accessibleCampuses: ["harvard"] } } },
     "@/lib/supabase/server": {
@@ -330,6 +332,10 @@ test("feed filters private author content before calling the poll RPC and restor
   assert.equal(app.pollReads.length, 0, "private-author poll must be excluded before aggregate RPC authorization");
   assert.ok(result.authors.every((author) => author.account.id !== authorId));
   app.rows.profile_follows.push({ follower_id: userId, following_id: authorId });
+  result = await (await app.getFeed()).json();
+  assert.equal(result.mintz.length, 1, "a one-way follow cannot grant private content access");
+  assert.equal(app.pollReads.length, 0);
+  app.rows.friendships.push({ requester_id: userId, addressee_id: authorId, status: "friends" });
   result = await (await app.getFeed()).json();
   assert.equal(result.ok, true);
   assert.equal(result.mintz.length, 3);
