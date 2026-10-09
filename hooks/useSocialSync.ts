@@ -1,6 +1,7 @@
 'use client';
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {createSupabaseBrowserClient} from '@/lib/supabase/client';
+import {subscribeSocialChanges} from '@/lib/social/realtimeClient';
+import {createRefreshQueue} from '@/lib/social/invalidationHub';
 import {socialRead,SocialRequestError,type SocialCursor} from '@/lib/social/syncClient';
 import {isAccountId} from '@/lib/social/syncContract';
 
@@ -18,6 +19,7 @@ export function useSocialSync<T>(userId:string,resource:string,target?:string,en
   const pending=useRef<{key:string;controller:AbortController}|null>(null);
   const current=useRef(key);
   const pageDepth=useRef(1);
+  const refreshQueue=useRef<ReturnType<typeof createRefreshQueue>|null>(null);
   const refresh=useCallback(async()=>{
     if(!enabled||!isAccountId(userId)||pending.current?.key===key)return;
     const controller=new AbortController();
@@ -48,34 +50,22 @@ export function useSocialSync<T>(userId:string,resource:string,target?:string,en
   useEffect(()=>{
     current.current=key;pageDepth.current=1;
     if(!enabled||!isAccountId(userId))return;
-    let disposed=false;let refreshTimer:ReturnType<typeof setTimeout>|undefined;
-    const schedule=()=>{
-      if(disposed||document.visibilityState==='hidden')return;
-      clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>void refresh(),150);
-    };
+    const queue=createRefreshQueue(refresh);
+    refreshQueue.current=queue;
+    const schedule=()=>{void queue.request();};
+    const disconnect=subscribeSocialChanges(userId,schedule);
     schedule();
-    let disconnect=()=>{};
-    try {
-      const supabase=createSupabaseBrowserClient();
-      const channel=supabase.channel(`social:${userId}:${resource}:${target??''}`)
-        .on('postgres_changes',{event:'*',schema:'public',table:'social_sync_revisions',filter:`user_id=eq.${userId}`},schedule)
-        .subscribe((status:string)=>{if(status==='SUBSCRIBED')schedule();});
-      disconnect=()=>{void supabase.removeChannel(channel);};
-    } catch { /* Authorized HTTP polling remains available without realtime. */ }
-    const fallback=setInterval(schedule,30_000);
-    window.addEventListener('campusmint:social-changed',schedule);
-    window.addEventListener('focus',schedule);document.addEventListener('visibilitychange',schedule);
     return()=>{
-      disposed=true;clearTimeout(refreshTimer);clearInterval(fallback);
+      queue.dispose();
+      if(refreshQueue.current===queue)refreshQueue.current=null;
       pending.current?.controller.abort();pending.current=null;disconnect();
-      window.removeEventListener('campusmint:social-changed',schedule);
-      window.removeEventListener('focus',schedule);document.removeEventListener('visibilitychange',schedule);
     };
   },[enabled,key,refresh,resource,target,userId]);
+  const requestRefresh=useCallback(()=>refreshQueue.current?.request()??Promise.resolve(),[]);
   const data=enabled&&state.key===key?state.data:null;
   async function loadMore() {
     if(!isPage(data)||!data.hasMore||pending.current)return;
-    pageDepth.current+=1;await refresh();
+    pageDepth.current+=1;await refreshQueue.current?.request();
   }
-  return {data,error:enabled&&state.key===key?state.error:null,loading:loadingKey===key,refresh,loadMore};
+  return {data,error:enabled&&state.key===key?state.error:null,loading:loadingKey===key,refresh:requestRefresh,loadMore};
 }

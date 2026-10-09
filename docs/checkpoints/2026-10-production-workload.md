@@ -60,3 +60,12 @@ Known remaining work in this checkpoint/program:
 ### SOCIAL-01 production database evidence
 
 The user approved the social-sync migration explicitly. Applied successfully October 9 to project `rwcrglxahdkiiuvywror`; SQL SHA-256 `8a4ed7785b10414c9bde504d68ee0746cea36382f23818bdf45255930c229ec3`. The connector recorded version `20261009170529`; its ledger entry was reconciled to the CLI-created local version `20261009162606` without replaying SQL. Live checks confirmed revision-table RLS, own-account SELECT predicate, publication membership, service-only social mutations, no browser read RPC, no direct browser private-message SELECT and no browser revision writes. This is database deployment evidence, not live two-account UI or Storage validation.
+
+## SOCIAL-02 — realtime reliability checkpoint (October 9)
+
+- Web social panels share one account-scoped subscription and foreground polling timer. Removing the last listener closes that transport; late events cannot enter a replacement account subscription.
+- Refreshes serialize and coalesce bursts. A revision or successful mutation arriving during a slow HTTP read triggers a follow-up read instead of waiting for the next 30-second fallback poll. Leaving a panel cancels queued refresh work and aborts its in-flight read.
+- Validation: 473 JavaScript/PostgreSQL tests pass; lint, TypeScript and production build pass. Four new behavioral regressions cover subscription ownership/cleanup, concurrent invalidations, account-switch disposal and retry after failure.
+- No additional production database changes were made. Live read-only inventory confirms likes/endorsements/pins/notes remain unavailable through direct service table SELECT; their approved RPC is the access boundary. Follows/blocks have existing server SELECT access. Do not work around those boundaries with broad grants.
+- Next client work: bounded/selective interaction reads, then production appreciation/endorsement/pins/shares/follows/blocks/attendance hooks. Existing account `state` aggregation is not a scalable general-purpose read. None of these remaining client connections is claimed complete by this checkpoint.
+- SOCIAL-01 was saved in local commit `d092558`. Neither checkpoint has been pushed or deployed to the public website; only the specifically approved social-sync database migration is live. Real two-account/device end-to-end validation remains outstanding.

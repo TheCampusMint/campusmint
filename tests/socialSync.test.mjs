@@ -26,3 +26,47 @@ test('notification mapper does not expose private payload bodies or arbitrary de
  assert.equal(JSON.stringify(mapped).includes('Private text'),false);
  assert.equal(mapServerNotification({...row,kind:'unknown'},id),null);
 });
+
+const {createInvalidationHub,createRefreshQueue}=await import('../lib/social/invalidationHub.ts');
+function deferred() { let resolve; const promise=new Promise(done=>{resolve=done;}); return {promise,resolve}; }
+
+test('social panels share one account transport, with independent account ownership and final cleanup',()=>{
+ const transports=[];
+ const hub=createInvalidationHub((account,invalidate)=>{const transport={account,invalidate,closed:false};transports.push(transport);return()=>{transport.closed=true;};});
+ let a=0,b=0,other=0;
+ const leaveA=hub.subscribe('account-a',()=>a++);
+ const leaveB=hub.subscribe('account-a',()=>b++);
+ const leaveOther=hub.subscribe('account-b',()=>other++);
+ assert.equal(transports.length,2);
+ transports[0].invalidate();assert.deepEqual([a,b,other],[1,1,0]);
+ leaveA();leaveA();assert.equal(transports[0].closed,false);
+ transports[0].invalidate();assert.deepEqual([a,b,other],[1,2,0]);
+ leaveB();assert.equal(transports[0].closed,true);
+ const leaveNew=hub.subscribe('account-a',()=>a++);
+ transports[0].invalidate();assert.equal(a,1,'late events cannot enter a replacement session');
+ transports[2].invalidate();assert.equal(a,2);
+ leaveNew();leaveOther();assert.ok(transports.every(item=>item.closed));
+});
+
+test('an update during a slow social read produces one follow-up read without parallel requests',async()=>{
+ const first=deferred();let reads=0,active=0,maxActive=0;
+ const queue=createRefreshQueue(async()=>{reads++;active++;maxActive=Math.max(maxActive,active);if(reads===1)await first.promise;active--;});
+ const completed=queue.request();queue.request();
+ await Promise.resolve();assert.equal(reads,1);
+ for(let index=0;index<20;index++)queue.request();
+ first.resolve();await completed;
+ assert.equal(reads,2);assert.equal(maxActive,1);
+});
+
+test('changing account or leaving a panel cancels queued invalidations',async()=>{
+ const first=deferred();let reads=0;
+ const queue=createRefreshQueue(async()=>{reads++;await first.promise;});
+ const completed=queue.request();await Promise.resolve();queue.request();queue.dispose();first.resolve();await completed;
+ await queue.request();assert.equal(reads,1);
+});
+
+test('a failed refresh does not permanently prevent retries',async()=>{
+ let reads=0;const queue=createRefreshQueue(async()=>{if(++reads===1)throw new Error('offline');});
+ await assert.rejects(queue.request(),/offline/);
+ await queue.request();assert.equal(reads,2);
+});
