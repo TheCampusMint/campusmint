@@ -37,6 +37,8 @@ func expectThrows<Value>(_ expected: CampusError, _ body: () async throws -> Val
         try await noImplicitNativeSignupOrClientIdentityFields()
         try cryptographicNonceHasEntropyAndUsesURLAlphabet()
         try assertionBindsUserMethodPathAndExactBody()
-        print("13 native security and contract checks passed.")
+        try await socialRequestsKeepIdentityServerOwnedAndQueryEncoded()
+        try await authenticatedPathsRejectEncodedTraversalBeforeSending()
+        print("15 native security and contract checks passed.")
     }
 }

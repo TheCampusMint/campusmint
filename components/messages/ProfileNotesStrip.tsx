@@ -120,7 +120,7 @@ export function ProfileNotesStrip({
     setEditing(true);
   }
 
-  function saveNote() {
+  async function saveNote() {
     const websiteUrl = normalizeSafeWebsiteUrl(website);
     if (website.trim() && !websiteUrl) {
       setError("Enter a valid website URL.");
@@ -128,7 +128,8 @@ export function ProfileNotesStrip({
     }
     const hasContent = Boolean(text.trim() || websiteUrl);
 
-    directMint.updateProfileNote(
+    try {
+    await directMint.updateProfileNote(
       hasContent
         ? {
             text: text.slice(0, PROFILE_NOTE_MAX_LENGTH),
@@ -139,6 +140,12 @@ export function ProfileNotesStrip({
         : null,
     );
     closeEditor();
+    } catch (error) { setError(error instanceof Error ? error.message : "Could not save note."); }
+  }
+
+  async function clearNote() {
+    try { await directMint.updateProfileNote(null); closeEditor(); }
+    catch (error) { setError(error instanceof Error ? error.message : "Could not clear note."); }
   }
 
   const ownText = directMint.profileNote?.text || "Add note";
@@ -188,7 +195,7 @@ export function ProfileNotesStrip({
             {error && <p role="alert" className="mt-2 text-xs font-semibold text-[var(--app-danger)]">{error}</p>}
 
             <div className="mt-4 flex items-center justify-between gap-2">
-              {directMint.profileNote ? <button type="button" onClick={() => { directMint.updateProfileNote(null); closeEditor(); }} className="rounded-full px-3 py-2 text-xs font-bold text-[var(--app-text-secondary)]">Clear</button> : <span />}
+              {directMint.profileNote ? <button type="button" onClick={() => void clearNote()} className="rounded-full px-3 py-2 text-xs font-bold text-[var(--app-text-secondary)]">Clear</button> : <span />}
               <div className="flex gap-2">
                 <button type="button" onClick={closeEditor} className="rounded-full px-3 py-2 text-xs font-bold text-[var(--app-text-secondary)]">Cancel</button>
                 <button type="button" onClick={saveNote} className="rounded-full px-4 py-2 text-xs font-black" style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}>Save</button>

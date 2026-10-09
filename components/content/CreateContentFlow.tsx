@@ -106,6 +106,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   const attemptedIntentRef = useRef<string | null>(null);
   const reducedMotion = useReducedMotion();
   const [closing, setClosing] = useState(false);
+  const [published, setPublished] = useState(false);
   const [internalMedia, setInternalMedia] = useState<LocalMintMediaSelection[]>([]);
   const [internalMediaError, setInternalMediaError] = useState<string | null>(null);
   const [internalMediaPreparing, setInternalMediaPreparing] = useState(false);
@@ -151,19 +152,19 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
   const restoredUrlsRef = useRef<string[]>([]);
 
   const requestClose = useCallback(() => {
-    if (closing || submitting || draftBusy || mediaPreparing || internalMediaPreparing) return;
+    if (published || closing || submitting || draftBusy || mediaPreparing || internalMediaPreparing) return;
     setClosing(true);
     closeTimerRef.current = window.setTimeout(
       onClose,
       reducedMotion ? 0 : motion.duration.fast,
     );
-  }, [closing, onClose, reducedMotion, submitting, draftBusy, mediaPreparing, internalMediaPreparing]);
+  }, [published, closing, onClose, reducedMotion, submitting, draftBusy, mediaPreparing, internalMediaPreparing]);
 
   const closeAfterPublish = useCallback(() => {
-    setClosing(true);
+    setPublished(true);
     closeTimerRef.current = window.setTimeout(
       onClose,
-      reducedMotion ? 0 : motion.duration.fast,
+      reducedMotion ? 180 : 620,
     );
   }, [onClose, reducedMotion]);
 
@@ -557,8 +558,8 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       privacy,
       isDevelopment: viewer.account.isDevelopment,
     }, activeMedia, publishRequestIdRef.current).catch(() => ({ ok: false, message: "Couldn’t reach Campus Mint. Your work is still here; try again." }));
-    setSubmitting(false);
     if (!result.ok) {
+      setSubmitting(false);
       // Keep a durable copy when the server rejects or interrupts a publish;
       // the composer preview is not itself a persisted draft.
       const draftSaved = await saveCurrentDraft();
@@ -581,7 +582,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
     label: option.label,
   }));
 
-  const busy = submitting || draftBusy || activeMediaPreparing;
+  const busy = published || submitting || draftBusy || activeMediaPreparing;
   const clubOptions = availableOrganizations.map((club) => ({ id: club.id, label: club.name }));
   const eventOptions = availableEvents.map((event) => ({ id: event.id, label: event.title, detail: `${new Date(event.startAt).toLocaleDateString()} · ${event.location}` }));
 
@@ -610,7 +611,11 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
       style={viewport ? { height: viewport.height, top: viewport.top } : undefined}
       role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
       <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="create-content-title"
-        className={`cm-panel-sheet cm-create-composer flex max-h-full w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-[1.75rem] bg-[var(--app-surface)] text-[var(--app-text-primary)] ${closing ? "is-closing" : ""}`}>
+        className={`cm-panel-sheet cm-create-composer relative flex max-h-full w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-[1.75rem] bg-[var(--app-surface)] text-[var(--app-text-primary)] ${closing ? "is-closing" : ""}`}>
+        {published && <div role="status" className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-[var(--app-surface)]">
+          <span className="cm-publish-leaf text-[var(--app-accent)]" data-reduced-motion={reducedMotion}><MintLeafIcon className="!h-12 !w-12" /></span>
+          <span className="sr-only">Published</span>
+        </div>}
         <header className="flex shrink-0 items-center justify-between px-5 pt-3">
           <h2 id="create-content-title" className="sr-only">{draftsOpen ? "Drafts" : "Create Mint"}</h2>
           <button type="button" disabled={busy} onClick={() => setDraftsOpen(!draftsOpen)} className="rounded-full py-2 text-xs text-[var(--app-text-secondary)]">{draftsOpen ? "Back" : `Drafts${drafts.length ? ` (${drafts.length})` : ""}`}</button>
@@ -634,14 +639,14 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
                   onChange={(event) => { setCaption(event.target.value); if (composerKind === "poll") setPollQuestion(event.target.value); setMentionQuery(getActiveMentionQuery(event.target.value, event.target.selectionStart)); }}
                   onSelect={(event) => setMentionQuery(getActiveMentionQuery(event.currentTarget.value, event.currentTarget.selectionStart))}
                   rows={3} className="cm-composer-field block min-h-24 w-full resize-none rounded-xl bg-transparent py-3 text-base leading-relaxed placeholder:text-[var(--app-text-secondary)]" placeholder="Text here" /></label>
-                <div className="flex shrink-0 items-center pt-2">
+                <div className="flex shrink-0 flex-col items-center gap-1 pt-2">
                   <button type="button" onClick={chooseMedia} aria-label="Add photo or video" className="rounded-full p-2 text-[var(--app-accent)]"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8" cy="9" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 6"/></svg></button>
                   <button type="button" aria-label="More post options" aria-expanded={moreOpen} aria-controls="composer-extras" onClick={() => setMoreOpen(!moreOpen)} className="rounded-full p-2 text-[var(--app-text-secondary)]"><svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4"><path d="m5 8 5 5 5-5"/></svg></button>
                 </div>
               </div>
-              <div className="flex gap-1"><button type="button" aria-label="Add hashtag" onClick={() => insertToken("#")} className="rounded-full px-2 py-1 text-sm text-[var(--app-text-secondary)]">#</button><button type="button" aria-label="Mention someone" onClick={() => insertToken("@")} className="rounded-full px-2 py-1 text-sm text-[var(--app-text-secondary)]">@</button></div>
+              <div className="flex gap-1"><button type="button" aria-label="Add hashtag" onClick={() => insertToken("#")} className="grid h-10 w-10 place-items-center rounded-full text-lg text-[var(--app-accent)] focus-visible:outline-2 focus-visible:outline-[var(--app-accent)]">#</button><button type="button" aria-label="Mention someone" onClick={() => insertToken("@")} className="grid h-10 w-10 place-items-center rounded-full text-lg text-[var(--app-accent)] focus-visible:outline-2 focus-visible:outline-[var(--app-accent)]">@</button></div>
               {mentionQuery !== null && mentionSuggestions.length > 0 && <div className="rounded-2xl bg-[var(--app-surface-elevated)] p-1">{mentionSuggestions.map((candidate) => <button key={candidate.account.id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { const next = insertMentionAtCaret(caption, captionTextareaRef.current?.selectionStart ?? caption.length, candidate.profile.usernameNormalized); setCaption(next); if (composerKind === "poll") setPollQuestion(next); setMentionQuery(null); captionTextareaRef.current?.focus(); }} className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--app-accent-soft)]">@{candidate.profile.username}<span className="ml-2 text-xs text-[var(--app-text-secondary)]">{candidate.profile.displayName}</span></button>)}</div>}
-              {moreOpen && <div id="composer-extras" className="cm-composer-reveal my-2 flex flex-wrap gap-4 rounded-2xl bg-[var(--app-surface-elevated)] px-3 py-2 text-sm">
+              {moreOpen && <div id="composer-extras" className="cm-composer-reveal my-2 flex flex-col items-start gap-2 rounded-2xl bg-[var(--app-surface-elevated)] px-3 py-2 text-sm">
                 <button type="button" aria-pressed={composerKind === "poll"} onClick={() => { setComposerKind(composerKind === "poll" ? "post" : "poll"); setPollQuestion(caption.slice(0, 280)); if (composerKind !== "poll") setCaption(caption.slice(0, 280)); setMoreOpen(false); }} className="rounded-full py-1">{composerKind === "poll" ? "Remove poll" : "Poll"}</button>
                 <button type="button" onClick={() => cameraInputRef.current?.click()} className="rounded-full py-1">Camera</button>
                 {onSaveDraft && <button type="button" onClick={() => void saveCurrentDraft()} className="rounded-full py-1">Save draft</button>}
@@ -656,7 +661,7 @@ export function CreateContentFlow({ viewer, users, theme, onCreateMint, onClose,
               {progress >= 1 && <div className="cm-composer-reveal pt-3"><label className="sr-only" htmlFor="composer-privacy">Privacy</label><select id="composer-privacy" aria-label="Privacy" value={privacyChosen ? privacy : ""} onChange={(event) => { setPrivacy(event.target.value as SocialContentPrivacy); setPrivacyChosen(true); }} className={fieldClass + " cm-composer-field"}><option value="" disabled>Privacy · Public</option>{privacy === "account" && <option value="account">Profile default</option>}<option value="public">Public</option><option value="connections">Connections</option><option value="private">Only me</option></select></div>}
               {progress >= 2 && <div className="cm-composer-reveal pt-2"><label className="sr-only" htmlFor="composer-duration">Duration</label><select id="composer-duration" aria-label="Duration" disabled={postType === "event"} value={durationChosen ? durationHours : ""} onChange={(event) => { setDurationHours(event.target.value); setDurationChosen(true); }} className={fieldClass + " cm-composer-field"}><option value="" disabled>Duration · Permanent</option>{personalDurationOptions.map((option) => <option key={option.hours} value={option.hours}>{option.label}</option>)}</select></div>}
               {progress >= 3 && <div className="cm-composer-reveal space-y-3 pt-4">
-                <div className="flex gap-2">{([ ["event", "Event"], ["club", "Club"] ] as const).map(([kind, label]) => <button key={kind} type="button" aria-pressed={contextKind === kind} onClick={() => toggleContext(kind)} className={`cm-context-${kind} rounded-full px-4 py-1.5 text-sm font-semibold ${contextKind === kind ? "is-selected" : ""}`}>{label}</button>)}</div>
+                <div className="flex flex-col items-start gap-2">{([ ["event", "Event"], ["club", "Club"] ] as const).map(([kind, label]) => <button key={kind} type="button" aria-pressed={contextKind === kind} onClick={() => toggleContext(kind)} className={`cm-context-${kind} rounded-full px-4 py-1.5 text-sm font-semibold ${contextKind === kind ? "is-selected" : ""}`}>{label}</button>)}</div>
                 {contextKind === "club" && <><SearchableSelector label="Club" value={taggedOrganizationId || selectedOrganizationId} options={clubOptions} loading={contextLoading} onChange={(id) => { setTaggedOrganizationId(id); setSelectedOrganizationId(""); setPostType("personal"); }} placeholder="Your joined clubs" />{!contextLoading && !clubOptions.length && <p className="text-xs text-[var(--app-text-secondary)]">Join a club first</p>}</>}
                 {contextKind === "event" && <><p className="text-xs text-[var(--app-text-secondary)]">Event posts last 24 hours.</p><PlacePicker sessionKey={viewer.account.id} universityId={configuredUniversityId} value={eventLocation} onChange={setEventLocation} /><details className="text-xs text-[var(--app-text-secondary)]"><summary className="cursor-pointer rounded-full py-1">Link a campus event</summary><SearchableSelector label="Campus event" value={existingEventId} options={eventOptions} loading={contextLoading} onChange={setExistingEventId} /></details></>}
                 {contextError && (contextKind === "club" || contextKind === "event") && <button type="button" onClick={() => { setContextLoading(true); setContextError(false); setContextAttempt((attempt) => attempt + 1); }} className="text-xs text-[var(--app-accent)]">Couldn’t load choices. Retry</button>}

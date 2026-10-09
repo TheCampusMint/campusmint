@@ -17,7 +17,13 @@ export async function proxy(request: NextRequest) {
     status, headers: { "Cache-Control": "private, no-store", "X-Request-Id": requestId, ...(retry ? { "Retry-After": String(retry) } : {}) },
   });
   let response = NextResponse.next({ request });
-  if (!url || !publishableKey) return isApi ? deny(503, "Service unavailable.") : response;
+  if (!url || !publishableKey) {
+    // The isolated visual preview may report that Auth is unconfigured. It never
+    // bypasses authentication for a mutation, or when a database URL is present.
+    if (!url && process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_CAMPUS_MINT_ENABLE_FIXTURES === "true"
+      && request.method === "GET" && request.nextUrl.pathname === "/api/account/me") return response;
+    return isApi ? deny(503, "Service unavailable.") : response;
+  }
   const policy = apiPolicy(request.nextUrl.pathname, request.method);
   if (isApi && policy.cron) {
     if (!validCronSecret(request)) return deny(401, "Unauthorized.");

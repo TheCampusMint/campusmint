@@ -10,6 +10,7 @@ import type { UniversityTheme } from "@/data/universities";
 import type { DirectMintState } from "@/hooks/useDirectMint";
 import type { ProfilesState } from "@/hooks/useProfiles";
 import { rankPrivateMessageSuggestions } from "@/lib/social/privateMessages";
+import type { MessagePerson } from "@/types/messagePerson";
 import type { CampusMintUser } from "@/types/profile";
 
 type MessagesSkeletonProps = {
@@ -97,9 +98,9 @@ export function MessagesSkeleton({
   }, [requestedUserId]);
 
   const conversationUsers = directMint.conversationUserIds
-    .map((id) => candidates.find((user) => user.account.id === id))
-    .filter((user): user is CampusMintUser => Boolean(user));
-  const selected = candidates.find((user) => user.account.id === threadUserId) ?? null;
+    .map((id) => profiles.users.find((user) => user.account.id === id) ?? directMint.peers.find((user) => user.account.id === id))
+    .filter((user): user is MessagePerson => Boolean(user));
+  const selected = candidates.find((user) => user.account.id === threadUserId) ?? conversationUsers.find((user) => user.account.id === threadUserId) ?? null;
 
   function openConversation(userId: string) {
     returnScrollRef.current = window.scrollY;
@@ -132,12 +133,13 @@ export function MessagesSkeleton({
     <div className="space-y-4" data-private-messages data-message-list-scene>
       <h1 className="text-xl font-black tracking-tight text-[var(--app-text-primary)] sm:text-2xl">Private Messages</h1>
 
+      {directMint.error && <p role="alert" className="text-sm text-[var(--app-danger)]">{directMint.error}</p>}
       <div className="relative max-w-2xl">
         <label htmlFor="private-message-search" className="sr-only">Search people to message</label>
         <span aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
-        <input id="private-message-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" autoComplete="off" className="h-11 w-full rounded-full border border-slate-200 bg-white pl-10 pr-4 text-sm outline-none focus:border-[var(--app-accent)] focus:ring-2 focus:ring-[var(--app-accent-soft)]" />
+        <input id="private-message-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" autoComplete="off" className="h-11 w-full rounded-full bg-[var(--app-surface)] pl-10 pr-4 text-sm outline-none focus:border-[var(--app-accent)] focus:ring-2 focus:ring-[var(--app-accent-soft)]" />
         {normalizedQuery && (
-          <div className="absolute inset-x-0 top-12 z-30 rounded-3xl border border-slate-200 bg-white p-2 shadow-xl">
+          <div className="absolute inset-x-0 top-12 z-30 rounded-3xl bg-[var(--app-surface)] p-2">
             {searchResults.length > 0 ? searchResults.map(({ user, reason }) => (
               <button key={user.account.id} type="button" onClick={() => openConversation(user.account.id)} className="flex w-full items-center gap-3 rounded-2xl p-2.5 text-left hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[var(--app-accent)]">
                 <ProfileAvatar user={user} size="sm" primaryColor={theme.primary} accentColor={theme.accent} />
@@ -148,7 +150,7 @@ export function MessagesSkeleton({
         )}
       </div>
 
-      <ProfileNotesStrip viewer={viewer} theme={theme} directMint={directMint} relatedUsers={conversationUsers.length > 0 ? conversationUsers : suggestions.map(({ user }) => user)} onOpenUser={openConversation} />
+      <ProfileNotesStrip viewer={viewer} theme={theme} directMint={directMint} relatedUsers={conversationUsers.length > 0 ? conversationUsers.filter((user):user is CampusMintUser => "privacy" in user) : suggestions.map(({ user }) => user)} onOpenUser={openConversation} />
 
       <div className="space-y-2" aria-label="Conversations">
         {conversationUsers.map((user) => {

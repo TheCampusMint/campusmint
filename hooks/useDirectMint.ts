@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import type { MessagePeer } from "@/types/messagePerson";
+import { useServerDirectMint } from "@/hooks/useServerDirectMint";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import {
   mergeConversationOrder,
@@ -61,6 +64,8 @@ function legacyStorageKeyFor(userId: string) {
 }
 
 export function useDirectMint(currentUserId: string) {
+  const production = !areDevelopmentFixturesEnabled();
+  const remote = useServerDirectMint(currentUserId, production);
   const [conversations, setConversations] = useState<DirectMintConversation[]>([]);
   const [messages, setMessages] = useState<DirectMintMessage[]>([]);
   const [conversationOrder, setConversationOrder] = useState<string[]>([]);
@@ -69,6 +74,7 @@ export function useDirectMint(currentUserId: string) {
   const [hydrated, setHydrated] = useState(false);
 
   useLayoutEffect(() => {
+    if (production) return;
     try {
       const stored = window.localStorage.getItem(storageKeyFor(currentUserId)) ?? window.localStorage.getItem(legacyStorageKeyFor(currentUserId));
       if (!stored) return;
@@ -116,10 +122,10 @@ export function useDirectMint(currentUserId: string) {
     } finally {
       setHydrated(true);
     }
-  }, [currentUserId]);
+  }, [currentUserId, production]);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (production || !hydrated) return;
 
     const state: StoredDirectMintState = {
       version: 3,
@@ -133,9 +139,9 @@ export function useDirectMint(currentUserId: string) {
       storageKeyFor(currentUserId),
       JSON.stringify(state),
     );
-  }, [conversationOrder, conversations, currentUserId, hydrated, messages, pinnedConversationIds, profileNote]);
+  }, [conversationOrder, conversations, currentUserId, hydrated, messages, pinnedConversationIds, profileNote, production]);
 
-  function startConversation(otherUserId: string) {
+  const startConversation = useCallback((otherUserId: string) => {
     const id = conversationIdFor(currentUserId, otherUserId);
 
     setConversations((current) => {
@@ -156,7 +162,7 @@ export function useDirectMint(currentUserId: string) {
     );
 
     return id;
-  }
+  }, [currentUserId]);
 
   function sendMessage(
     otherUserId: string,
@@ -271,7 +277,13 @@ export function useDirectMint(currentUserId: string) {
     );
   }, [conversationOrder, conversations, currentUserId, pinnedConversationIds]);
 
+  if (production) return remote;
   return {
+    peers: [] as MessagePeer[],
+    hasMore: false,
+    loadMore: async () => {},
+    error: null,
+    loading: false,
     conversations,
     messages,
     conversationOrder,

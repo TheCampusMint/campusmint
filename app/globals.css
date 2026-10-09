@@ -631,3 +631,14 @@ summary {
 .cm-context-club.is-selected { background: linear-gradient(105deg, #dc872e55, #dc872e26); }
 .cm-context-event.is-selected { background: linear-gradient(105deg, #399b6d55, #399b6d26); }
 @media (prefers-reduced-motion: reduce) { .cm-composer-reveal { animation: none; } }
+
+/* Publication is confirmed before this leaf moves; reduced motion keeps it still. */
+@keyframes cm-publish-leaf-flight {
+  0% { opacity: 0; transform: translateY(32px) rotate(-16deg) scale(.85); }
+  25% { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-48px) rotate(18deg) scale(.9); }
+}
+.cm-publish-leaf { animation: cm-publish-leaf-flight 620ms cubic-bezier(.22,.8,.26,1) both; }
+.cm-publish-leaf[data-reduced-motion="true"] { animation: none; }
+@media (prefers-reduced-motion: reduce) { .cm-publish-leaf { animation: none; } }

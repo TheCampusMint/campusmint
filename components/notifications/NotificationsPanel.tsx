@@ -105,14 +105,14 @@ export function NotificationsPanel({
       >
         <header data-direct-drag-handle className="flex shrink-0 touch-none items-center justify-between px-4 pb-2 pt-4">
           <div>
-            <p className="cm-eyebrow text-[var(--app-accent)]">Campus activity</p>
             <h2 id="notifications-heading" className="mt-0.5 text-lg font-black text-[var(--app-text-primary)]">Notifications</h2>
           </div>
           <CloseButton onClick={requestClose} data-initial-focus label="Close notifications" tone="minimal" />
         </header>
 
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
-          {notifications.notifications.length === 0 ? (
+          {notifications.error && <button type="button" onClick={() => void notifications.retry()} className="p-3 text-sm text-[var(--app-text-primary)]" role="alert">{notifications.error} Retry</button>}
+          {notifications.loading ? <p className="p-4 text-center" role="status">Loading…</p> : notifications.notifications.length === 0 ? (
             <p className="grid min-h-40 place-items-center text-sm text-[var(--app-text-secondary)]">No notifications</p>
           ) : notifications.notifications.map((notification) => {
             const actorUser = notification.actor.userId
@@ -136,9 +136,10 @@ export function NotificationsPanel({
               </button>
             );
           })}
+          {notifications.hasMore && <button type="button" onClick={() => void notifications.loadMore()} className="p-3 text-sm text-[var(--app-accent)]">Older notifications</button>}
         </div>
 
-        <p className="shrink-0 px-4 py-2 text-center text-[9px] font-semibold uppercase tracking-[.12em] text-[var(--app-text-secondary)]">Stored on this device</p>
+
       </section>
     </div>,
     document.body,

@@ -151,11 +151,10 @@ test("comment sheet retains long press, like, repost, media, sticker, and font c
   assert.match(commentsSource, /fontStyle/);
 });
 
-test("comment sheet supports replies, local persistence honesty, and direct manipulation", () => {
+test("comment sheet supports replies and direct manipulation", () => {
   assert.match(commentsSource, /replyToCommentId/);
   assert.match(commentsSource, />\s*Reply\s*</);
   assert.match(commentsSource, /parentCommentId: replyToCommentId/);
-  assert.match(commentsSource, /Preview only · this device/);
   assert.match(commentsSource, /useDirectManipulation/);
   assert.match(commentsSource, /data-direct-drag-handle/);
 });

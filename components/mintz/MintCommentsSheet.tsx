@@ -10,6 +10,9 @@ import {
   type FormEvent,
   type PointerEvent,
 } from "react";
+import { useSocialSync } from "@/hooks/useSocialSync";
+import { socialWrite } from "@/lib/social/syncClient";
+import { areDevelopmentFixturesEnabled } from "@/lib/runtime/fixturePolicy";
 import { createPortal } from "react-dom";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
@@ -38,7 +41,9 @@ import type { CampusMintUser } from "@/types/profile";
 
 type AttachmentMode = "none" | "image" | "gif" | "video" | "sticker";
 
+type ServerComment = {id:string; content_id:string; author_id:string; parent_comment_id:string|null; body:string; created_at:string; updated_at:string; display_name:string; username:string; like_count:number; liked:boolean};
 type MintCommentsSheetProps = {
+  contentId: string;
   comments: MintComment[];
   users: CampusMintUser[];
   viewer: CampusMintUser;
@@ -110,28 +115,40 @@ function CommentAttachmentView({ attachment }: { attachment: CommentAttachment }
 }
 
 export function MintCommentsSheet({
-  comments,
+  contentId,
+  comments: localComments,
   users,
   viewer,
   theme,
   currentTime,
   reducedMotion,
-  likedCommentIds,
+  likedCommentIds: localLikedCommentIds,
   repostedCommentIds,
   hiddenCommentIds,
   blockedCommentAuthorIds = [],
   origin = null,
   onComment,
-  onToggleCommentLike,
+  onToggleCommentLike: localToggleCommentLike,
   onToggleCommentRepost,
   onHideComment,
-  onDeleteComment,
+  onDeleteComment: localDeleteComment,
   onReportComment,
   onOpenProfile,
   onMessageUser,
   onClose,
   layerClassName = "z-[65]",
 }: MintCommentsSheetProps) {
+  const production = !areDevelopmentFixturesEnabled();
+  const remote = useSocialSync<{items:ServerComment[];hasMore:boolean}>(viewer.account.id, "comments", contentId, production);
+  const comments: MintComment[] = useMemo(() => production ? (remote.data?.items ?? []).map(row => ({
+    id:row.id,targetType:"mint",targetId:row.content_id,authorId:row.author_id,body:row.body,parentCommentId:row.parent_comment_id,
+    createdAt:row.created_at,updatedAt:row.updated_at,status:"active",mentions:[],likeCount:row.like_count,
+  })) : localComments, [production, remote.data, localComments]);
+  const likedCommentIds = production ? (remote.data?.items ?? []).filter(row => row.liked).map(row => row.id) : localLikedCommentIds;
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  const retryRef = useRef<{signature:string;id:string}|null>(null);
+  const pendingActions = useRef(new Set<string>());
   const [body, setBody] = useState("");
   const [fontStyle, setFontStyle] = useState<CommentFontStyle>("normal");
   const [attachmentMode, setAttachmentMode] = useState<AttachmentMode>("none");
@@ -230,7 +247,7 @@ export function MintCommentsSheet({
     }
   }
 
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     const attachment = createAttachment();
     const attachmentResult = validateCommentAttachment(attachment);
@@ -240,7 +257,18 @@ export function MintCommentsSheet({
     }
     if (!body.trim() && !attachment) return;
 
-    onComment({ body, attachment, fontStyle, parentCommentId: replyToCommentId });
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true);
+    try {
+      if (production) {
+        if (attachment && attachment.type !== "sticker") throw new Error("File comments are not available yet. Your attachment is still here.");
+        const text = [body.trim(), attachment?.type === "sticker" ? stickerOptions.find(item => item.id === attachment.stickerId)?.glyph : ""].filter(Boolean).join(" ");
+        const signature = JSON.stringify([viewer.account.id, contentId, text, replyToCommentId]);
+        if (retryRef.current?.signature !== signature) retryRef.current = {signature,id:crypto.randomUUID()};
+        await socialWrite("comment",contentId,{body:text,requestId:retryRef.current.id,parentId:replyToCommentId});
+        retryRef.current = null;
+        await remote.refresh();
+      } else onComment({ body, attachment, fontStyle, parentCommentId: replyToCommentId });
     setBody("");
     setAttachmentMode("none");
     setPreparedAttachment(null);
@@ -248,11 +276,21 @@ export function MintCommentsSheet({
     setReplyToCommentId(null);
     setComposerExpanded(false);
     setError(null);
-    setSendStatus("Comment posted on this device");
+    setSendStatus(production ? "Posted" : "Comment posted on this device");
     if (statusTimer.current !== null) window.clearTimeout(statusTimer.current);
     statusTimer.current = window.setTimeout(() => setSendStatus(null), 1800);
     inputRef.current?.focus();
+    } catch (error) { setError(error instanceof Error ? error.message : "Could not post comment."); }
+    finally { sendingRef.current = false; setSending(false); }
   }
+
+  function mutateComment(commentId:string, action:"comment_like"|"delete_comment") {
+    if (pendingActions.current.has(commentId)) return;
+    pendingActions.current.add(commentId);
+    void socialWrite(action,commentId,{enabled:!likedCommentIds.includes(commentId)}).then(() => remote.refresh()).catch(error => setError(error instanceof Error ? error.message : "Could not save.")).finally(() => pendingActions.current.delete(commentId));
+  }
+  function onToggleCommentLike(commentId:string) { if (production) mutateComment(commentId,"comment_like"); else localToggleCommentLike(commentId); }
+  function onDeleteComment(commentId:string) { if (production) mutateComment(commentId,"delete_comment"); else localDeleteComment(commentId); }
 
   function clearLongPress() {
     if (longPressTimer.current !== null) {
@@ -329,6 +367,8 @@ export function MintCommentsSheet({
           />
         </header>
 
+        {(error || remote.error) && <p role="alert" className="px-4 py-2 text-sm text-[var(--app-danger)]">{error || remote.error}</p>}
+        {production && !remote.data && !remote.error && <p role="status" className="px-4 py-2">Loading…</p>}
         <div ref={commentsScrollRef} className="min-h-0 flex-1 overscroll-contain overflow-y-auto px-4 py-4 sm:px-5">
           {visibleComments.length === 0 ? (
             <p className="grid min-h-28 place-items-center text-sm text-slate-400">
@@ -386,7 +426,7 @@ export function MintCommentsSheet({
                       <div className="rounded-[1.35rem] bg-slate-50 px-3.5 py-3">
                         <div className="flex items-baseline justify-between gap-3">
                           <p className="min-w-0 truncate text-sm font-black text-slate-900">
-                            {author?.profile.displayName ?? "Unavailable user"}
+                            {author?.profile.displayName ?? remote.data?.items.find(row => row.author_id === comment.authorId)?.display_name ?? "Unavailable user"}
                             {author && <span className="ml-1.5 font-semibold text-slate-400">@{author.profile.username}</span>}
                           </p>
                           <time className="shrink-0 text-[10px] font-semibold text-slate-400" dateTime={comment.createdAt}>
@@ -513,11 +553,12 @@ export function MintCommentsSheet({
               })}
             </div>
           )}
+          {production && remote.data?.hasMore && <button type="button" disabled={remote.loading} onClick={() => void remote.loadMore()} className="p-3 text-sm text-[var(--app-accent)]">Older comments</button>}
         </div>
 
         <form
           onSubmit={submit}
-          className="shrink-0 border-t border-slate-100 bg-white px-3 pt-2 pb-[max(.75rem,env(safe-area-inset-bottom))]"
+          className="shrink-0 bg-[var(--app-surface)] px-3 pt-2 pb-[max(.75rem,env(safe-area-inset-bottom))]"
         >
           {sendStatus && <p role="status" className="mb-1 px-2 text-[10px] font-semibold text-slate-400">{sendStatus}</p>}
           {replyToCommentId && (() => {
@@ -559,7 +600,7 @@ export function MintCommentsSheet({
                     className={`rounded-full border px-2.5 py-1 text-[10px] font-black capitalize ${
                       attachmentMode === mode
                         ? "border-[var(--app-accent)] bg-[var(--app-accent-soft)] text-[var(--app-accent)]"
-                        : "border-slate-200 bg-white text-slate-500"
+                        : "border-slate-200 bg-[var(--app-surface)] text-slate-500"
                     }`}
                   >
                     {mode === "none" ? "Text" : mode}
@@ -569,7 +610,7 @@ export function MintCommentsSheet({
                   value={fontStyle}
                   onChange={(event) => setFontStyle(event.target.value as CommentFontStyle)}
                   aria-label="Comment font style"
-                  className="ml-auto rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600"
+                  className="ml-auto rounded-full bg-[var(--app-surface)] px-2.5 py-1 text-[10px] font-bold text-slate-600"
                 >
                   <option value="normal">Regular</option>
                   <option value="serif">Serif</option>
@@ -579,7 +620,7 @@ export function MintCommentsSheet({
               </div>
 
               {attachmentMode !== "none" && attachmentMode !== "sticker" && (
-                <label className="mt-2 flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600">
+                <label className="mt-2 flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-[var(--app-surface)] px-3 py-2 text-xs font-bold text-slate-600">
                   <span className="truncate">
                     {selectedAttachmentName || `Choose ${attachmentMode}`}
                   </span>
@@ -603,7 +644,7 @@ export function MintCommentsSheet({
                       aria-label={sticker.label}
                       aria-pressed={stickerId === sticker.id}
                       className={`grid h-10 w-10 place-items-center rounded-xl text-xl ${
-                        stickerId === sticker.id ? "bg-[var(--app-accent-soft)]" : "bg-white"
+                        stickerId === sticker.id ? "bg-[var(--app-accent-soft)]" : "bg-[var(--app-surface)]"
                       }`}
                     >
                       {sticker.glyph}
@@ -632,6 +673,7 @@ export function MintCommentsSheet({
               ref={inputRef}
               data-initial-focus
               value={body}
+              disabled={sending}
               onChange={(event) => setBody(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
@@ -642,22 +684,22 @@ export function MintCommentsSheet({
               rows={1}
               placeholder={replyToCommentId ? "Write a reply" : "Add a comment"}
               aria-label="Add a comment"
-              className={`max-h-24 min-w-0 flex-1 resize-none rounded-[1.35rem] border border-slate-200 bg-slate-50 px-4 py-2.5 text-base text-slate-900 placeholder:text-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] sm:text-sm ${fontClass(fontStyle)}`}
+              className={`max-h-24 min-w-0 flex-1 resize-none rounded-[1.35rem] bg-slate-50 px-4 py-2.5 text-base text-slate-900 placeholder:text-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] sm:text-sm ${fontClass(fontStyle)}`}
             />
             <button
               type="submit"
               disabled={
-                !body.trim() &&
+                sending || (!body.trim() &&
                 attachmentMode !== "sticker" &&
-                !preparedAttachment
+                !preparedAttachment)
               }
               className="interactive-pop rounded-full px-4 py-2.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-40"
               style={{ backgroundColor: "var(--app-accent)", color: "var(--app-accent-contrast)" }}
             >
-              Post
+              {sending ? "Posting…" : "Post"}
             </button>
           </div>
-          <p className="mt-1 px-2 text-[9px] text-slate-400">Preview only · this device</p>
+
         </form>
       </section>
     </div>

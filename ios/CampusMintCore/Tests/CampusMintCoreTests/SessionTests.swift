@@ -143,3 +143,36 @@ func noImplicitNativeSignupOrClientIdentityFields() async throws {
     try expect(payload["mode"] == "sign_in")
     try expect(payload["userId"] == nil)
 }
+
+func socialRequestsKeepIdentityServerOwnedAndQueryEncoded() async throws {
+    let network = MockTransport([.init(status:200,json:accountJSON()), .init(status:200,json:"{\"ok\":true,\"items\":[],\"hasMore\":false}"), .init(status:200,json:"{\"ok\":true}")])
+    let api = try CampusAPI(baseURL: URL(string:"https://example.com")!, vault:MemoryVault(token()), transport:network)
+    _ = try await api.restore()
+    let page: SocialPage<SocialMessage> = try await api.socialPage("messages", target: otherID)
+    try expect(page.items.isEmpty)
+    let mutation = SocialMutation(action:"message",target:otherID,body:"Hello",requestID:accountID)
+    let encoded = try JSONEncoder().encode(mutation)
+    try await api.mutateSocialEncoded(encoded)
+    let requests = await network.requests
+    let query = URLComponents(url: requests[1].url!, resolvingAgainstBaseURL:false)!.queryItems!
+    try expect(query.first(where: {$0.name == "target"})?.value == otherID.uuidString)
+    try expect(requests[1].url?.path == "/api/social")
+    try expect(requests[2].httpBody == encoded)
+    let object = try JSONSerialization.jsonObject(with:encoded) as! [String:Any]
+    try expect(object["actor"] == nil && object["p_actor"] == nil)
+    try expect(object["requestId"] as? String == accountID.uuidString)
+}
+
+func authenticatedPathsRejectEncodedTraversalBeforeSending() async throws {
+    struct Body: Encodable, Sendable {}
+    struct Result: Decodable, Sendable {let ok:Bool}
+    let network = MockTransport([.init(status:200,json:accountJSON())])
+    let api = try CampusAPI(baseURL:URL(string:"https://example.com")!,vault:MemoryVault(token()),transport:network)
+    _ = try await api.restore()
+    for path in ["/api/%2e%2e/admin", "/api/account/../admin", "/api/social?actor=other", "/api/social#fragment", "/api/\\evil"] {
+        try await expectThrows(CampusError.configuration) { () async throws -> Result in
+            try await api.authenticatedRequest(path,body:Body())
+        }
+    }
+    try expect(await network.requests.count == 1)
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -8,7 +9,8 @@ import {
   type FormEvent,
 } from "react";
 
-import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
+import { MessageAvatar } from "@/components/messages/MessageAvatar";
+import type { MessagePerson } from "@/types/messagePerson";
 import { CloseButton } from "@/components/ui/CloseButton";
 import { MintLeafBackButton } from "@/components/ui/MintLeafBackButton";
 import type { UniversityTheme } from "@/data/universities";
@@ -24,7 +26,7 @@ import type { Follow, Friendship } from "@/types/social";
 
 type DirectMintThreadProps = {
   viewer: CampusMintUser;
-  otherUser: CampusMintUser;
+  otherUser: MessagePerson;
   theme: UniversityTheme;
   directMint: DirectMintState;
   onBack: () => void;
@@ -64,6 +66,9 @@ function MessageAttachment({ attachment }: { attachment: DirectMintAttachment })
 }
 
 export function DirectMintThread({ viewer, otherUser, theme, directMint, onBack, onOpenProfile, friendships, follows }: DirectMintThreadProps) {
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState<DirectMintAttachment | null>(null);
   const [replyToMessageId, setReplyToMessageId] = useState<string | null>(null);
@@ -78,8 +83,11 @@ export function DirectMintThread({ viewer, otherUser, theme, directMint, onBack,
   const gifInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const messages = directMint.messagesFor(otherUser.account.id);
-  const faceTime = resolveFaceTimeHandoff({ viewer, target: otherUser, friendships, follows, supported: faceTimeSupported });
+  const faceTime = "privacy" in otherUser ? resolveFaceTimeHandoff({ viewer, target: otherUser, friendships, follows, supported: faceTimeSupported }) : {available:false as const,reason:"private" as const};
   const replyToMessage = messages.find((message) => message.id === replyToMessageId) ?? null;
+
+  const startConversation = directMint.startConversation;
+  useEffect(() => { startConversation(otherUser.account.id); }, [startConversation, otherUser.account.id]);
 
   useLayoutEffect(() => {
     directMint.markConversationSeen(otherUser.account.id);
@@ -88,14 +96,16 @@ export function DirectMintThread({ viewer, otherUser, theme, directMint, onBack,
     container.scrollTop = container.scrollHeight;
   }, [directMint, messages.length, otherUser.account.id]);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const sent = directMint.sendMessage(otherUser.account.id, draft, { attachment, replyToMessageId });
-    if (!sent) return;
-    setDraft("");
-    setAttachment(null);
-    setReplyToMessageId(null);
-    setToolsOpen(false);
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true); setSendError(null);
+    try {
+      const sent = await directMint.sendMessage(otherUser.account.id, draft, { attachment, replyToMessageId });
+      if (!sent) return;
+      setDraft(""); setAttachment(null); setReplyToMessageId(null); setToolsOpen(false);
+    } catch (error) { setSendError(error instanceof Error ? error.message : "Could not send."); }
+    finally { sendingRef.current = false; setSending(false); }
   }
 
   async function selectFile(event: ChangeEvent<HTMLInputElement>, requestedType: "image" | "gif" | "camera") {
@@ -124,11 +134,11 @@ export function DirectMintThread({ viewer, otherUser, theme, directMint, onBack,
   }
 
   return (
-    <section className="cm-content-swap flex h-[calc(100dvh-10rem)] min-h-[30rem] flex-col overflow-hidden rounded-[1.75rem] bg-white sm:h-[min(44rem,calc(100dvh-11rem))]" data-dedicated-message-thread aria-label={`Conversation with ${otherUser.profile.displayName}`}>
-      <header className="flex shrink-0 items-center gap-3 border-b border-slate-100 px-3 py-3 sm:px-4">
+    <section className="cm-content-swap flex h-[calc(100dvh-10rem)] min-h-[30rem] flex-col overflow-hidden rounded-[1.75rem] bg-[var(--app-surface)] sm:h-[min(44rem,calc(100dvh-11rem))]" data-dedicated-message-thread aria-label={`Conversation with ${otherUser.profile.displayName}`}>
+      <header className="flex shrink-0 items-center gap-3 px-3 py-3 sm:px-4">
         <MintLeafBackButton onClick={onBack} aria-label="Back" label="Back" tone="minimal" className="shrink-0 text-slate-800" />
         <button type="button" onClick={() => onOpenProfile(otherUser.account.id)} className="flex min-w-0 items-center gap-3 text-left focus-visible:outline-2 focus-visible:outline-[var(--app-accent)]">
-          <ProfileAvatar user={otherUser} size="sm" primaryColor={theme.primary} accentColor={theme.accent} />
+          <MessageAvatar user={otherUser} size="sm" theme={theme} />
           <span className="min-w-0"><strong className="block truncate text-sm font-black text-slate-950">{otherUser.profile.displayName}</strong><span className="block truncate text-xs text-slate-500">@{otherUser.profile.username}</span></span>
         </button>
         <button type="button" disabled={!faceTime.available} aria-label="Start FaceTime call" onClick={() => { if (!faceTime.available) return; setCallNotice("Opening FaceTime on this device…"); window.location.assign(faceTime.href); }} className="ml-auto grid h-10 w-10 shrink-0 place-items-center text-slate-700 transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-35" title={faceTime.available ? "Start FaceTime call" : faceTime.reason === "unsupported_device" ? "FaceTime isn't available on this device." : "FaceTime handoff is unavailable for this profile."}>
@@ -138,9 +148,12 @@ export function DirectMintThread({ viewer, otherUser, theme, directMint, onBack,
 
       {callNotice && <div role="status" className="flex shrink-0 items-center justify-between bg-slate-50 px-4 py-2 text-xs text-slate-600"><span>{callNotice}</span><CloseButton onClick={() => setCallNotice(null)} label="Dismiss call status" tone="minimal" /></div>}
 
+      {(sendError || directMint.error) && <p role="alert" className="px-4 py-2 text-sm text-[var(--app-danger)]">{sendError || directMint.error}</p>}
+      {directMint.loading && <p role="status" className="p-3">Loading…</p>}
       <div ref={messagesRef} aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain p-4">
+        {directMint.hasMore && <button type="button" onClick={() => void directMint.loadMore()} className="p-2 text-sm text-[var(--app-accent)]">Older messages</button>}
         {messages.length === 0 ? (
-          <div className="m-auto text-center"><div className="mx-auto w-fit"><ProfileAvatar user={otherUser} size="md" primaryColor={theme.primary} accentColor={theme.accent} /></div><p className="mt-3 text-sm font-black text-slate-800">{otherUser.profile.firstName}</p><p className="mt-1 text-xs text-slate-400">No messages yet</p></div>
+          <div className="m-auto text-center"><div className="mx-auto w-fit"><MessageAvatar user={otherUser} size="md" theme={theme} /></div><p className="mt-3 text-sm font-black text-slate-800">{otherUser.profile.displayName}</p><p className="mt-1 text-xs text-slate-400">No messages yet</p></div>
         ) : messages.map((message) => {
           const own = message.senderId === viewer.account.id;
           const repliedTo = message.replyToMessageId ? messages.find((candidate) => candidate.id === message.replyToMessageId) : null;
@@ -159,7 +172,7 @@ export function DirectMintThread({ viewer, otherUser, theme, directMint, onBack,
         })}
       </div>
 
-      <form onSubmit={submit} className="shrink-0 border-t border-slate-100 bg-white px-3 pt-2 pb-[max(.75rem,env(safe-area-inset-bottom))]">
+      <form onSubmit={submit} className="shrink-0 bg-[var(--app-surface)] px-3 pt-2 pb-[max(.75rem,env(safe-area-inset-bottom))]">
         {replyToMessage && <div className="mb-2 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500"><span className="truncate">Replying to {replyToMessage.body || replyToMessage.attachment?.label || "attachment"}</span><button type="button" onClick={() => setReplyToMessageId(null)} className="font-black text-slate-700">Cancel</button></div>}
         {attachment && <div className="mb-2 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600"><span className="truncate">{attachment.type === "sticker" ? attachment.url : attachment.label}</span><button type="button" onClick={() => setAttachment(null)} className="font-black text-slate-700">Remove</button></div>}
         {toolsOpen && (
@@ -173,7 +186,7 @@ export function DirectMintThread({ viewer, otherUser, theme, directMint, onBack,
             <input ref={gifInputRef} type="file" accept="image/gif" onChange={(event) => void selectFile(event, "gif")} className="sr-only" />
           </div>
         )}
-        <div className="flex items-end gap-2"><button type="button" onClick={() => setToolsOpen((current) => !current)} aria-expanded={toolsOpen} aria-label="Message attachments" className="grid h-11 w-10 shrink-0 place-items-center text-2xl text-slate-500">+</button><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} rows={1} placeholder={`Message @${otherUser.profile.username}`} className="max-h-28 min-h-11 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base outline-none focus:border-[var(--app-accent)] sm:text-sm" /><button type="submit" disabled={!draft.trim() && !attachment} className="flex h-11 shrink-0 items-center justify-center rounded-full px-4 text-sm font-black text-[var(--app-accent-contrast)] disabled:opacity-40" style={{ backgroundColor: theme.primary }}>Send</button></div>
+        <div className="flex items-end gap-2"><button type="button" onClick={() => setToolsOpen((current) => !current)} aria-expanded={toolsOpen} aria-label="Message attachments" className="grid h-11 w-10 shrink-0 place-items-center text-2xl text-slate-500">+</button><textarea ref={composerRef} value={draft} disabled={sending} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} rows={1} placeholder={`Message @${otherUser.profile.username}`} className="max-h-28 min-h-11 flex-1 resize-none rounded-2xl bg-slate-50 px-4 py-3 text-base outline-none focus-visible:outline-2 focus-visible:outline-[var(--app-accent)] sm:text-sm" /><button type="submit" disabled={sending || (!draft.trim() && !attachment)} className="flex h-11 shrink-0 items-center justify-center rounded-full px-4 text-sm font-black text-[var(--app-accent-contrast)] disabled:opacity-40" style={{ backgroundColor: theme.primary }}>{sending ? "Sending…" : "Send"}</button></div>
       </form>
     </section>
   );

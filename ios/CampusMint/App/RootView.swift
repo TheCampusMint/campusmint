@@ -11,9 +11,11 @@ struct RootView: View {
                 SignInView()
             } else {
                 TabView {
+                    MessagesView().tabItem { Label("Messages", systemImage: "bubble.left.and.bubble.right") }
                     FeedView().tabItem { Label("Mint", systemImage: "leaf") }
+                    NotificationsView().tabItem { Label("Activity", systemImage: "bell") }
                     ProfileView().tabItem { Label("Profile", systemImage: "person") }
-                }
+                }.id(model.account?.id)
             }
         }
         .alert("Campus Mint", isPresented: Binding(get: { model.message != nil }, set: { if !$0 { model.message = nil } })) {
@@ -99,6 +101,7 @@ struct FeedView: View {
 }
 
 struct MintPostView: View {
+    @State private var showingComments = false
     let post: MintPost
     let author: CampusUser?
     var body: some View {
@@ -132,8 +135,15 @@ struct MintPostView: View {
                 }
                 if let url = URL(string: "https://www.thecampusmint.com") { Link("Vote on the website", destination: url) }
             }
+            HStack {
+                Button { showingComments = true } label: { Image(systemName: "bubble") }.accessibilityLabel("Comments")
+                Spacer()
+            }
         }
         .padding(.vertical, 8)
+        .sheet(isPresented: $showingComments) {
+            if let id = UUID(uuidString: post.id) { CommentsView(postID: id) }
+        }
     }
 }
 

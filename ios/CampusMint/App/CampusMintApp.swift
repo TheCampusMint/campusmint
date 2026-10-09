@@ -68,8 +68,12 @@ final class AppModel: ObservableObject {
     }
 
     func refreshAccountIfSignedIn() async {
-        guard account != nil, let api, !busy else { return }
-        do { try accept(try await api.account()) }
+        guard let expected = account?.id, let api, !busy else { return }
+        do {
+            let restored = try await api.account()
+            guard account?.id == expected else { return }
+            try accept(restored)
+        }
         catch {
             clearAccountIfSessionEnded(error)
             message = error.localizedDescription
@@ -98,9 +102,10 @@ final class AppModel: ObservableObject {
     }
 
     func refreshFeed() async {
-        guard let api, account != nil else { return }
+        guard let api, let expected = account?.id else { return }
         do {
             let result = try await api.feed()
+            guard account?.id == expected else { return }
             posts = result.mintz
             authors = Dictionary(result.authors.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         } catch {
@@ -127,6 +132,18 @@ final class AppModel: ObservableObject {
         await refreshFeed()
     }
 
+    func mutateSocial(_ mutation: SocialMutation) async throws {
+        guard let api, let account, let configuration else { throw CampusError.signedOut }
+        let body = try JSONEncoder().encode(mutation)
+        var headers: [String:String] = [:]
+        if configuration.appAttestRequired && !configuration.appAttestEnabled { throw CampusError.featureUnavailable }
+        if configuration.appAttestEnabled {
+            headers = try await appAttest.headers(api: api, userID: account.id, method: "POST", path: "/api/social", body: body)
+        }
+        do { try await api.mutateSocialEncoded(body, additionalHeaders: headers) }
+        catch { clearAccountIfSessionEnded(error); throw error }
+    }
+
     private func clearAccountIfSessionEnded(_ error: Error) {
         switch error {
         case CampusError.signedOut, CampusError.invalidSession, CampusError.identityMismatch:
@@ -137,6 +154,8 @@ final class AppModel: ObservableObject {
 
     func signOut() async {
         guard let api else { return }
+        busy = true
+        defer { busy = false }
         account = nil; posts = []; authors = [:]; message = nil
         do { try await api.signOut() } catch { message = error.localizedDescription }
     }

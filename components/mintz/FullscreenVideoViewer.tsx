@@ -436,6 +436,7 @@ export function FullscreenVideoViewer({
         const permissionContext = createMintPermissionContext(commentsEntry.mint, commentsEntry.author, feedState);
         return (
           <MintCommentsSheet
+          contentId={commentsEntry.mint.id}
             comments={mintz.comments.filter((comment) => comment.targetId === commentsEntry.mint.id && comment.status === "active")}
             users={feedState.users}
             viewer={feedState.viewer}

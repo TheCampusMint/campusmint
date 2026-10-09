@@ -10,6 +10,9 @@ import {
   markAllCampusNotificationsRead,
   markCampusNotificationRead,
 } from "@/lib/notifications/campusNotifications";
+import { useSocialSync } from "@/hooks/useSocialSync";
+import { socialWrite } from "@/lib/social/syncClient";
+import { mapServerNotification, type ServerNotification } from "@/lib/notifications/serverNotifications";
 import type { CampusNotification } from "@/types/notification";
 import type { UserBlock } from "@/types/social";
 
@@ -21,12 +24,16 @@ export function useCampusNotifications(
   currentUserId: string,
   blocks: readonly UserBlock[],
 ) {
+  const production = !areDevelopmentFixturesEnabled();
+  const remote = useSocialSync<{items: ServerNotification[]; hasMore: boolean}>(currentUserId, "notifications", undefined, production);
+  const [writeError, setWriteError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<CampusNotification[]>(() =>
     areDevelopmentFixturesEnabled() ? createDevelopmentNotifications(Date.now()) : [],
   );
   const [hydrated, setHydrated] = useState(false);
 
   useLayoutEffect(() => {
+    if (production) return;
     try {
       const stored = window.localStorage.getItem(storageKey(currentUserId));
       if (!stored) return;
@@ -45,10 +52,10 @@ export function useCampusNotifications(
     } finally {
       setHydrated(true);
     }
-  }, [currentUserId]);
+  }, [currentUserId, production]);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (production || !hydrated) return;
     const readAtById = Object.fromEntries(
       notifications.flatMap((notification) =>
         notification.readAt ? [[notification.id, notification.readAt]] : [],
@@ -58,21 +65,34 @@ export function useCampusNotifications(
       storageKey(currentUserId),
       JSON.stringify({ version: 1, readAtById }),
     );
-  }, [currentUserId, hydrated, notifications]);
+  }, [currentUserId, hydrated, notifications, production]);
 
   const visibleNotifications = useMemo(
     () => getVisibleCampusNotifications({
-      notifications,
+      notifications: production ? (remote.data?.items ?? []).flatMap(row => { const item = mapServerNotification(row, currentUserId); return item ? [item] : []; }) : notifications,
       viewerId: currentUserId,
       blocks,
     }),
-    [blocks, currentUserId, notifications],
+    [blocks, currentUserId, notifications, production, remote.data],
   );
 
+  function persistRead(id?: string) {
+    setWriteError(null);
+    void socialWrite("notification_read", id).then(() => remote.refresh()).catch(error => {
+      setWriteError(error instanceof Error ? error.message : "Could not mark as read.");
+    });
+  }
+
   return {
+    error: production ? writeError ?? remote.error : null,
+    loading: production && !remote.data && !remote.error,
+    retry: remote.refresh,
+    hasMore: remote.data?.hasMore ?? false,
+    loadMore: remote.loadMore,
     notifications: visibleNotifications,
     unreadCount: getUnreadNotificationCount(visibleNotifications),
     markRead(notificationId: string) {
+      if (production) { persistRead(notificationId); return; }
       setNotifications((current) =>
         markCampusNotificationRead(
           current,
@@ -82,6 +102,7 @@ export function useCampusNotifications(
       );
     },
     markAllRead() {
+      if (production) { persistRead(); return; }
       const readAt = new Date().toISOString();
       setNotifications((current) =>
         markAllCampusNotificationsRead(current, readAt),

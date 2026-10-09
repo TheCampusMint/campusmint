@@ -112,6 +112,21 @@ public actor CampusAPI {
         try await authenticated(path, method: "POST", data: JSONEncoder().encode(body), additionalHeaders: additionalHeaders)
     }
 
+    public func socialPage<Row: Decodable & Sendable>(_ resource: String, target: UUID? = nil, before: SocialCursor? = nil) async throws -> SocialPage<Row> {
+        var query = [URLQueryItem(name: "resource", value: resource)]
+        if let target { query.append(URLQueryItem(name: "target", value: target.uuidString)) }
+        if let before {
+            query.append(URLQueryItem(name: "before", value: before.date))
+            query.append(URLQueryItem(name: "beforeId", value: before.id.uuidString))
+        }
+        return try await authenticated("/api/social", method: "GET", data: nil, query: query)
+    }
+
+    public func mutateSocialEncoded(_ data: Data, additionalHeaders: [String: String] = [:]) async throws {
+        let result: OK = try await authenticated("/api/social", method: "POST", data: data, additionalHeaders: additionalHeaders)
+        guard result.ok else { throw CampusError.invalidResponse }
+    }
+
     public func signOut() async throws {
         var failure: Error?
         do { let _: OK = try await authenticated("/api/account/logout", method: "POST", data: Data("{}".utf8)) }
@@ -168,11 +183,11 @@ public actor CampusAPI {
         return updated
     }
 
-    private func authenticated<Response: Decodable & Sendable>(_ path: String, method: String, data: Data?, additionalHeaders: [String: String] = [:]) async throws -> Response {
+    private func authenticated<Response: Decodable & Sendable>(_ path: String, method: String, data: Data?, additionalHeaders: [String: String] = [:], query: [URLQueryItem] = []) async throws -> Response {
         let active = try await activeSession()
         let generation = sessionGeneration
         do {
-            let response: Response = try await perform(path, method: method, data: data, token: active.accessToken, additionalHeaders: additionalHeaders)
+            let response: Response = try await perform(path, method: method, data: data, token: active.accessToken, additionalHeaders: additionalHeaders, query: query)
             guard sessionGeneration == generation else { throw CampusError.signedOut }
             return response
         } catch CampusError.server(401, _) {
@@ -187,11 +202,14 @@ public actor CampusAPI {
         try await perform(path, method: method, data: body.map { try JSONEncoder().encode($0) }, token: nil)
     }
 
-    private func perform<Response: Decodable & Sendable>(_ path: String, method: String, data: Data?, token: String?, additionalHeaders: [String: String] = [:]) async throws -> Response {
-        guard path.hasPrefix("/api/"), !path.contains(".."), !path.contains("?"), !path.contains("#"),
+    private func perform<Response: Decodable & Sendable>(_ path: String, method: String, data: Data?, token: String?, additionalHeaders: [String: String] = [:], query: [URLQueryItem] = []) async throws -> Response {
+        guard path.range(of: #"^/api/[A-Za-z0-9/_-]+$"#, options: .regularExpression) != nil,
               let url = URL(string: path, relativeTo: baseURL)?.absoluteURL, url.host == baseURL.host,
               url.scheme == "https", url.port == baseURL.port else { throw CampusError.configuration }
-        var request = URLRequest(url: url)
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { throw CampusError.configuration }
+        if !query.isEmpty { components.queryItems = query }
+        guard let requestURL = components.url else { throw CampusError.configuration }
+        var request = URLRequest(url: requestURL)
         request.httpMethod = method; request.httpBody = data
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("ios", forHTTPHeaderField: "X-CampusMint-Client")

@@ -374,3 +374,91 @@ test('private clubs enforce owner/admin/member permissions, explicit invitations
   await call(owner,'update',club,null,{name:'Security Test Club',description:'Now public',visibility:'public'});
   assert.equal((await db.query(`select visibility from public.organizations where id='${club}'`)).rows[0].visibility,'public');
 });
+
+const social = (actor, action, target = null, data = {}) => asRole('service_role', null,
+  `select public.mutate_social('${actor}','${action}',${target ? `'${target}'` : 'null'},'${JSON.stringify(data).replaceAll("'", "''")}'::jsonb) result`);
+const readSocial = async (actor, resource, target = null, cursor = '') => (await asRole('service_role', null,
+  `select public.read_social('${actor}','${resource}',${target ? `'${target}'` : 'null'}${cursor}) result`)).rows[0].result;
+
+test('social RPCs deny direct browser calls and realtime exposes only the caller revision', async () => {
+  for (const role of ['anon','authenticated']) {
+    await assert.rejects(asRole(role,owner,`select public.mutate_social('${stranger}','note',null,'{"body":"forged"}')`),{code:'42501'});
+    await assert.rejects(asRole(role,owner,`select public.read_social('${stranger}','state')`),{code:'42501'});
+    await assert.rejects(asRole(role,owner,`select public.signal_social_change('${stranger}')`),{code:'42501'});
+  }
+  await social(owner,'note',null,{body:'Own note'});
+  await social(stranger,'note',null,{body:'Other note'});
+  assert.deepEqual((await asRole('authenticated',owner,'select user_id from public.social_sync_revisions')).rows,[{user_id:owner}]);
+  assert.equal((await readSocial(owner,'state')).note.body,'Own note');
+  assert.equal((await readSocial(stranger,'state')).note.body,'Other note');
+});
+
+test('comments enforce visibility, parent scope, authorship, idempotency and blocked authors', async () => {
+  await db.exec(`delete from public.friendships; delete from public.profile_blocks;`);
+  await assert.rejects(social(stranger,'comment',post,{body:'intrusion',requestId:nativeId()}),{code:'42501'});
+  await assert.rejects(readSocial(stranger,'comments',post),{code:'42501'});
+  const comment=nativeId();
+  await social(owner,'comment',post,{body:'Saved comment',requestId:comment});
+  await social(owner,'comment',post,{body:'Saved comment',requestId:comment});
+  assert.equal((await readSocial(owner,'comments',post)).items.length,1);
+  await assert.rejects(social(owner,'comment',post,{body:'changed',requestId:comment}),{code:'23505'});
+  await db.exec(`update public.profiles set social_account_type='public' where user_id='${owner}'; update public.mints set privacy='public' where content_id='${post}'`);
+  await social(stranger,'comment_like',comment,{enabled:true});
+  await social(stranger,'comment_like',comment,{enabled:true});
+  assert.equal((await readSocial(owner,'comments',post)).items[0].like_count,1);
+  await assert.rejects(social(stranger,'delete_comment',comment),{code:'42501'});
+  await assert.rejects(social(stranger,'comment',post,{body:'Invalid reply',requestId:nativeId(),parentId:nativeId()}),{code:'42501'});
+  await social(owner,'block',stranger,{enabled:true});
+  await assert.rejects(readSocial(stranger,'comments',post),{code:'42501'});
+  await social(owner,'block',stranger,{enabled:false});
+  await social(owner,'delete_comment',comment);
+  assert.equal((await readSocial(owner,'comments',post)).items.length,0);
+});
+
+test('messages persist once, remain participant-only, validate replies and stop after blocking', async () => {
+  await db.exec(`delete from public.profile_blocks; update public.profiles set social_account_type='public';`);
+  const id=nativeId();
+  await social(owner,'message',stranger,{body:'Private body',requestId:id});
+  await social(owner,'message',stranger,{body:'Private body',requestId:id});
+  await assert.rejects(social(owner,'message',stranger,{body:'Changed body',requestId:id}),{code:'23505'});
+  assert.equal((await readSocial(stranger,'messages',owner)).items.length,1);
+  assert.equal((await readSocial(administrator,'messages',owner)).items.length,0);
+  assert.equal((await readSocial(stranger,'notifications')).items.length,1);
+  assert.equal((await readSocial(owner,'notifications')).items.length,0);
+  const other=nativeId();
+  await social(owner,'message',administrator,{body:'Other conversation',requestId:other});
+  await assert.rejects(social(stranger,'message',owner,{body:'Wrong reply',requestId:nativeId(),replyTo:other}),{code:'42501'});
+  await social(stranger,'message',owner,{body:'Reply',requestId:nativeId(),replyTo:id});
+  await social(stranger,'message_seen',owner);
+  const delivered=(await readSocial(owner,'messages',stranger)).items.find(row=>row.id===id);
+  assert.ok(delivered.seen_at);
+  await social(stranger,'block',owner,{enabled:true});
+  await assert.rejects(readSocial(owner,'messages',stranger),{code:'42501'});
+  await assert.rejects(social(owner,'message',stranger,{body:'blocked',requestId:nativeId()}),{code:'42501'});
+  assert.equal((await readSocial(owner,'conversations')).items.some(row=>[row.user_a,row.user_b].includes(stranger)),false);
+  await social(stranger,'block',owner,{enabled:false});
+});
+
+test('social set mutations converge and unverified accounts cannot use the server RPC', async () => {
+  for(const action of ['appreciate','endorse','save']) {
+    await social(owner,action,post,{enabled:true});await social(owner,action,post,{enabled:true});
+    const key={appreciate:'appreciations',endorse:'endorsements',save:'pins'}[action];
+    assert.deepEqual((await readSocial(owner,'state'))[key],[post]);
+    await social(owner,action,post,{enabled:false});assert.deepEqual((await readSocial(owner,'state'))[key],[]);
+  }
+  await db.exec(`update public.profile_identities set verified_student=false where user_id='${administrator}'`);
+  await assert.rejects(readSocial(administrator,'state'),{code:'42501'});
+  await assert.rejects(social(administrator,'note',null,{body:'unverified'}),{code:'42501'});
+  await db.exec(`update public.profile_identities set verified_student=true where user_id='${administrator}'`);
+});
+
+test('private-account outreach permits only its actual recipient to reply; empty rows grant no access',async()=>{
+ await db.exec(`delete from public.profile_blocks; delete from public.friendships; update public.profiles set social_account_type='private' where user_id='${owner}'; delete from public.direct_messages;`);
+ await assert.rejects(readSocial(stranger,'messages',owner),{code:'42501'});
+ await social(owner,'message',stranger,{body:'Explicit outreach',requestId:nativeId()});
+ await social(stranger,'message',owner,{body:'Allowed reply',requestId:nativeId()});
+ assert.equal((await readSocial(owner,'messages',stranger)).items.length,2);
+ await assert.rejects(readSocial(administrator,'messages',owner),{code:'42501'});
+ await assert.rejects(social(stranger,'follow',owner,{enabled:true}),{code:'42501'});
+ await db.exec(`update public.profiles set social_account_type='public' where user_id='${owner}'`);
+});

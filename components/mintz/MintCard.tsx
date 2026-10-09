@@ -292,6 +292,7 @@ export function MintCard(props: MintCardProps) {
       {appreciationBurst && <PrivateAppreciationBurst point={appreciationBurst.point} reducedMotion={Boolean(props.reducedMotion)} sequence={appreciationBurst.sequence} onComplete={clearAppreciationBurst} />}
       {!readOnly && commentsOpen && props.surfaceActive !== false && mint.commentsEnabled && (
         <MintCommentsSheet
+          contentId={mint.id}
           comments={activeComments}
           users={users}
           viewer={viewer}

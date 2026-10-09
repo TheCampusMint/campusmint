@@ -4,6 +4,8 @@
  classes = {};
  objectVersion = 56;
  objects = {
+  A10000000000000000000011 = {isa = PBXBuildFile; fileRef = B10000000000000000000011; };
+  B10000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialScreens.swift; sourceTree = "<group>"; };
   A10000000000000000000001 = {isa = PBXBuildFile; fileRef = B10000000000000000000001; };
   A10000000000000000000002 = {isa = PBXBuildFile; fileRef = B10000000000000000000002; };
   A10000000000000000000003 = {isa = PBXBuildFile; fileRef = B10000000000000000000003; };
@@ -23,12 +25,12 @@
   B10000000000000000000010 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Campus Mint.app"; sourceTree = BUILT_PRODUCTS_DIR; };
   C10000000000000000000001 = {isa = PBXGroup; children = (C10000000000000000000002, C10000000000000000000005); sourceTree = "<group>"; };
   C10000000000000000000002 = {isa = PBXGroup; children = (C10000000000000000000003, C10000000000000000000004); path = CampusMint; sourceTree = "<group>"; };
-  C10000000000000000000003 = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005); path = App; sourceTree = "<group>"; };
+  C10000000000000000000003 = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000011); path = App; sourceTree = "<group>"; };
   C10000000000000000000004 = {isa = PBXGroup; children = (B10000000000000000000006, B10000000000000000000007, B10000000000000000000008, B10000000000000000000009); path = Config; sourceTree = "<group>"; };
   C10000000000000000000005 = {isa = PBXGroup; children = (B10000000000000000000010); name = Products; sourceTree = "<group>"; };
   D10000000000000000000001 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 1600; TargetAttributes = {D10000000000000000000002 = {CreatedOnToolsVersion = 16.0; }; }; }; buildConfigurationList = E10000000000000000000001; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = C10000000000000000000001; packageReferences = (F10000000000000000000001); productRefGroup = C10000000000000000000005; projectDirPath = ""; projectRoot = ""; targets = (D10000000000000000000002); };
   D10000000000000000000002 = {isa = PBXNativeTarget; buildConfigurationList = E10000000000000000000002; buildPhases = (D10000000000000000000003, D10000000000000000000004, D10000000000000000000005); buildRules = (); dependencies = (); name = CampusMint; packageProductDependencies = (F10000000000000000000002); productName = "Campus Mint"; productReference = B10000000000000000000010; productType = "com.apple.product-type.application"; };
-  D10000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005); runOnlyForDeploymentPostprocessing = 0; };
+  D10000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000005, A10000000000000000000011); runOnlyForDeploymentPostprocessing = 0; };
   D10000000000000000000004 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000007); runOnlyForDeploymentPostprocessing = 0; };
   D10000000000000000000005 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000006); runOnlyForDeploymentPostprocessing = 0; };
   E10000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (E10000000000000000000003, E10000000000000000000004); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
