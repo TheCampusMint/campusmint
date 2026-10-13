@@ -39,6 +39,16 @@ func expectThrows<Value>(_ expected: CampusError, _ body: () async throws -> Val
         try assertionBindsUserMethodPathAndExactBody()
         try await socialRequestsKeepIdentityServerOwnedAndQueryEncoded()
         try await authenticatedPathsRejectEncodedTraversalBeforeSending()
-        print("15 native security and contract checks passed.")
+        try sportsFavoritesRespectSeasonAndCampusOrder()
+        try sportsFutureYearsAndIncompleteRecordsStayHonest()
+        try composerPrivacyAndExpirySurviveEncodingAndRetry()
+        try await discoveryRequestsUseTheAuthenticatedOrigin()
+        try pollAndMediaPostsValidateBeforePublishing()
+        try signedUploadNeverCarriesAccountCredentialsAndRejectsForeignPaths()
+        try await draftsSurviveRestartWithoutCrossAccountAccess()
+        try prepareAndPublishUseTheSamePayloadAndRetryIdentity()
+        try await uploadsUseScopedStorageCapabilitiesAndKeepExactPublishBytes()
+        try await nativePollVotesUseCanonicalSessionAndServerResults()
+        print("25 native security and contract checks passed.")
     }
 }

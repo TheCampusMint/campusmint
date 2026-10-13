@@ -2,6 +2,13 @@ import Foundation
 
 public protocol HTTPTransport: Sendable {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse)
+    func upload(_ request: URLRequest, from file: URL) async throws -> (Data, HTTPURLResponse)
+}
+public extension HTTPTransport {
+    func upload(_ request: URLRequest, from file: URL) async throws -> (Data, HTTPURLResponse) {
+        var copy = request; copy.httpBody = try Data(contentsOf: file)
+        return try await send(copy)
+    }
 }
 
 private final class NoRedirects: NSObject, URLSessionTaskDelegate {
@@ -22,7 +29,7 @@ public final class SecureHTTPTransport: HTTPTransport, Sendable {
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.timeoutIntervalForRequest = 30
-        configuration.timeoutIntervalForResource = 60
+        configuration.timeoutIntervalForResource = 600
         session = URLSession(configuration: configuration, delegate: NoRedirects(), delegateQueue: nil)
     }
     public func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
@@ -30,6 +37,12 @@ public final class SecureHTTPTransport: HTTPTransport, Sendable {
         guard let response = response as? HTTPURLResponse else { throw CampusError.invalidResponse }
         return (data, response)
     }
+    public func upload(_ request: URLRequest, from file: URL) async throws -> (Data, HTTPURLResponse) {
+        let (data, response) = try await session.upload(for: request, fromFile: file)
+        guard let response = response as? HTTPURLResponse else { throw CampusError.invalidResponse }
+        return (data, response)
+    }
+
 }
 
 public actor CampusAPI {
@@ -92,6 +105,11 @@ public actor CampusAPI {
         try await authenticated("/api/mintz", method: "GET", data: nil)
     }
 
+    /// Fixed API resources only; authorization and session generation checks stay centralized.
+    public func campusResource<Response: Decodable & Sendable>(_ resource: CampusResource, query: [URLQueryItem] = []) async throws -> Response {
+        try await authenticated(resource.rawValue, method: "GET", data: nil, query: query)
+    }
+
     public func publish(_ post: TextPostRequest, additionalHeaders: [String: String] = [:]) async throws {
         try await publishEncoded(JSONEncoder().encode(post), additionalHeaders: additionalHeaders)
     }
@@ -100,6 +118,31 @@ public actor CampusAPI {
     public func publishEncoded(_ data: Data, additionalHeaders: [String: String] = [:]) async throws {
         let result: OK = try await authenticated("/api/mintz", method: "POST", data: data, additionalHeaders: additionalHeaders)
         guard result.ok else { throw CampusError.invalidResponse }
+    }
+
+    public func prepareUploadEncoded(_ data: Data, additionalHeaders: [String: String] = [:]) async throws -> PreparedUpload {
+        let response: PreparedUpload = try await authenticated("/api/mintz", method: "POST", data: data, additionalHeaders: additionalHeaders)
+        guard response.ok else { throw CampusError.invalidResponse }
+        return response
+    }
+
+    public func uploadMedia(origin: URL, destination: PreparedUpload.Destination, owner: UUID, requestID: UUID, index: Int, media: UploadMedia, file: URL) async throws {
+        let active = try await activeSession()
+        let generation = sessionGeneration
+        guard active.userId == owner else { throw CampusError.identityMismatch }
+        try UploadMedia.validate([media])
+        guard file.isFileURL, try file.resourceValues(forKeys: [.fileSizeKey]).fileSize == media.byteSize else { throw CampusError.invalidResponse }
+        let request = try SignedMediaUpload.request(origin: origin, destination: destination, owner: owner, requestID: requestID, index: index, media: media)
+        let (_, response) = try await transport.upload(request, from: file)
+        guard generation == sessionGeneration, session?.userId == owner else { throw CampusError.signedOut }
+        guard (200..<300).contains(response.statusCode) else { throw CampusError.invalidPost("Upload interrupted. Your draft is saved; try again.") }
+    }
+
+    public func votePollEncoded(id: UUID, body: Data, additionalHeaders: [String: String] = [:]) async throws -> MintPoll {
+        struct Result: Decodable, Sendable { let ok: Bool; let poll: MintPoll }
+        let result: Result = try await authenticated("/api/mintz/\(id.uuidString.lowercased())/poll", method: "POST", data: body, additionalHeaders: additionalHeaders)
+        guard result.ok else { throw CampusError.invalidResponse }
+        return result.poll
     }
 
     public func configuration() async throws -> NativeConfig {

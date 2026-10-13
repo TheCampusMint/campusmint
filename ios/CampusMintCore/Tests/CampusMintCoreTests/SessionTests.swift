@@ -176,3 +176,60 @@ func authenticatedPathsRejectEncodedTraversalBeforeSending() async throws {
     }
     try expect(await network.requests.count == 1)
 }
+
+func discoveryRequestsUseTheAuthenticatedOrigin() async throws {
+    let network = MockTransport([.init(status: 200, json: accountJSON()), .init(status: 200, json: "{\"clubs\":[]}")])
+    let api = try CampusAPI(baseURL: URL(string: "https://example.com")!, vault: MemoryVault(token()), transport: network)
+    _ = try await api.restore()
+    let _: ClubsResponse = try await api.campusResource(.clubs, query: [.init(name: "universityId", value: "x&target=other")])
+    let request = try require(await network.requests.last)
+    try expect(request.url?.host == "example.com")
+    try expect(request.url?.path == "/api/clubs")
+    let parts = try require(URLComponents(url: request.url!, resolvingAgainstBaseURL: false))
+    try expect(parts.queryItems?.count == 1)
+    try expect(parts.queryItems?.first?.value == "x&target=other")
+    try expect(request.value(forHTTPHeaderField: "Authorization") != nil)
+}
+
+func uploadsUseScopedStorageCapabilitiesAndKeepExactPublishBytes() async throws {
+    let requestID = UUID(), attempt = UUID()
+    let path = "\(accountID.uuidString.lowercased())/\(requestID.uuidString.lowercased())/\(attempt)/0-\(UUID()).jpg"
+    let prepared = "{\"ok\":true,\"upload\":{\"ticket\":\"ticket\",\"files\":[{\"storagePath\":\"\(path)\",\"sortOrder\":0,\"token\":\"capability\"}]}}"
+    let network = MockTransport([.init(status: 200, json: accountJSON()), .init(status: 200, json: prepared), .init(status: 200, json: "{}"), .init(status: 200, json: "{\"ok\":true}")])
+    let api = try CampusAPI(baseURL: URL(string: "https://example.com")!, vault: MemoryVault(token()), transport: network)
+    _ = try await api.restore()
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: file) }
+    let bytes = Data([0xff, 0xd8, 0xff]); try bytes.write(to: file)
+    let media = UploadMedia(mimeType: "image/jpeg", byteSize: bytes.count, width: 10, height: 5)
+    let post = try TextPostRequest(caption: "", requestID: requestID, media: [media])
+    let prepareBytes = try JSONEncoder().encode(PrepareUploadRequest(post: post, files: [media]))
+    let preparedResponse = try await api.prepareUploadEncoded(prepareBytes, additionalHeaders: ["X-App-Attest-Assertion": "prepare-proof"])
+    let upload = try require(preparedResponse.upload)
+    try await api.uploadMedia(origin: URL(string: "https://example.supabase.co")!, destination: upload.files[0], owner: accountID, requestID: requestID, index: 0, media: media, file: file)
+    let publishBytes = try JSONEncoder().encode(CompleteUploadRequest(post: post, ticket: upload.ticket))
+    try await api.publishEncoded(publishBytes, additionalHeaders: ["X-App-Attest-Assertion": "publish-proof"])
+    let requests = await network.requests
+    try expect(requests.count == 4)
+    try expect(requests[1].httpBody == prepareBytes && requests[3].httpBody == publishBytes)
+    try expect(requests[1].value(forHTTPHeaderField: "X-App-Attest-Assertion") == "prepare-proof")
+    try expect(requests[3].value(forHTTPHeaderField: "X-App-Attest-Assertion") == "publish-proof")
+    try expect(requests[2].httpBody == bytes && requests[2].url?.host == "example.supabase.co")
+    try expect(requests[2].value(forHTTPHeaderField: "Authorization") == nil)
+    try expect(requests[2].value(forHTTPHeaderField: "X-App-Attest-Assertion") == nil)
+    try await expectThrows(CampusError.identityMismatch) { try await api.uploadMedia(origin: URL(string: "https://example.supabase.co")!, destination: upload.files[0], owner: otherID, requestID: requestID, index: 0, media: media, file: file) }
+    try expect(await network.requests.count == 4)
+}
+
+func nativePollVotesUseCanonicalSessionAndServerResults() async throws {
+    let network = MockTransport([.init(status: 200, json: accountJSON()), .init(status: 200, json: "{\"ok\":true,\"poll\":{\"question\":\"Lunch?\",\"options\":[{\"id\":\"1\",\"label\":\"A\",\"voteCount\":1},{\"id\":\"2\",\"label\":\"B\",\"voteCount\":0}],\"totalVotes\":1,\"selectedOptionId\":\"1\"}}")])
+    let api = try CampusAPI(baseURL: URL(string: "https://example.com")!, vault: MemoryVault(token()), transport: network)
+    _ = try await api.restore()
+    let body = Data("{\"optionId\":\"1\"}".utf8)
+    let result = try await api.votePollEncoded(id: otherID, body: body, additionalHeaders: ["X-App-Attest-Assertion": "vote-proof"])
+    try expect(result.totalVotes == 1 && result.selectedOptionId == "1")
+    let request = try require(await network.requests.last)
+    try expect(request.url?.path == "/api/mintz/\(otherID.uuidString.lowercased())/poll")
+    try expect(request.httpBody == body && request.value(forHTTPHeaderField: "Authorization") == "Bearer test-access")
+    try expect(request.value(forHTTPHeaderField: "X-App-Attest-Assertion") == "vote-proof")
+}

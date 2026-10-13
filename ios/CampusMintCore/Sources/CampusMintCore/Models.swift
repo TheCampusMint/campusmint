@@ -66,6 +66,8 @@ public struct MintPost: Decodable, Sendable, Identifiable {
     public let createdAt: String
     public let media: [MintMedia]
     public let poll: MintPoll?
+    public let viewCount: Int?
+    public let commentCount: Int?
 }
 
 public struct MintMedia: Decodable, Sendable, Identifiable {
@@ -85,6 +87,7 @@ public struct MintPoll: Decodable, Sendable {
     public let question: String
     public let options: [Option]
     public let totalVotes: Int
+    public let selectedOptionId: String?
     public struct Option: Decodable, Sendable, Identifiable {
         public let id: String
         public let label: String
@@ -93,6 +96,7 @@ public struct MintPoll: Decodable, Sendable {
 }
 
 public struct NativeConfig: Decodable, Sendable {
+    public let storageURL: String?
     public let apiVersion: Int
     public let appleLinkingEnabled: Bool
     public let appAttestEnabled: Bool
@@ -102,6 +106,7 @@ public struct NativeConfig: Decodable, Sendable {
 public enum CampusError: LocalizedError, Sendable, Equatable {
     case configuration, invalidSession, identityMismatch, signedOut, unsupportedAccount
     case server(Int, String), invalidResponse, emptyPost, featureUnavailable
+    case invalidPost(String)
 
     public var errorDescription: String? {
         switch self {
@@ -111,32 +116,46 @@ public enum CampusError: LocalizedError, Sendable, Equatable {
         case .unsupportedAccount: "Finish Student account setup on the website."
         case .server(_, let message): message
         case .invalidResponse: "Campus Mint returned an unexpected response."
-        case .emptyPost: "Add text before publishing."
+        case .emptyPost: "Add text, media or a poll."
+        case .invalidPost(let message): message
         case .featureUnavailable: "This feature is not available yet."
         }
     }
 }
 
+public enum PostPrivacy: String, CaseIterable, Codable, Sendable {
+    case `public`, connections, `private`
+    public var label: String { switch self { case .public: "Public"; case .connections: "Connections"; case .private: "Only me" } }
+}
+
 public struct TextPostRequest: Encodable, Sendable {
     public let action = "publish"
     public let payload: Payload
-    public init(caption: String, requestID: UUID = UUID()) throws {
+    public init(caption: String, requestID: UUID = UUID(), privacy: PostPrivacy = .public, expiresAt: String? = nil, poll: PollInput? = nil, media: [UploadMedia] = []) throws {
         let text = caption.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { throw CampusError.emptyPost }
-        payload = Payload(requestId: requestID.uuidString.lowercased(), caption: text)
+        guard !text.isEmpty || poll != nil || !media.isEmpty else { throw CampusError.emptyPost }
+        guard text.utf16.count <= 10_000 else { throw CampusError.invalidPost("Keep the post under 10,000 characters.") }
+        try UploadMedia.validate(media)
+        payload = Payload(requestId: requestID.uuidString.lowercased(), caption: text, privacy: privacy, expiresAt: expiresAt, poll: try poll?.validated(), mediaMetadata: media.map { .init(width: $0.width, height: $0.height, durationSeconds: $0.durationSeconds) })
     }
     public struct Payload: Encodable, Sendable {
         public let requestId: String
         public let caption: String
         public let postType = "personal"
-        public let privacy = "public"
-        public let expiresAt: String? = nil
+        public let privacy: PostPrivacy
+        public let expiresAt: String?
         public let commentsEnabled = true
         public let organizationAudience = "public"
         public let hashtags: [String] = []
         public let mentions: [String] = []
         public let taggedUserIds: [String] = []
         public let taggedOrganizationIds: [String] = []
-        public let mediaMetadata: [String] = []
+        public let poll: PollInput?
+        public let mediaMetadata: [Metadata]
+    }
+    public struct Metadata: Encodable, Sendable {
+        public let width: Int
+        public let height: Int
+        public let durationSeconds: Double?
     }
 }

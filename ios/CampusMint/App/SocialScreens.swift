@@ -32,28 +32,38 @@ final class SocialPageModel<Row: SocialRow>: ObservableObject {
 
 struct MessagesView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.campusPalette) private var palette
     @StateObject private var inbox = SocialPageModel<SocialConversation>()
+    @State private var search = ""
     var body: some View {
         NavigationStack {
-            List {
-                if let error = inbox.error { Text(error).foregroundStyle(.red) }
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Private Messages").font(CampusFont.black(20, relativeTo: .title2)).padding(.horizontal, 16)
+                HStack(spacing: 12) { Image(systemName: "magnifyingglass"); TextField("Search", text: $search, prompt: Text("Search").foregroundStyle(palette.secondary)) }
+                    .font(CampusFont.regular(16)).foregroundStyle(palette.secondary).padding(.horizontal, 16).frame(height: 44)
+                    .background(palette.surface, in: Capsule()).padding(.horizontal, 16)
+                List {
+                if let error = inbox.error { CampusFailure(message: error) { Task { await refresh() } }.listRowSeparator(.hidden) }
                 if inbox.loading { ProgressView() }
-                if !inbox.loading && inbox.rows.isEmpty && inbox.error == nil { Text("No messages yet").foregroundStyle(.secondary) }
-                ForEach(inbox.rows) { conversation in
+                if !inbox.loading && inbox.rows.isEmpty && inbox.error == nil { Text("No messages yet").foregroundStyle(palette.secondary) }
+                ForEach(inbox.rows.filter { search.isEmpty || $0.display_name.localizedCaseInsensitiveContains(search) || $0.username.localizedCaseInsensitiveContains(search) }) { conversation in
                     if let user = model.account {
                         NavigationLink {
                             MessageThreadView(peer: conversation.peer(for: user.id), name: conversation.display_name)
                         } label: {
-                            VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 12) {
+                                CampusAvatar(name: conversation.display_name, size: 48)
+                                VStack(alignment: .leading, spacing: 6) {
                                 HStack {
-                                    Text(conversation.display_name).font(.headline)
+                                    Text(conversation.display_name).font(CampusFont.bold(14))
                                     if conversation.pinned { Image(systemName: "pin.fill").accessibilityLabel("Pinned") }
                                     Spacer()
                                     if conversation.unread > 0 { Text("\(conversation.unread)").foregroundStyle(model.accent).accessibilityLabel("\(conversation.unread) unread") }
                                 }
-                                if let last = conversation.last_message { Text(last.body).lineLimit(1).foregroundStyle(.secondary) }
+                                if let last = conversation.last_message { Text(last.body).font(CampusFont.regular(13)).lineLimit(1).foregroundStyle(palette.secondary) }
+                                }
                             }
-                        }.swipeActions {
+                        }.listRowBackground(palette.background).listRowSeparator(.hidden).swipeActions {
                             Button(conversation.pinned ? "Unpin" : "Pin") {
                                 Task {
                                     do { try await model.mutateSocial(.init(action: "conversation_pin", target: conversation.peer(for: user.id), enabled: !conversation.pinned)); await refresh() }
@@ -64,7 +74,8 @@ struct MessagesView: View {
                     }
                 }
                 if inbox.hasMore { Button("Older conversations") { Task { await inbox.load(api:model.api,resource:"conversations",older:true) } }.disabled(inbox.loading) }
-            }.listStyle(.plain).navigationTitle("Messages")
+            }.listStyle(.plain).scrollContentBackground(.hidden).listRowSeparator(.hidden)
+            }.padding(.top, 8).background(palette.background).toolbar(.hidden, for: .navigationBar)
                 .task { await refresh() }.refreshable { await refresh() }
         }
     }
@@ -73,6 +84,7 @@ struct MessagesView: View {
 
 struct MessageThreadView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.campusPalette) private var palette
     let peer: UUID
     let name: String
     @StateObject private var thread = SocialPageModel<SocialMessage>()
@@ -83,7 +95,7 @@ struct MessageThreadView: View {
     @State private var error: String?
     var body: some View {
         VStack(spacing: 12) {
-            if let failure = error ?? thread.error { Text(failure).foregroundStyle(.red).padding(.horizontal) }
+            if let failure = error ?? thread.error { Text(failure).foregroundStyle(palette.urgent).padding(.horizontal) }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     if thread.loading { ProgressView() }
@@ -93,28 +105,28 @@ struct MessageThreadView: View {
                         VStack(alignment: own ? .trailing : .leading, spacing: 5) {
                             if let parentID = message.reply_to_message_id,
                                let parent = thread.rows.first(where: { $0.id == parentID }) {
-                                Text(parent.body).font(.caption).lineLimit(2).foregroundStyle(.secondary)
+                                Text(parent.body).font(CampusFont.regular(12, relativeTo: .caption)).lineLimit(2).foregroundStyle(palette.secondary)
                             }
                             Text(message.body).textSelection(.enabled).padding(12)
                                 .background(own ? model.accent.opacity(0.18) : Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 20))
-                            if own { Text(message.status).font(.caption2).foregroundStyle(.secondary) }
-                            Button("Reply") { reply = message }.font(.caption)
+                            if own { Text(message.status).font(.caption2).foregroundStyle(palette.secondary) }
+                            Button("Reply") { reply = message }.font(CampusFont.regular(12, relativeTo: .caption))
                         }.frame(maxWidth: .infinity, alignment: own ? .trailing : .leading)
                     }
                 }.padding()
             }.refreshable { await refresh() }
             if let reply {
-                HStack { Text(reply.body).lineLimit(1).font(.caption); Spacer(); Button("Cancel reply") { self.reply = nil } }.padding(.horizontal)
+                HStack { Text(reply.body).lineLimit(1).font(CampusFont.regular(12, relativeTo: .caption)); Spacer(); Button("Cancel reply") { self.reply = nil } }.padding(.horizontal)
             }
             HStack(alignment: .bottom) {
                 TextField("Message", text: $text, axis: .vertical).lineLimit(1...5).padding(12)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 18)).disabled(sending)
+                    .background(palette.raised, in: RoundedRectangle(cornerRadius: 18)).disabled(sending)
                     .onChange(of: text) { _, _ in requestID = UUID() }
                 Button { Task { await send() } } label: { Image(systemName: "arrow.up").font(.title2) }
                     .accessibilityLabel("Send message").disabled(sending || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 if sending { ProgressView() }
             }.padding()
-        }.navigationTitle(name).navigationBarTitleDisplayMode(.inline).task { await refresh() }
+        }.background(palette.background).toolbar(.visible, for: .navigationBar).navigationTitle(name).navigationBarTitleDisplayMode(.inline).task { await refresh() }
             .onChange(of: reply?.id) { _, _ in requestID = UUID() }
     }
     private func refresh() async {
@@ -135,6 +147,7 @@ struct MessageThreadView: View {
 
 struct CommentsView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.campusPalette) private var palette
     let postID: UUID
     @StateObject private var comments = SocialPageModel<SocialComment>()
     @State private var text = ""
@@ -144,12 +157,13 @@ struct CommentsView: View {
     @State private var error: String?
     var body: some View {
         NavigationStack {
-            VStack {
-                if let failure = error ?? comments.error { Text(failure).foregroundStyle(.red).padding() }
+            VStack(spacing: 0) {
+                CampusPanelHeader(title: "Comments")
+                if let failure = error ?? comments.error { Text(failure).foregroundStyle(palette.urgent).padding() }
                 List(comments.rows) { comment in
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(comment.display_name).font(.headline)
-                        if comment.parent_comment_id != nil { Label("Reply", systemImage: "arrow.turn.down.right").font(.caption).foregroundStyle(.secondary) }
+                        Text(comment.display_name).font(CampusFont.bold(14))
+                        if comment.parent_comment_id != nil { Label("Reply", systemImage: "arrow.turn.down.right").font(CampusFont.regular(12, relativeTo: .caption)).foregroundStyle(palette.secondary) }
                         Text(comment.body).textSelection(.enabled)
                         HStack {
                             Button { reply = comment } label: { Text("Reply") }
@@ -160,8 +174,8 @@ struct CommentsView: View {
                                 }
                             } label: { Label("\(comment.like_count)", systemImage: comment.liked ? "heart.fill" : "heart") }
                             .accessibilityLabel(comment.liked ? "Unlike comment" : "Like comment")
-                        }.font(.caption).buttonStyle(.plain)
-                    }.swipeActions {
+                        }.font(CampusFont.regular(12, relativeTo: .caption)).buttonStyle(.plain)
+                    }.listRowBackground(palette.background).listRowSeparator(.hidden).swipeActions {
                         if comment.author_id == model.account?.id {
                             Button("Delete", role: .destructive) {
                                 Task {
@@ -171,16 +185,16 @@ struct CommentsView: View {
                             }
                         }
                     }
-                }.listStyle(.plain).refreshable { await refresh() }
+                }.listStyle(.plain).scrollContentBackground(.hidden).refreshable { await refresh() }
                 if comments.hasMore { Button("Older comments") { Task { await comments.load(api:model.api,resource:"comments",target:postID,older:true) } }.disabled(comments.loading) }
-                if let reply { HStack { Text("Replying to \(reply.display_name)"); Spacer(); Button("Cancel") { self.reply = nil } }.font(.caption).padding(.horizontal) }
+                if let reply { HStack { Text("Replying to \(reply.display_name)"); Spacer(); Button("Cancel") { self.reply = nil } }.font(CampusFont.regular(12, relativeTo: .caption)).padding(.horizontal) }
                 HStack {
                     TextField("Comment", text: $text, axis: .vertical).lineLimit(1...4).disabled(sending)
                         .onChange(of: text) { _, _ in requestID = UUID() }
                     Button { Task { await send() } } label: { Image(systemName: "arrow.up") }
                         .accessibilityLabel("Post comment").disabled(sending || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }.padding()
-            }.navigationTitle("Comments").navigationBarTitleDisplayMode(.inline)
+            }.background(palette.background).toolbar(.hidden, for: .navigationBar)
                 .task { await refresh() }.onChange(of: reply?.id) { _, _ in requestID = UUID() }
         }
     }
@@ -196,26 +210,30 @@ struct CommentsView: View {
 
 struct NotificationsView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.campusPalette) private var palette
     @StateObject private var page = SocialPageModel<SocialNotification>()
     var body: some View {
         NavigationStack {
-            List {
-                if let error = page.error { Text(error).foregroundStyle(.red) }
+            VStack(spacing: 0) {
+                CampusPanelHeader(title: "Notifications")
+                HStack { Spacer(); Button("Read all") { Task { await markRead(nil) } }.font(CampusFont.bold(12)).foregroundStyle(palette.accent).frame(minHeight: 44).disabled(page.rows.isEmpty) }.padding(.horizontal, 20)
+                List {
+                if let error = page.error { CampusFailure(message: error) { Task { await refresh() } }.listRowSeparator(.hidden) }
                 if page.loading { ProgressView() }
-                if !page.loading && page.rows.isEmpty && page.error == nil { Text("No notifications").foregroundStyle(.secondary) }
+                if !page.loading && page.rows.isEmpty && page.error == nil { Text("No notifications").foregroundStyle(palette.secondary) }
                 ForEach(page.rows) { notification in
                     HStack {
                         if notification.kind == "private_message", let peer = notification.actor_id {
                             NavigationLink(notification.title) { MessageThreadView(peer: peer, name: notification.display_name ?? "Message") }
                         } else { Text(notification.title) }
                         if notification.read_at == nil { Circle().fill(model.accent).frame(width: 7,height: 7).accessibilityLabel("Unread") }
-                    }.swipeActions {
+                    }.listRowBackground(palette.background).listRowSeparator(.hidden).swipeActions {
                         Button("Read") { Task { await markRead(notification.id) } }
                     }
                 }
                 if page.hasMore { Button("Older notifications") { Task { await page.load(api:model.api,resource:"notifications",older:true) } }.disabled(page.loading) }
-            }.listStyle(.plain).navigationTitle("Notifications")
-                .toolbar { Button("Read all") { Task { await markRead(nil) } }.disabled(page.rows.isEmpty) }
+            }.listStyle(.plain).scrollContentBackground(.hidden)
+            }.background(palette.background).toolbar(.hidden, for: .navigationBar)
                 .task { await refresh() }.refreshable { await refresh() }
         }
     }
