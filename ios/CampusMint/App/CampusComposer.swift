@@ -6,7 +6,8 @@ import CampusMintCore
 struct TextComposer: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.campusPalette) private var palette
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    private var reduceMotion: Bool { systemReduceMotion || model.reduceMotion }
     @Environment(\.scenePhase) private var scenePhase
     let onClose: () -> Void
     @Binding var posting: Bool
@@ -30,6 +31,7 @@ struct TextComposer: View {
     @State private var published = false
     @State private var leafSent = false
     @FocusState private var focused: Bool
+    private func newDraft() -> ComposerDraft { var value = ComposerDraft(); value.commentsEnabled = model.commentsDefault; return value }
     private var locked: Bool { posting || importing }
     private var valid: Bool { (try? TextPostRequest(caption: draft.caption, expiresAt: draft.context?.kind == .event ? ISO8601DateFormatter().string(from: Date().addingTimeInterval(86400)) : nil, poll: draft.poll, media: draft.media, context: draft.context)) != nil }
 
@@ -50,7 +52,7 @@ struct TextComposer: View {
             .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.86), value: draft.hasContent)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: privacyChosen)
             .buttonStyle(CampusPressStyle())
-            .task { owner = model.account?.id; await refreshDrafts(); await loadContext() }
+            .task { owner = model.account?.id; if draft.commentsEnabled == nil { draft.commentsEnabled = model.commentsDefault }; await refreshDrafts(); await loadContext() }
             .sheet(isPresented: $showingMentions) {
                 NativePeopleView(title: "Mention someone") { person in
                     if !(draft.mentions ?? []).contains(where: { $0.userId == person.id }) { draft.mentions = (draft.mentions ?? []) + [PostMention(userId: person.id, username: person.username)] }
@@ -201,7 +203,7 @@ struct TextComposer: View {
     }
     private var draftList: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack { Text("Drafts").font(CampusFont.black(20)); Spacer(); Button("New") { draft = ComposerDraft(); showingDrafts = false; privacyChosen = false; durationChosen = false }.font(CampusFont.bold(13)).foregroundStyle(palette.accent).frame(minHeight: 44) }
+            HStack { Text("Drafts").font(CampusFont.black(20)); Spacer(); Button("New") { draft = newDraft(); showingDrafts = false; privacyChosen = false; durationChosen = false }.font(CampusFont.bold(13)).foregroundStyle(palette.accent).frame(minHeight: 44) }
             if drafts.isEmpty { Text("No drafts").foregroundStyle(palette.secondary).frame(maxWidth: .infinity, minHeight: 80) }
             ForEach(drafts) { item in
                 HStack {
@@ -239,7 +241,7 @@ struct TextComposer: View {
     }
     private func delete(_ item: ComposerDraft) async {
         guard let owner else { return }
-        do { try await model.drafts.delete(item.id, owner: owner); if draft.id == item.id { draft = ComposerDraft() }; await refreshDrafts() }
+        do { try await model.drafts.delete(item.id, owner: owner); if draft.id == item.id { draft = newDraft() }; await refreshDrafts() }
         catch { self.error = "Couldn’t delete this draft." }
     }
     private func importMedia(_ items: [PhotosPickerItem]) async {

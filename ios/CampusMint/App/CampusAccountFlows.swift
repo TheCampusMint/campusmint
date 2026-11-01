@@ -552,7 +552,8 @@ struct NativePersonProfile: View {
 struct NativePostActions: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.campusPalette) private var palette
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    private var reduceMotion: Bool { systemReduceMotion || model.reduceMotion }
     let postID: UUID
     @Binding var commentCount: Int?
     @Binding var canComment: Bool
@@ -904,7 +905,7 @@ struct NativeActivitySheet: UIViewControllerRepresentable {
 }
 
 
-private struct CampusVisibleOnScreen: ViewModifier {
+struct CampusVisibleOnScreen: ViewModifier {
     @Binding var visible: Bool
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *) {
@@ -918,5 +919,70 @@ private struct CampusVisibleOnScreen: ViewModifier {
                 }
             }.onDisappear { visible = false }
         }
+    }
+}
+
+
+struct NativeAccountSettings: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.campusPalette) private var palette
+    @State private var applying = false
+    @State private var status: NativeCreatorStatus?
+    @State private var error: String?
+    var body: some View {
+        VStack(spacing: 0) {
+            CampusPanelHeader(title: "Account")
+            ScrollView { VStack(alignment: .leading, spacing: 18) {
+                if let user = model.account {
+                    Text(user.profile.displayName).font(CampusFont.black(22))
+                    Text("@" + user.profile.username)
+                    Text(campusIdentities[user.account.universityId]?.name ?? "Campus Mint")
+                    if user.account.verifiedStudent { Label("Verified Student", systemImage: "checkmark.seal.fill").foregroundStyle(palette.accent) }
+                    if status?.creatorApproved == true { Label("Creator", systemImage: "checkmark.seal.fill").foregroundStyle(palette.accent) }
+                    else if let application = status?.application, ["pending","under_review"].contains(application.status) { Text(application.status == "pending" ? "Creator application pending" : "Creator application in review") }
+                    else if error == nil { Button("Apply for Creator") { applying = true }.frame(minHeight: 44).foregroundStyle(palette.accent) }
+                    Button("Log out") { Task { await model.signOut() } }.frame(minHeight: 44).foregroundStyle(palette.urgent)
+                }
+                if let error { CampusFailure(message: error) { Task { await load() } } }
+            }.padding(20).frame(maxWidth: .infinity, alignment: .leading) }
+        }.background(palette.background).task { await load() }
+            .sheet(isPresented: $applying, onDismiss: { Task { await load() } }) { NativeCreatorApplication().presentationBackground(palette.background) }
+    }
+    private func load() async {
+        do { guard let api = model.api else { return }; status = try await api.account().creator; error = nil }
+        catch { self.error = error.localizedDescription }
+    }
+}
+struct NativeCreatorApplication: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.campusPalette) private var palette
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft = CreatorApplicationDraft()
+    @State private var followers = ""
+    @State private var busy = false
+    @State private var error: String?
+    var body: some View {
+        VStack(spacing: 0) {
+            CampusPanelHeader(title: "Apply for Creator").disabled(busy)
+            ScrollView { VStack(alignment: .leading, spacing: 18) {
+                Picker("Platform", selection: $draft.platform) { ForEach(["youtube","instagram","tiktok","twitch","other"], id: \.self) { Text($0.capitalized).tag($0) } }.tint(palette.accent)
+                CampusEntry(label: "Handle", text: $draft.externalHandle).textInputAutocapitalization(.never).autocorrectionDisabled()
+                CampusEntry(label: "Profile link", text: $draft.externalProfileUrl).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                CampusEntry(label: "Followers", text: $followers).keyboardType(.numberPad)
+                CampusEntry(label: "Notes (optional)", text: $draft.applicationNotes, multiline: true)
+                Text("Your existing Student account stays the same. Creator access requires review.").font(CampusFont.regular(12)).foregroundStyle(palette.secondary)
+                if let error { Text(error).foregroundStyle(palette.urgent) }
+                HStack { if busy { ProgressView() }; Spacer(); Button("Submit application") { Task { await submit() } }.frame(minHeight: 44).foregroundStyle(palette.accent).disabled(busy) }
+            }.padding(20).disabled(busy) }
+        }.background(palette.background).interactiveDismissDisabled(busy)
+    }
+    private func submit() async {
+        guard !busy, let owner = model.account?.id else { return }; busy = true; error = nil; defer { busy = false }
+        do {
+            guard let count = Int(followers.trimmingCharacters(in: .whitespacesAndNewlines)) else { throw CampusError.invalidPost("Enter your follower count.") }
+            draft.claimedFollowerCount = count
+            _ = try await model.writeCampus(.creatorApplication, body: JSONEncoder().encode(draft.validated()), owner: owner)
+            await model.refreshAccountIfSignedIn(); dismiss()
+        } catch { self.error = error.localizedDescription }
     }
 }

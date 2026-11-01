@@ -29,6 +29,7 @@ public struct AccountResponse: Decodable, Sendable {
     public let studentSetup: NativeStudentSetup?
     public let studentSmsVerificationRequired: Bool?
     public let canUseCampusTester: Bool?
+    public let creator: NativeCreatorStatus?
     public let user: CampusUser?
     public let message: String?
 }
@@ -148,7 +149,7 @@ public enum PostPrivacy: String, CaseIterable, Codable, Sendable {
 public struct TextPostRequest: Encodable, Sendable {
     public let action = "publish"
     public let payload: Payload
-    public init(caption: String, requestID: UUID = UUID(), privacy: PostPrivacy = .public, expiresAt: String? = nil, poll: PollInput? = nil, media: [UploadMedia] = [], context: PostContext? = nil, mentions: [PostMention] = []) throws {
+    public init(caption: String, requestID: UUID = UUID(), privacy: PostPrivacy = .public, expiresAt: String? = nil, poll: PollInput? = nil, media: [UploadMedia] = [], context: PostContext? = nil, mentions: [PostMention] = [], commentsEnabled: Bool = true) throws {
         let text = caption.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || poll != nil || !media.isEmpty else { throw CampusError.emptyPost }
         guard text.utf16.count <= 10_000 else { throw CampusError.invalidPost("Keep the post under 10,000 characters.") }
@@ -157,7 +158,7 @@ public struct TextPostRequest: Encodable, Sendable {
         let isEvent = context?.kind == .event
         if isEvent && expiresAt == nil { throw CampusError.invalidPost("Event posts last 24 hours.") }
         let location = isEvent && context?.eventID == nil ? context.map { PostLocation(label: $0.location) } : nil
-        payload = Payload(requestId: requestID.uuidString.lowercased(), caption: text, postType: isEvent ? "event" : "personal", privacy: privacy, expiresAt: expiresAt, hashtags: CaptionTags.hashtags(text), mentions: PostMention.resolve(mentions, caption: text), taggedOrganizationIds: context?.kind == .club ? [context!.clubID!.uuidString.lowercased()] : [], eventData: isEvent ? PostEvent(eventId: context?.eventID, title: String(text.prefix(120)), location: location, timeZone: TimeZone.current.identifier) : nil, location: location, poll: try poll?.validated(), mediaMetadata: media.map { .init(width: $0.width, height: $0.height, durationSeconds: $0.durationSeconds) })
+        payload = Payload(requestId: requestID.uuidString.lowercased(), caption: text, postType: isEvent ? "event" : "personal", privacy: privacy, expiresAt: expiresAt, commentsEnabled: commentsEnabled, hashtags: CaptionTags.hashtags(text), mentions: PostMention.resolve(mentions, caption: text), taggedOrganizationIds: context?.kind == .club ? [context!.clubID!.uuidString.lowercased()] : [], eventData: isEvent ? PostEvent(eventId: context?.eventID, title: String(text.prefix(120)), location: location, timeZone: TimeZone.current.identifier) : nil, location: location, poll: try poll?.validated(), mediaMetadata: media.map { .init(width: $0.width, height: $0.height, durationSeconds: $0.durationSeconds) })
     }
     public struct Payload: Encodable, Sendable {
         public let requestId: String
@@ -165,7 +166,7 @@ public struct TextPostRequest: Encodable, Sendable {
         public let postType: String
         public let privacy: PostPrivacy
         public let expiresAt: String?
-        public let commentsEnabled = true
+        public let commentsEnabled: Bool
         public let organizationAudience = "public"
         public let hashtags: [String]
         public let mentions: [PostMention]

@@ -43,3 +43,14 @@ Security advisors retain the pre-existing extension-in-public and leaked-passwor
 5. Paid-team Apple capabilities, live App Attest/Sign in with Apple linking, provider keys/licenses, production video pipeline operations, paid Sports/8K entitlements and the remaining launch/security workload retain their separate gates. Nothing here enables music, billing, SMS or a commercial catalog.
 
 Reference: Apple privacy-manifest data types https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacycollecteddatatypes/nsprivacycollecteddatatype ; Supabase server functions https://supabase.com/docs/guides/database/functions .
+
+
+## NATIVE-PARITY-05 — content preferences and Student Creator application
+
+Continued after PARITY-04 rather than stopping at that release. Native Settings now has working Comments on by default, Autoplay video and Reduced motion preferences, stored on the device alongside existing appearance/HD settings. New drafts capture the current comment default; persisted/legacy draft behavior and exact upload/finalization payloads remain stable. Autoplay is muted, visibility scoped, pauses when backgrounded, and respects system or app Reduced Motion. Manual playback remains available. Device preferences are not claimed cloud-synced.
+
+Native Account shows the current profile/university/verification and Creator review status. Verified Students can submit a validated application to the existing `/api/creator/apply` endpoint using their current canonical identity and signed mutation hooks. The native client sends no account ID, role or approval claim. The existing server determines eligibility, deduplication and review status. This does not implement standalone Brand/Creator onboarding or the reviewer console, and no real application was submitted for QA.
+
+42 native contract/security checks pass after these additions; the signed iPhone build passes. No web API/database permissions changed in PARITY-05, so the preceding 487-test web/backend and production-build results still cover the shared backend.
+
+PARITY-04 release commit: `3ad1744b9c94a46ab94563261144eaca1e0456d8`, pushed to main, Vercel production success, installed on the physical iPhone. Production checks returned 200 for the website/native config and 401 for signed-out people reads/privacy writes. The PARITY-05 release result is recorded in the chat release report.

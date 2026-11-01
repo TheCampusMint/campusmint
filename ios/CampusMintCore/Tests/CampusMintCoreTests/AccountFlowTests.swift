@@ -86,3 +86,28 @@ func notificationDestinationsOnlyUseKnownTypedTargets() throws {
     try expect(decode("unknown", ["eventId": target.uuidString]).destination == nil)
     try expect(decode("event_invite").destination == nil)
 }
+
+
+func draftCommentPreferenceSurvivesRetryAndLegacyDrafts() throws {
+    var draft = ComposerDraft(); draft.caption = "Hello"; draft.commentsEnabled = false
+    let restored = try JSONDecoder().decode(ComposerDraft.self, from: JSONEncoder().encode(draft))
+    let post = try TextPostRequest(caption: restored.caption, requestID: restored.requestID, commentsEnabled: restored.commentsEnabled ?? true)
+    try expect(post.payload.commentsEnabled == false && post.payload.requestId == draft.requestID.uuidString.lowercased())
+    let body = try require(JSONSerialization.jsonObject(with: JSONEncoder().encode(PrepareUploadRequest(post: post, files: []))) as? [String: Any])
+    try expect((body["payload"] as? [String: Any])?["commentsEnabled"] as? Bool == false)
+    var legacy = try require(JSONSerialization.jsonObject(with: JSONEncoder().encode(draft)) as? [String: Any]); legacy.removeValue(forKey: "commentsEnabled")
+    let old = try JSONDecoder().decode(ComposerDraft.self, from: JSONSerialization.data(withJSONObject: legacy))
+    try expect(old.commentsEnabled == nil)
+    try expect(TextPostRequest(caption: old.caption).payload.commentsEnabled)
+}
+func creatorApplicationCannotClaimIdentityOrApproval() throws {
+    var draft = CreatorApplicationDraft(); draft.externalHandle = " student "; draft.externalProfileUrl = "https://youtube.com/@student"; draft.claimedFollowerCount = 12
+    let value = try draft.validated(); try expect(value.externalHandle == "student")
+    let body = try require(JSONSerialization.jsonObject(with: JSONEncoder().encode(value)) as? [String: Any])
+    try expect(body["userId"] == nil && body["accountType"] == nil && body["status"] == nil && body["creatorApproved"] == nil)
+    try expect(CampusWrite.creatorApplication.path == "/api/creator/apply" && CampusWrite.creatorApplication.method == "POST")
+    for link in ["http://youtube.com/@student", "https://token:secret@example.com/profile", "javascript:alert(1)"] {
+        draft.externalProfileUrl = link
+        try expectThrows(.invalidPost("Add a valid platform, handle, HTTPS profile link and follower count.")) { try draft.validated() }
+    }
+}

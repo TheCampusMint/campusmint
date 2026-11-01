@@ -7,7 +7,8 @@ private enum CampusPanel: String, Identifiable { case settings, notifications, p
 struct CampusShell: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.campusPalette) private var palette
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    private var reduceMotion: Bool { systemReduceMotion || model.reduceMotion }
     @State private var tab = CampusTab.mint
     @State private var panel: CampusPanel?
     @State private var composing = false
@@ -121,6 +122,7 @@ struct CampusSettingsView: View {
     @State private var showingPrivacy = false
     @State private var showingBlocked = false
     @State private var showingFollowing = false
+    @State private var showingAccount = false
     @EnvironmentObject private var model: AppModel
     @Environment(\.campusPalette) private var palette
     @State private var custom = false
@@ -158,14 +160,20 @@ struct CampusSettingsView: View {
                             }
                         }
                     }
+                    Text("Content").font(CampusFont.black(18))
+                    Toggle("Comments on by default", isOn: $model.commentsDefault).font(CampusFont.bold(14))
+                    Toggle("Autoplay video", isOn: $model.autoplayVideo).font(CampusFont.bold(14))
+                    Toggle("Reduced motion", isOn: $model.reduceMotion).font(CampusFont.bold(14))
                     Toggle("HD / 4K uploads", isOn: $model.highQualityUploads)
                         .font(CampusFont.bold(14)).tint(palette.accent)
+                    Button("Account") { showingAccount = true }.font(CampusFont.bold(14)).frame(minHeight: 44)
                     Button("Privacy") { showingPrivacy = true }.font(CampusFont.bold(14)).frame(minHeight: 44)
                     Button("Blocked users") { showingBlocked = true }.font(CampusFont.bold(14)).frame(minHeight: 44)
                     Button("Following") { showingFollowing = true }.font(CampusFont.bold(14)).frame(minHeight: 44)
                 }.padding(20)
             }
         }.background(palette.surface).buttonStyle(CampusPressStyle())
+            .sheet(isPresented: $showingAccount) { NativeAccountSettings().presentationBackground(palette.background) }
             .sheet(isPresented: $showingPrivacy) { NativePrivacyView().presentationBackground(palette.background) }
             .sheet(isPresented: $showingBlocked) { NativePeopleView(resource: .blocked, title: "Blocked users").presentationBackground(palette.background) }
             .sheet(isPresented: $showingFollowing) { NativePeopleView(resource: .following, title: "Following").presentationBackground(palette.background) }

@@ -64,6 +64,8 @@ func expectThrows<Value>(_ expected: CampusError, _ body: () async throws -> Val
         try await nativeDetailsAndPlacesStayBoundedAndOwnerScoped()
         try await studentSignupIsExplicitResumableAndIdentityBound()
         try notificationDestinationsOnlyUseKnownTypedTargets()
-        print("40 native security and contract checks passed.")
+        try draftCommentPreferenceSurvivesRetryAndLegacyDrafts()
+        try creatorApplicationCannotClaimIdentityOrApproval()
+        print("42 native security and contract checks passed.")
     }
 }

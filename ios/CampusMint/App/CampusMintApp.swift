@@ -52,6 +52,15 @@ final class AppModel: ObservableObject {
     @Published var highQualityUploads = UserDefaults.standard.bool(forKey: "highQualityUploads") {
         didSet { UserDefaults.standard.set(highQualityUploads, forKey: "highQualityUploads") }
     }
+    @Published var commentsDefault = UserDefaults.standard.object(forKey: "commentsDefault") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(commentsDefault, forKey: "commentsDefault") }
+    }
+    @Published var autoplayVideo = UserDefaults.standard.object(forKey: "autoplayVideo") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(autoplayVideo, forKey: "autoplayVideo") }
+    }
+    @Published var reduceMotion = UserDefaults.standard.bool(forKey: "reduceMotion") {
+        didSet { UserDefaults.standard.set(reduceMotion, forKey: "reduceMotion") }
+    }
     let drafts = DraftStore(root: URL.applicationSupportDirectory.appendingPathComponent("MintDrafts", isDirectory: true))
     let api: CampusAPI?
     let website: URL?
@@ -158,7 +167,7 @@ final class AppModel: ObservableObject {
     func publish(draft: ComposerDraft, owner: UUID) async throws {
         guard let api, canPublish, let configuration else { throw CampusError.featureUnavailable }
         guard account?.id == owner else { throw CampusError.signedOut }
-        let post = try TextPostRequest(caption: draft.caption, requestID: draft.requestID, privacy: draft.privacy, expiresAt: draft.expiresAt, poll: draft.poll, media: draft.media, context: draft.context, mentions: draft.mentions ?? [])
+        let post = try TextPostRequest(caption: draft.caption, requestID: draft.requestID, privacy: draft.privacy, expiresAt: draft.expiresAt, poll: draft.poll, media: draft.media, context: draft.context, mentions: draft.mentions ?? [], commentsEnabled: draft.commentsEnabled ?? true)
         func headers(_ body: Data) async throws -> [String: String] {
             guard account?.id == owner else { throw CampusError.signedOut }
             if configuration.appAttestRequired && !configuration.appAttestEnabled { throw CampusError.featureUnavailable }

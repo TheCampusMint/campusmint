@@ -54,6 +54,7 @@ public struct ComposerDraft: Codable, Sendable, Equatable, Identifiable {
     public var media: [UploadMedia] = []
     public var mentions: [PostMention]?
     public var context: PostContext?
+    public var commentsEnabled: Bool?
     public var updatedAt = Date()
     public init() {}
     public var hasContent: Bool { !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || poll != nil || !media.isEmpty }

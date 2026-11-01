@@ -1,8 +1,9 @@
 import Foundation
 
 public enum CampusWrite: Sendable {
-    case club, listing, listingStatus, marketplaceMessage, profile, privacy, preference
+    case club, listing, listingStatus, marketplaceMessage, profile, privacy, preference, creatorApplication
     public var path: String { switch self {
+    case .creatorApplication: "/api/creator/apply"
     case .club: "/api/clubs"
     case .listing, .listingStatus: "/api/marketplace"
     case .marketplaceMessage: "/api/marketplace/messages"
@@ -152,4 +153,29 @@ public struct FeedPreferenceWrite: Encodable, Sendable {
         guard weight.isFinite, (0...4).contains(weight), reason == nil || ["creator","content","relevance"].contains(reason!) else { throw CampusError.configuration }
         signals = [Signal(mintId: post, weight: weight, reason: reason, updatedAt: ISO8601DateFormatter().string(from: now))]
     }
+}
+
+
+public struct CreatorApplicationDraft: Encodable, Sendable {
+    public var platform = "youtube", externalHandle = "", externalProfileUrl = "", applicationNotes = ""
+    public var claimedFollowerCount = 0
+    public init() {}
+    public func validated() throws -> Self {
+        var value = self
+        value.externalHandle = externalHandle.trimmingCharacters(in: .whitespacesAndNewlines)
+        value.externalProfileUrl = externalProfileUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        value.applicationNotes = applicationNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard ["youtube","instagram","tiktok","twitch","other"].contains(platform),
+              !value.externalHandle.isEmpty, value.externalHandle.utf16.count <= 160,
+              let url = URL(string: value.externalProfileUrl), url.scheme == "https", url.host != nil, url.user == nil, url.password == nil,
+              value.externalProfileUrl.utf16.count <= 500, value.applicationNotes.utf16.count <= 2000,
+              (0...9_007_199_254_740_991).contains(claimedFollowerCount)
+        else { throw CampusError.invalidPost("Add a valid platform, handle, HTTPS profile link and follower count.") }
+        return value
+    }
+}
+public struct NativeCreatorStatus: Decodable, Sendable {
+    public let creatorApproved: Bool
+    public let application: Application?
+    public struct Application: Decodable, Sendable { public let id: UUID; public let status: String }
 }

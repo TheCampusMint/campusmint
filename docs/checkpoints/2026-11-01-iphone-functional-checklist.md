@@ -19,6 +19,9 @@ Compare the installed build with https://www.thecampusmint.com using the same ac
 - [ ] Cancel one share sheet, then complete another share. Neither should create a second post or unexpectedly leave the app stuck.
 - [ ] Choose/deny location in Search; Food/Events/Sell should retain a usable campus fallback. Google ratings/photos remain unavailable until its key is configured.
 - [ ] Choose Sports interests, relaunch and verify the selection remains. Check upcoming January/February games, season records and automatic seasonal ordering. The Dev campus picker should appear only for the server-authorized owner account.
+- [ ] Turn Comments on by default off, create a new post, and confirm comments stay off after publication/reopening. Restore the default afterward if desired.
+- [ ] Turn Autoplay video off/on; check videos pause offscreen and in the background. Reduced motion should suppress autoplay and decorative motion while allowing manual playback.
+- [ ] Open Settings → Account → Apply for Creator and verify the form/review status. Submit only if you intend to apply; it should keep the same Student account and require review.
 - [ ] Switch Light / Dark / Colorful and Forest accent; open the composer, Notes, profiles, Clubs and marketplace. Check larger text, keyboard dismissal and VoiceOver labels as needed.
 
 Remaining features are listed in `2026-11-01-native-functional-parity.md`; passing this checklist does not certify the unfinished backlog or App Store readiness.
