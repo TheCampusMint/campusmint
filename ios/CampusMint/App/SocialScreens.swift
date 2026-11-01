@@ -39,10 +39,18 @@ struct MessagesView: View {
     @Environment(\.campusPalette) private var palette
     @StateObject private var inbox = SocialPageModel<SocialConversation>()
     @State private var search = ""
+    @State private var findingPeople = false
+    @State private var editingNote = false
+    @State private var savingNote = false
+    @State private var newConversation: SocialPerson?
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Private Messages").font(CampusFont.black(20, relativeTo: .title2)).padding(.horizontal, 16)
+                HStack {
+                    Text("Private Messages").font(CampusFont.black(20, relativeTo: .title2)); Spacer()
+                    CampusIconButton(icon: "square.and.pencil", label: "New message") { findingPeople = true }
+                }.padding(.horizontal, 16)
+                Button("Add note") { editingNote = true }.font(CampusFont.bold(13)).foregroundStyle(palette.accent).frame(minHeight: 44).padding(.horizontal, 16)
                 HStack(spacing: 12) { Image(systemName: "magnifyingglass"); TextField("Search", text: $search, prompt: Text("Search").foregroundStyle(palette.secondary)) }
                     .font(CampusFont.regular(16)).foregroundStyle(palette.secondary).padding(.horizontal, 16).frame(height: 44)
                     .background(palette.surface, in: Capsule()).padding(.horizontal, 16)
@@ -81,7 +89,16 @@ struct MessagesView: View {
             }.listStyle(.plain).scrollContentBackground(.hidden).listRowSeparator(.hidden)
             }.padding(.top, 8).background(palette.background).toolbar(.hidden, for: .navigationBar)
                 .task { for await _ in model.socialChanges.updates() { if Task.isCancelled { break }; await refresh() } }.refreshable { await refresh() }
-        }
+        }.sheet(isPresented: $findingPeople) { NativePeopleView(title: "New message") { person in findingPeople = false; newConversation = person }.presentationBackground(palette.background) }
+            .sheet(item: $newConversation) { person in NavigationStack { MessageThreadView(peer: person.id, name: person.name) }.presentationBackground(palette.background) }
+            .overlay {
+                if editingNote {
+                    ZStack {
+                        palette.background.opacity(0.7).ignoresSafeArea().onTapGesture { if !savingNote { editingNote = false } }
+                        ScrollView { NativeNoteEditor(close: { editingNote = false }, busy: $savingNote).padding(12).frame(maxWidth: 464).frame(maxWidth: .infinity) }.scrollBounceBehavior(.basedOnSize).fixedSize(horizontal: false, vertical: true)
+                    }.accessibilityAddTraits(.isModal)
+                }
+            }
     }
     private func refresh() async { await inbox.load(api: model.api, resource: "conversations") }
 }
@@ -227,8 +244,11 @@ struct NotificationsView: View {
                 if !page.loading && page.rows.isEmpty && page.error == nil { Text("No notifications").foregroundStyle(palette.secondary) }
                 ForEach(page.rows) { notification in
                     HStack {
-                        if notification.kind == "private_message", let peer = notification.actor_id {
-                            NavigationLink(notification.title) { MessageThreadView(peer: peer, name: notification.display_name ?? "Message") }
+                        if let destination = notification.destination {
+                            NavigationLink(notification.title) {
+                                NativeNotificationDestination(destination: destination, name: notification.display_name ?? "Campus Mint")
+                                    .task { if notification.read_at == nil { await markRead(notification.id) } }
+                            }
                         } else { Text(notification.title) }
                         if notification.read_at == nil { Circle().fill(model.accent).frame(width: 7,height: 7).accessibilityLabel("Unread") }
                     }.listRowBackground(palette.background).listRowSeparator(.hidden).swipeActions {

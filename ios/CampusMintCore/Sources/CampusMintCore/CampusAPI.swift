@@ -85,6 +85,25 @@ public actor CampusAPI {
         return try await account()
     }
 
+    /// Signup is an explicit flow; ordinary sign-in never creates an account.
+    public func requestStudentSignupCode(email: String) async throws {
+        struct Body: Encodable { let email: String; let mode = "sign_up"; let accountType = "student"; let client = "ios" }
+        let result: OK = try await request("/api/student-verification/request", method: "POST", body: Body(email: email))
+        guard result.ok else { throw CampusError.invalidResponse }
+    }
+    public func verifyStudentSignup(email: String, code: String) async throws -> AccountResponse {
+        struct Body: Encodable { let email: String; let code: String; let mode = "sign_up"; let accountType = "student"; let client = "ios" }
+        struct Result: Decodable { let ok: Bool; let userId: UUID; let session: NativeSession }
+        let result: Result = try await request("/api/student-verification/verify", method: "POST", body: Body(email: email, code: code))
+        guard result.ok else { throw CampusError.invalidSession }; try result.session.validate(expectedUserID: result.userId)
+        sessionGeneration = UUID(); try await vault.save(result.session); session = result.session
+        return try await account()
+    }
+    public func completeStudentSignupEncoded(_ data: Data, owner: UUID, additionalHeaders: [String: String] = [:]) async throws -> AccountResponse {
+        let result: OK = try await authenticated("/api/account/complete", method: "POST", data: data, additionalHeaders: additionalHeaders, expectedOwner: owner)
+        guard result.ok else { throw CampusError.invalidResponse }; return try await account()
+    }
+
     public func account() async throws -> AccountResponse {
         let active = try await activeSession()
         let response: AccountResponse = try await authenticated("/api/account/me", method: "GET", data: nil)
@@ -92,7 +111,12 @@ public actor CampusAPI {
             try await invalidateSession()
             throw CampusError.signedOut
         }
-        guard response.accountType == "student", let user = response.user else { throw CampusError.unsupportedAccount }
+        guard response.accountType == "student" else { throw CampusError.unsupportedAccount }
+        if response.onboardingComplete == false && response.user == nil {
+            guard response.authUserId == active.userId, session?.userId == active.userId, response.studentSetup != nil else { try await invalidateSession(); throw CampusError.identityMismatch }
+            return response
+        }
+        guard let user = response.user else { throw CampusError.unsupportedAccount }
         guard user.id == active.userId, user.profile.accountId == active.userId,
               session?.userId == active.userId else {
             try await invalidateSession()
@@ -101,8 +125,9 @@ public actor CampusAPI {
         return response
     }
 
-    public func feed() async throws -> MintFeedResponse {
-        try await authenticated("/api/mintz", method: "GET", data: nil)
+    public func feed(ids: [UUID]? = nil) async throws -> MintFeedResponse {
+        if let ids { guard !ids.isEmpty, ids.count <= 50 else { throw CampusError.configuration } }
+        return try await authenticated("/api/mintz", method: "GET", data: nil, query: ids.map { [.init(name: "ids", value: $0.map { $0.uuidString }.joined(separator: ","))] } ?? [.init(name: "ranked", value: "1")])
     }
 
     /// Fixed API resources only; authorization and session generation checks stay centralized.
@@ -115,13 +140,13 @@ public actor CampusAPI {
     }
 
     /// Send the exact bytes bound to an App Attest assertion, without re-encoding.
-    public func publishEncoded(_ data: Data, additionalHeaders: [String: String] = [:]) async throws {
-        let result: OK = try await authenticated("/api/mintz", method: "POST", data: data, additionalHeaders: additionalHeaders)
+    public func publishEncoded(_ data: Data, additionalHeaders: [String: String] = [:], owner: UUID? = nil) async throws {
+        let result: OK = try await authenticated("/api/mintz", method: "POST", data: data, additionalHeaders: additionalHeaders, expectedOwner: owner)
         guard result.ok else { throw CampusError.invalidResponse }
     }
 
-    public func prepareUploadEncoded(_ data: Data, additionalHeaders: [String: String] = [:]) async throws -> PreparedUpload {
-        let response: PreparedUpload = try await authenticated("/api/mintz", method: "POST", data: data, additionalHeaders: additionalHeaders)
+    public func prepareUploadEncoded(_ data: Data, additionalHeaders: [String: String] = [:], owner: UUID? = nil) async throws -> PreparedUpload {
+        let response: PreparedUpload = try await authenticated("/api/mintz", method: "POST", data: data, additionalHeaders: additionalHeaders, expectedOwner: owner)
         guard response.ok else { throw CampusError.invalidResponse }
         return response
     }
@@ -165,8 +190,35 @@ public actor CampusAPI {
         return try await authenticated("/api/social", method: "GET", data: nil, query: query)
     }
 
-    public func mutateSocialEncoded(_ data: Data, additionalHeaders: [String: String] = [:]) async throws {
-        let result: OK = try await authenticated("/api/social", method: "POST", data: data, additionalHeaders: additionalHeaders)
+    public func socialDetail<Response: Decodable & Sendable>(_ resource: SocialDetail, target: UUID? = nil, search: String = "", after: UUID? = nil) async throws -> Response {
+        guard search.utf16.count <= 80, ![SocialDetail.post, .profile, .attendance].contains(resource) || target != nil else { throw CampusError.configuration }
+        var query = [URLQueryItem(name: "resource", value: resource.rawValue)]
+        if let target { query.append(.init(name: "target", value: target.uuidString)) }
+        if !search.isEmpty { query.append(.init(name: "query", value: search)) }
+        if let after { query.append(.init(name: "after", value: after.uuidString)) }
+        return try await authenticated("/api/social", method: "GET", data: nil, query: query)
+    }
+
+    public func placeResource<Response: Decodable & Sendable>(id: String, view: PlaceResource) async throws -> Response {
+        guard id.range(of: "^[A-Za-z0-9_-]{1,255}$", options: .regularExpression) != nil else { throw CampusError.configuration }
+        let path = "/api/places/" + id
+        switch view {
+        case .details: return try await authenticated(path, method: "GET", data: nil)
+        case .reviews: return try await authenticated(path, method: "GET", data: nil, query: [.init(name: "view", value: "reviews")])
+        case .photo(let index):
+            guard (0...4).contains(index) else { throw CampusError.configuration }
+            return try await authenticated(path + "/photo", method: "GET", data: nil, query: [.init(name: "index", value: String(index))])
+        }
+    }
+
+    public func mutateCampus(_ endpoint: CampusWrite, body: Data, owner: UUID, additionalHeaders: [String: String] = [:]) async throws -> CampusWriteResult {
+        let result: CampusWriteResult = try await authenticated(endpoint.path, method: endpoint.method, data: body, additionalHeaders: additionalHeaders, expectedOwner: owner)
+        guard result.ok else { throw CampusError.invalidResponse }
+        return result
+    }
+
+    public func mutateSocialEncoded(_ data: Data, additionalHeaders: [String: String] = [:], owner: UUID? = nil) async throws {
+        let result: OK = try await authenticated("/api/social", method: "POST", data: data, additionalHeaders: additionalHeaders, expectedOwner: owner)
         guard result.ok else { throw CampusError.invalidResponse }
     }
 
@@ -258,8 +310,9 @@ public actor CampusAPI {
         return updated
     }
 
-    private func authenticated<Response: Decodable & Sendable>(_ path: String, method: String, data: Data?, additionalHeaders: [String: String] = [:], query: [URLQueryItem] = []) async throws -> Response {
+    private func authenticated<Response: Decodable & Sendable>(_ path: String, method: String, data: Data?, additionalHeaders: [String: String] = [:], query: [URLQueryItem] = [], expectedOwner: UUID? = nil) async throws -> Response {
         let active = try await activeSession()
+        if let expectedOwner, active.userId != expectedOwner { throw CampusError.signedOut }
         let generation = sessionGeneration
         do {
             let response: Response = try await perform(path, method: method, data: data, token: active.accessToken, additionalHeaders: additionalHeaders, query: query)

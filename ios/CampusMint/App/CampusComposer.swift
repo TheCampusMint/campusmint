@@ -18,6 +18,12 @@ struct TextComposer: View {
     @State private var expandedPrivacy = false
     @State private var privacyChosen = false
     @State private var expandedDuration = false
+    @State private var durationChosen = false
+    @State private var catalog: ComposerCatalog?
+    @State private var contextSearch = ""
+    @State private var contextError: String?
+    @State private var showingCamera = false
+    @State private var showingMentions = false
     @State private var error: String?
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var importing = false
@@ -25,7 +31,7 @@ struct TextComposer: View {
     @State private var leafSent = false
     @FocusState private var focused: Bool
     private var locked: Bool { posting || importing }
-    private var valid: Bool { (try? TextPostRequest(caption: draft.caption, poll: draft.poll, media: draft.media)) != nil }
+    private var valid: Bool { (try? TextPostRequest(caption: draft.caption, expiresAt: draft.context?.kind == .event ? ISO8601DateFormatter().string(from: Date().addingTimeInterval(86400)) : nil, poll: draft.poll, media: draft.media, context: draft.context)) != nil }
 
     var body: some View {
         ScrollView {
@@ -44,12 +50,20 @@ struct TextComposer: View {
             .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.86), value: draft.hasContent)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: privacyChosen)
             .buttonStyle(CampusPressStyle())
-            .task { owner = model.account?.id; await refreshDrafts() }
+            .task { owner = model.account?.id; await refreshDrafts(); await loadContext() }
+            .sheet(isPresented: $showingMentions) {
+                NativePeopleView(title: "Mention someone") { person in
+                    if !(draft.mentions ?? []).contains(where: { $0.userId == person.id }) { draft.mentions = (draft.mentions ?? []) + [PostMention(userId: person.id, username: person.username)] }
+                    draft.caption += (draft.caption.last.map { $0.isWhitespace } ?? true ? "" : " ") + "@" + person.username + " "
+                    showingMentions = false; focused = true
+                }.presentationBackground(palette.background)
+            }
+            .sheet(isPresented: $showingCamera) { CampusCamera { result in showingCamera = false; if let result { Task { await importCapture(result) } } } .ignoresSafeArea() }
             .task(id: draft) {
                 do { try await Task.sleep(for: .milliseconds(300)); try Task.checkCancellation(); if !locked { await save() } } catch { }
             }
             .onChange(of: draft) { old, new in
-                if old.id == new.id && (old.caption != new.caption || old.privacy != new.privacy || old.durationHours != new.durationHours || old.poll != new.poll || old.media != new.media) {
+                if old.id == new.id && (old.caption != new.caption || old.privacy != new.privacy || old.durationHours != new.durationHours || old.poll != new.poll || old.media != new.media || old.context != new.context || old.mentions != new.mentions) {
                     draft.requestID = UUID(); draft.expiresAt = nil; draft.updatedAt = Date()
                 }
             }
@@ -66,12 +80,13 @@ struct TextComposer: View {
             }
             HStack(spacing: 0) {
                 Button { draft.caption += "#"; focused = true } label: { Text("#").font(CampusFont.bold(18)).frame(width: 44, height: 44) }.accessibilityLabel("Add hashtag")
-                Button { draft.caption += "@"; focused = true } label: { Text("@").font(CampusFont.bold(18)).frame(width: 44, height: 44) }.accessibilityLabel("Type a mention")
+                Button { focused = false; showingMentions = true } label: { Text("@").font(CampusFont.bold(18)).frame(width: 44, height: 44) }.accessibilityLabel("Mention someone")
                 Spacer()
                 PhotosPicker(selection: $selectedPhotos, maxSelectionCount: max(1, 6 - draft.media.count), matching: .any(of: [.images, .videos]), preferredItemEncoding: .automatic) {
                     Image(systemName: "photo.on.rectangle").frame(width: 44, height: 44)
                 }.accessibilityLabel("Add photos or videos").disabled(draft.media.count >= 6)
                 Menu {
+                    Button("Camera", systemImage: "camera") { if UIImagePickerController.isSourceTypeAvailable(.camera) { focused = false; showingCamera = true } else { error = "Camera is unavailable on this device." } }
                     Button(draft.poll == nil ? "Poll" : "Remove poll", systemImage: "chart.bar.xaxis") { draft.poll = draft.poll == nil ? PollInput() : nil }
                 } label: { Image(systemName: "chevron.down").frame(width: 44, height: 44) }.accessibilityLabel("Post options")
             }.foregroundStyle(palette.accent).disabled(locked)
@@ -130,24 +145,67 @@ struct TextComposer: View {
                 }
             }
             if privacyChosen {
-                optionRow("Duration · \(draft.durationHours == 0 ? "Permanent" : "24 hours")", expanded: expandedDuration) { expandedDuration.toggle() }
+                optionRow("Duration · \(draft.durationHours == 0 ? "Permanent" : "24 hours")", expanded: expandedDuration) { expandedDuration.toggle() }.disabled(draft.context?.kind == .event)
                 if expandedDuration {
                     ForEach([0, 24], id: \.self) { hours in
-                        Button { draft.durationHours = hours; expandedDuration = false } label: {
+                        Button { draft.durationHours = hours; expandedDuration = false; durationChosen = true } label: {
                             HStack { Text(hours == 0 ? "Permanent" : "24 hours"); Spacer(); if draft.durationHours == hours { Image(systemName: "checkmark") } }.font(CampusFont.bold(13)).frame(minHeight: 44)
                         }.foregroundStyle(palette.accent)
                     }
                 }
             }
+            if durationChosen || draft.context != nil { contextOptions }
         }.disabled(locked)
+    }
+    private var contextOptions: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach([PostContext.Kind.event, .club], id: \.self) { kind in
+                Button {
+                    let previous = draft.context?.kind
+                    draft.context = previous == kind ? nil : PostContext(kind: kind); contextSearch = ""
+                    if draft.context?.kind == .event { draft.durationHours = 24 }
+                    else if previous == .event { draft.durationHours = 0 }
+                } label: {
+                    HStack { Text(kind == .club ? "Club" : "Event"); if draft.context?.kind == kind { Image(systemName: "checkmark") } }
+                        .font(CampusFont.bold(13)).padding(.horizontal, 14).frame(minHeight: 44)
+                        .background((kind == .club ? palette.discovery : palette.personal).opacity(0.13), in: Capsule())
+                }.foregroundStyle(kind == .club ? palette.discovery : palette.personal)
+            }
+            if let context = draft.context {
+                if context.kind == .event && context.eventID == nil {
+                    TextField("Location", text: Binding(get: { draft.context?.location ?? "" }, set: { draft.context?.location = $0 }))
+                        .font(CampusFont.regular(14)).frame(minHeight: 44).textFieldStyle(.plain)
+                }
+                TextField(context.kind == .club ? "Search your joined clubs" : "Link a campus event", text: $contextSearch)
+                    .font(CampusFont.regular(14)).frame(minHeight: 44).textFieldStyle(.plain)
+                if context.kind == .club {
+                    ForEach((catalog?.clubs ?? []).filter { contextSearch.isEmpty || $0.name.localizedCaseInsensitiveContains(contextSearch) }.prefix(20)) { club in
+                        Button { draft.context?.clubID = club.id } label: { HStack { Text(club.name); Spacer(); if context.clubID == club.id { Image(systemName: "checkmark") } }.frame(minHeight: 44) }
+                            .font(CampusFont.bold(13)).foregroundStyle(context.clubID == club.id ? palette.accent : palette.text)
+                    }
+                    if catalog?.clubs.isEmpty == true { Text("Join a club first").font(CampusFont.regular(12)).foregroundStyle(palette.secondary) }
+                } else {
+                    if context.eventID != nil { Button("Unlink event") { draft.context?.eventID = nil }.font(CampusFont.bold(12)).foregroundStyle(palette.accent).frame(minHeight: 44) }
+                    ForEach((catalog?.events ?? []).filter { contextSearch.isEmpty || $0.title.localizedCaseInsensitiveContains(contextSearch) }.prefix(20)) { event in
+                        Button { draft.context?.eventID = event.id } label: { HStack { Text(event.title); Spacer(); if context.eventID == event.id { Image(systemName: "checkmark") } }.frame(minHeight: 44) }
+                            .font(CampusFont.bold(13)).foregroundStyle(context.eventID == event.id ? palette.accent : palette.text)
+                    }
+                }
+                if let contextError { Button(contextError) { Task { await loadContext() } }.font(CampusFont.regular(12)).foregroundStyle(palette.accent) }
+            }
+        }
+    }
+    private func loadContext() async {
+        do { guard let api = model.api else { throw CampusError.configuration }; catalog = try await api.campusResource(.composerContext); contextError = nil }
+        catch { contextError = "Couldn’t load choices. Retry" }
     }
     private var draftList: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack { Text("Drafts").font(CampusFont.black(20)); Spacer(); Button("New") { draft = ComposerDraft(); showingDrafts = false; privacyChosen = false }.font(CampusFont.bold(13)).foregroundStyle(palette.accent).frame(minHeight: 44) }
+            HStack { Text("Drafts").font(CampusFont.black(20)); Spacer(); Button("New") { draft = ComposerDraft(); showingDrafts = false; privacyChosen = false; durationChosen = false }.font(CampusFont.bold(13)).foregroundStyle(palette.accent).frame(minHeight: 44) }
             if drafts.isEmpty { Text("No drafts").foregroundStyle(palette.secondary).frame(maxWidth: .infinity, minHeight: 80) }
             ForEach(drafts) { item in
                 HStack {
-                    Button { draft = item; showingDrafts = false; privacyChosen = item.privacy != .public || item.durationHours != 0 } label: {
+                    Button { draft = item; showingDrafts = false; privacyChosen = item.privacy != .public || item.durationHours != 0 || item.context != nil; durationChosen = item.context != nil } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.label).font(CampusFont.bold(14)).lineLimit(2)
                             Text(item.updatedAt, style: .date).font(CampusFont.regular(11)).foregroundStyle(palette.secondary)
@@ -199,12 +257,25 @@ struct TextComposer: View {
             }
         } catch { self.error = error.localizedDescription }
     }
+    private func importCapture(_ capture: CampusCapture) async {
+        guard let owner, !locked, model.account?.id == owner else { try? FileManager.default.removeItem(at: capture.url); return }
+        importing = true; posting = true; error = nil
+        defer { importing = false; posting = false }
+        do {
+            guard draft.media.count < 6 else { try? FileManager.default.removeItem(at: capture.url); throw CampusError.invalidPost("Choose up to six photos or videos.") }
+            let directory = try await model.drafts.directory(owner: owner, draft: draft.id)
+            let media = try await CampusMediaPreparation.prepare(capture.url, video: capture.video, highQuality: model.highQualityUploads, directory: directory)
+            guard model.account?.id == owner else { throw CampusError.signedOut }
+            try UploadMedia.validate(draft.media + [media]); draft.media.append(media)
+            try await model.drafts.save(draft, owner: owner)
+        } catch { self.error = error.localizedDescription }
+    }
     private func publish() async {
         guard valid, !locked, let owner else { return }
         focused = false; posting = true; error = nil
         defer { posting = false }
         do {
-            if draft.durationHours == 24 && draft.expiresAt == nil { draft.expiresAt = ISO8601DateFormatter().string(from: Date().addingTimeInterval(86400)) }
+            if (draft.durationHours == 24 || draft.context?.kind == .event) && draft.expiresAt == nil { draft.expiresAt = ISO8601DateFormatter().string(from: Date().addingTimeInterval(86400)) }
             try await model.drafts.save(draft, owner: owner)
             try await model.publish(draft: draft, owner: owner)
             published = true

@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const ids = [...new Set(messages.map((row) => row.buyer_id))];
     const profiles = ids.length ? await admin.from("profiles").select("user_id,first_name").in("user_id", ids) : { data: [], error: null };
     if (profiles.error) throw profiles.error;
-    return json({ ok: true, messages, buyers: profiles.data });
+    return json({ ok: true, messages, buyers: profiles.data, listingStatus: listing.status });
   } catch (error) { return fail(error); }
 }
 export async function POST(request: Request) {

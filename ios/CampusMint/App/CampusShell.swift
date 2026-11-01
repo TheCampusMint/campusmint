@@ -118,6 +118,9 @@ struct CampusPanelHeader: View {
 }
 
 struct CampusSettingsView: View {
+    @State private var showingPrivacy = false
+    @State private var showingBlocked = false
+    @State private var showingFollowing = false
     @EnvironmentObject private var model: AppModel
     @Environment(\.campusPalette) private var palette
     @State private var custom = false
@@ -157,13 +160,15 @@ struct CampusSettingsView: View {
                     }
                     Toggle("HD / 4K uploads", isOn: $model.highQualityUploads)
                         .font(CampusFont.bold(14)).tint(palette.accent)
-                    if let website = model.website {
-                        Link("Account & privacy settings", destination: website).font(CampusFont.bold(14)).foregroundStyle(palette.accent).frame(minHeight: 44)
-                            .accessibilityHint("Opens the Campus Mint website")
-                    }
+                    Button("Privacy") { showingPrivacy = true }.font(CampusFont.bold(14)).frame(minHeight: 44)
+                    Button("Blocked users") { showingBlocked = true }.font(CampusFont.bold(14)).frame(minHeight: 44)
+                    Button("Following") { showingFollowing = true }.font(CampusFont.bold(14)).frame(minHeight: 44)
                 }.padding(20)
             }
         }.background(palette.surface).buttonStyle(CampusPressStyle())
+            .sheet(isPresented: $showingPrivacy) { NativePrivacyView().presentationBackground(palette.background) }
+            .sheet(isPresented: $showingBlocked) { NativePeopleView(resource: .blocked, title: "Blocked users").presentationBackground(palette.background) }
+            .sheet(isPresented: $showingFollowing) { NativePeopleView(resource: .following, title: "Following").presentationBackground(palette.background) }
     }
     private func semantic(_ label: String, color: Color) -> some View {
         HStack(spacing: 5) { Circle().fill(color).frame(width: 6, height: 6); Text(label).font(CampusFont.bold(10, relativeTo: .caption2)) }.foregroundStyle(color)
@@ -191,6 +196,8 @@ struct CampusSettingsView: View {
 }
 
 struct CampusSportsView: View {
+    @State private var editingInterests = false
+    @State private var testCampus = ""
     @EnvironmentObject private var model: AppModel
     @Environment(\.campusPalette) private var palette
     @State private var response: SportsResponse?
@@ -201,7 +208,14 @@ struct CampusSportsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if model.canUseCampusTester {
+                    Picker("Dev · Test campus", selection: $testCampus) {
+                        Text("My campus").tag("")
+                        ForEach(campusIdentities.keys.sorted(), id: \.self) { id in Text(campusIdentities[id]!.name).tag(id) }
+                    }.tint(palette.accent)
+                }
                 if let profile = response?.profile {
+                    if testCampus.isEmpty { Button("Sports interests") { editingInterests = true }.font(CampusFont.bold(12)).foregroundStyle(palette.accent).frame(minHeight: 44) }
                     HStack(spacing: 12) {
                         Capsule().fill(palette.accent).frame(width: 5, height: 44).accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 5) {
@@ -252,7 +266,10 @@ struct CampusSportsView: View {
                 if loading { ProgressView().frame(maxWidth: .infinity) }
                 if let error { CampusFailure(message: error) { Task { await load() } } }
             }.padding(16).background(palette.raised, in: RoundedRectangle(cornerRadius: 32)).padding(.horizontal, 16).padding(.top, 4)
-        }.task { await load() }.refreshable { await load() }
+        }.task(id: testCampus) { response = nil; selected = ""; await load() }.refreshable { await load() }
+            .sheet(isPresented: $editingInterests, onDismiss: { Task { await load() } }) {
+                if let response { NativeSportsInterests(profile: response.profile).presentationBackground(palette.background) }
+            }
     }
     private func gameRow(_ game: CampusGame) -> some View {
         HStack(alignment: .top, spacing: 12) {
@@ -269,10 +286,11 @@ struct CampusSportsView: View {
         }.foregroundStyle(palette.text).frame(maxWidth: .infinity, minHeight: 40, alignment: .leading).padding(.vertical, 10).padding(.horizontal, 14).background(palette.surface, in: RoundedRectangle(cornerRadius: 22))
     }
     private func load() async {
-        guard !loading, let api = model.api, let id = model.account?.account.universityId else { return }
+        guard let api = model.api, let own = model.account?.account.universityId else { return }
+        let id = testCampus.isEmpty || !model.canUseCampusTester ? own : testCampus
         loading = true; defer { loading = false }
         do { let result: SportsResponse = try await api.campusResource(.sports, query: [.init(name: "universityId", value: id)])
-            guard !Task.isCancelled else { return }; response = result; error = nil
+            guard !Task.isCancelled, id == (testCampus.isEmpty || !model.canUseCampusTester ? own : testCampus) else { return }; response = result; error = nil
             if !programs.contains(where: { $0.id == selected }) { selected = programs.first?.id ?? "" }
         } catch { self.error = error.localizedDescription }
     }
@@ -287,12 +305,13 @@ struct CampusClubsView: View {
     @State private var loading = false
     @State private var error: String?
     @State private var selected: CampusClub?
-    private var filtered: [CampusClub] { clubs.filter { (!mine || ["leader", "officer", "member"].contains($0.role ?? "")) && (query.isEmpty || $0.name.localizedCaseInsensitiveContains(query)) } }
+    @State private var creating = false
+    private var filtered: [CampusClub] { clubs.filter { (!mine || $0.invited || ["leader", "officer", "member"].contains($0.role ?? "")) && (query.isEmpty || $0.name.localizedCaseInsensitiveContains(query)) } }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack { Text("Clubs").font(CampusFont.black(24, relativeTo: .title)); Spacer()
-                    if let website = model.website { Link("+ Create Club", destination: website).font(CampusFont.bold(12)).foregroundStyle(palette.accent).accessibilityHint("Opens club creation on the website") }
+                    Button("+ Create Club") { creating = true }.font(CampusFont.bold(12)).foregroundStyle(palette.accent)
                 }
                 HStack(spacing: 8) {
                     Button { mine = false } label: { Text("Discover").padding(.horizontal, 12).padding(.vertical, 8).background(!mine ? palette.accentSoft : .clear, in: Capsule()) }.foregroundStyle(!mine ? palette.accent : palette.secondary).accessibilityAddTraits(!mine ? .isSelected : [])
@@ -312,18 +331,8 @@ struct CampusClubsView: View {
                 }
             }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 16)
         }.task { await load() }.refreshable { await load() }
-        .sheet(item: $selected) { club in
-            VStack(spacing: 0) {
-                CampusPanelHeader(title: club.name)
-                ScrollView { VStack(alignment: .leading, spacing: 20) {
-                    Text(club.description ?? club.summary).font(CampusFont.regular(16))
-                    if let location = club.location { Label(location, systemImage: "mappin") }
-                    if let schedule = club.schedule { Text(schedule) }
-                    if let url = campusWebURL(club.website) { Link("Website", destination: url) }
-                    if let website = model.website { Link("Open club on website", destination: website.appendingPathComponent("clubs").appendingPathComponent(club.handle)).font(CampusFont.bold(14)).foregroundStyle(palette.accent) }
-                }.padding(20).frame(maxWidth: .infinity, alignment: .leading) }
-            }.presentationBackground(palette.background).foregroundStyle(palette.text)
-        }
+        .sheet(item: $selected) { club in NativeClubDetail(id: club.id) { await load() }.presentationBackground(palette.background) }
+        .sheet(isPresented: $creating) { NativeClubEditor(club: nil) { _ in await load() }.presentationBackground(palette.background) }
     }
     private func load() async {
         guard !loading, let api = model.api else { return }; loading = true; defer { loading = false }
@@ -337,6 +346,10 @@ func campusWebURL(_ value: String?) -> URL? {
 }
 
 struct CampusDiscoveryView: View {
+    @State private var showingPeople = false
+    @StateObject private var location = NativeDiscoveryLocation()
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var selectedPlace: NearbyPlace?
     @EnvironmentObject private var model: AppModel
     @Environment(\.campusPalette) private var palette
     @State private var category = "Food"
@@ -347,10 +360,18 @@ struct CampusDiscoveryView: View {
     @State private var loading = false
     @State private var error: String?
     @State private var configured = true
+    @State private var postingItem = false
+    @State private var selectedListing: CampusListing?
+    private var listingCoordinate: CampusCoordinate? {
+        if let coordinate = location.coordinate { return coordinate }
+        guard let campus = campusIdentities[model.account?.account.universityId ?? ""] else { return nil }
+        return CampusCoordinate(latitude: campus.latitude, longitude: campus.longitude)
+    }
     @State private var requestGeneration = UUID()
     var body: some View {
         VStack(spacing: 0) {
             CampusPanelHeader(title: "Search")
+            Button("People") { showingPeople = true }.font(CampusFont.bold(14)).foregroundStyle(palette.accent).frame(minHeight: 44)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack { Image(systemName: "magnifyingglass"); TextField("Search \(category.lowercased())", text: $query, prompt: Text("Search \(category.lowercased())").foregroundStyle(palette.secondary)) }
@@ -364,7 +385,12 @@ struct CampusDiscoveryView: View {
                             }.foregroundStyle(category == item.0 ? palette.accent : palette.text).accessibilityAddTraits(category == item.0 ? .isSelected : [])
                         }
                     }
-                    Text("Near campus · 10 miles").font(CampusFont.regular(11, relativeTo: .caption)).foregroundStyle(palette.secondary).padding(.vertical, 12)
+                    HStack {
+                        Text(location.coordinate == nil ? "Near campus · 10 miles" : "Near me · 10 miles").font(CampusFont.regular(11)).foregroundStyle(palette.secondary)
+                        Spacer()
+                        Button(location.coordinate == nil ? "Use my location" : "Use campus") { if location.coordinate == nil { location.chooseLocation() } else { location.useCampus() } }.font(CampusFont.bold(12)).foregroundStyle(palette.accent).frame(minHeight: 44)
+                    }
+                    if let failure = location.error { Text(failure).font(CampusFont.regular(12)).foregroundStyle(palette.urgent) }
                     if category == "Food" {
                         ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 18) {
                             ForEach(["All", "Asian", "Fast food", "Indian", "Mexican", "Italian", "American", "Cafes"], id: \.self) { name in
@@ -373,7 +399,7 @@ struct CampusDiscoveryView: View {
                             }
                         } }
                     }
-                    if category == "Sell", let website = model.website { Link("+ Post item", destination: website).font(CampusFont.bold(14)).foregroundStyle(palette.accent).frame(minHeight: 44).accessibilityHint("Opens the website listing form") }
+                    if category == "Sell" { Button("+ Post item") { postingItem = true }.font(CampusFont.bold(14)).foregroundStyle(palette.accent).frame(minHeight: 44) }
                     HStack { Spacer(); Button("Refresh") { Task { await load() } }.font(CampusFont.regular(12)).foregroundStyle(palette.accent).frame(minHeight: 44).disabled(loading) }
                     if loading { ProgressView().frame(maxWidth: .infinity).padding(48) }
                     else if let error { CampusFailure(message: error) { Task { await load() } } }
@@ -382,6 +408,13 @@ struct CampusDiscoveryView: View {
                 }.padding(16)
             }.refreshable { await load() }
         }.background(palette.background).buttonStyle(CampusPressStyle()).task(id: category + ":" + cuisine) { await load() }
+            .sheet(isPresented: $postingItem) { NativeListingComposer(coordinate: listingCoordinate) { await load() }.presentationBackground(palette.background) }
+            .sheet(item: $selectedListing) { listing in NativeListingDetail(listing: listing) { await load() }.presentationBackground(palette.background) }
+            .sheet(isPresented: $showingPeople) { NativePeopleView().presentationBackground(palette.background) }
+            .sheet(item: $selectedPlace) { place in NativePlaceDetail(place: place).presentationBackground(palette.background) }
+            .onAppear { location.appear() }.onDisappear { location.disappear() }
+            .onChange(of: scenePhase) { _, value in location.setActive(value == .active) }
+            .onChange(of: location.coordinate) { _, _ in Task { await load() } }
     }
     @ViewBuilder private var sellResults: some View {
         let visible = listings.filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) }
@@ -390,7 +423,7 @@ struct CampusDiscoveryView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack { Text(listing.title).font(CampusFont.black(18)); Spacer(); Text(listing.askingPrice, format: .currency(code: "USD")).font(CampusFont.bold(16)) }
                 Text([listing.brand, listing.condition == "Good" ? "Used" : listing.condition, listing.pickupArea].filter { !$0.isEmpty }.joined(separator: " · ")).font(CampusFont.regular(13)).foregroundStyle(palette.secondary)
-                if let website = model.website { Link("Message seller on website", destination: website).font(CampusFont.bold(13)).foregroundStyle(palette.accent) }
+                Button(listing.sellerId.lowercased() == model.account?.id.uuidString.lowercased() ? "Manage listing" : "Message seller") { selectedListing = listing }.font(CampusFont.bold(13)).foregroundStyle(palette.accent)
             }.padding(20).background(palette.surface, in: RoundedRectangle(cornerRadius: 24))
         }
     }
@@ -399,7 +432,12 @@ struct CampusDiscoveryView: View {
         if visible.isEmpty { empty(!configured && category == "Food" ? "Nearby food is coming soon" : "No \(category.lowercased()) yet") }
         ForEach(visible) { place in
             VStack(alignment: .leading, spacing: 12) {
+                if let image = campusWebURL(place.image) {
+                    AsyncImage(url: image) { $0.resizable().scaledToFit() } placeholder: { ProgressView() }.clipShape(RoundedRectangle(cornerRadius: 18))
+                    if let credit = place.imageCredit { if let url = campusWebURL(place.imageCreditUrl) { Link(credit, destination: url).font(CampusFont.regular(11)) } else { Text(credit).font(CampusFont.regular(11)) } }
+                }
                 Text(place.title).font(CampusFont.black(18))
+                if place.googlePlaceId != nil { Button("Details, photos & reviews") { selectedPlace = place }.font(CampusFont.bold(12)).foregroundStyle(palette.accent) }
                 if !place.description.isEmpty { Text(place.description).font(CampusFont.regular(14)).lineLimit(4) }
                 Text(place.address).font(CampusFont.regular(12)).foregroundStyle(palette.secondary)
                 if let date = place.startsAt.flatMap(campusDate) { Text(date, format: .dateTime.month().day().hour().minute()).font(CampusFont.bold(12)) }
@@ -408,6 +446,10 @@ struct CampusDiscoveryView: View {
                     if let url = campusWebURL(place.website ?? place.sourceUrl) { Link("Website", destination: url); Spacer(); ShareLink(item: url) { Label("Share", systemImage: "square.and.arrow.up") } }
                 }.font(CampusFont.bold(12)).foregroundStyle(palette.accent).frame(minHeight: 44)
                 Text(place.source).font(CampusFont.regular(10, relativeTo: .caption2)).foregroundStyle(palette.secondary)
+                ForEach(Array((place.attributions ?? []).enumerated()), id: \.offset) { _, attribution in
+                    if let url = campusWebURL(attribution.url) { Link(attribution.name, destination: url).font(CampusFont.regular(11)) }
+                    else { Text(attribution.name).font(CampusFont.regular(11)) }
+                }
             }.padding(20).background(palette.surface, in: RoundedRectangle(cornerRadius: 24))
         }
     }
@@ -418,7 +460,7 @@ struct CampusDiscoveryView: View {
         let generation = UUID(); requestGeneration = generation
         loading = true; error = nil; places = []; listings = []
         defer { if requestGeneration == generation { loading = false } }
-        let origin: [URLQueryItem] = [.init(name: "lat", value: String(campus.latitude)), .init(name: "lng", value: String(campus.longitude))]
+        let origin: [URLQueryItem] = [.init(name: "lat", value: String(location.coordinate?.latitude ?? campus.latitude)), .init(name: "lng", value: String(location.coordinate?.longitude ?? campus.longitude))]
         do {
             if category == "Sell" {
                 let result: MarketplaceResponse = try await api.campusResource(.marketplace, query: origin)

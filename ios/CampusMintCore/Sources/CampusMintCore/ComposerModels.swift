@@ -52,6 +52,8 @@ public struct ComposerDraft: Codable, Sendable, Equatable, Identifiable {
     public var expiresAt: String?
     public var poll: PollInput?
     public var media: [UploadMedia] = []
+    public var mentions: [PostMention]?
+    public var context: PostContext?
     public var updatedAt = Date()
     public init() {}
     public var hasContent: Bool { !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || poll != nil || !media.isEmpty }
@@ -108,5 +110,54 @@ public enum SignedMediaUpload {
         request.setValue("false", forHTTPHeaderField: "x-upsert")
         request.setValue("max-age=3600", forHTTPHeaderField: "Cache-Control")
         return request
+    }
+}
+
+public struct ComposerCatalog: Decodable, Sendable {
+    public let clubs: [Club]; public let events: [Event]
+    public struct Club: Decodable, Sendable, Identifiable { public let id: UUID; public let name: String; public let canPublish: Bool }
+    public struct Event: Decodable, Sendable, Identifiable { public let id: UUID; public let title: String; public let startAt: String?; public let location: String? }
+}
+public struct PostContext: Codable, Sendable, Equatable {
+    public enum Kind: String, Codable, Sendable { case club, event }
+    public var kind: Kind
+    public var clubID: UUID?
+    public var eventID: UUID?
+    public var location: String
+    public init(kind: Kind, clubID: UUID? = nil, eventID: UUID? = nil, location: String = "") {
+        self.kind = kind; self.clubID = clubID; self.eventID = eventID; self.location = location
+    }
+    public func validated() throws -> Self {
+        var copy = self; copy.location = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch kind {
+        case .club:
+            guard clubID != nil else { throw CampusError.invalidPost("Choose a joined club.") }
+            copy.eventID = nil; copy.location = ""
+        case .event:
+            guard eventID != nil || !copy.location.isEmpty, copy.location.utf16.count <= 240 else { throw CampusError.invalidPost("Choose an event or add its location.") }
+            copy.clubID = nil
+        }
+        return copy
+    }
+}
+public struct PostLocation: Encodable, Sendable {
+    public let source = "custom"
+    public let label: String
+}
+public struct PostEvent: Encodable, Sendable {
+    public let eventId: UUID?
+    public let title: String?
+    public let location: PostLocation?
+    public let timeZone: String
+}
+public enum CaptionTags {
+    public static func hashtags(_ caption: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: "(?:^|\\s)#([A-Za-z0-9_]+)") else { return [] }
+        var seen = Set<String>()
+        return Array(regex.matches(in: caption, range: NSRange(caption.startIndex..., in: caption)).compactMap { match -> String? in
+            guard let range = Range(match.range(at: 1), in: caption) else { return nil }
+            let tag = String(caption[range]).lowercased()
+            return seen.insert(tag).inserted ? tag : nil
+        }.prefix(30))
     }
 }

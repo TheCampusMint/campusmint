@@ -20,6 +20,7 @@
 		A20000000000000000000003 = {isa = PBXBuildFile; fileRef = B20000000000000000000003; };
 		A20000000000000000000004 = {isa = PBXBuildFile; fileRef = B20000000000000000000004; };
 		A20000000000000000000005 = {isa = PBXBuildFile; fileRef = B20000000000000000000005; };
+		A20000000000000000000006 = {isa = PBXBuildFile; fileRef = B20000000000000000000006; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +40,7 @@
 		B20000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampusShell.swift; sourceTree = "<group>"; };
 		B20000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampusComposer.swift; sourceTree = "<group>"; };
 		B20000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampusMediaPreparation.swift; sourceTree = "<group>"; };
+		B20000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampusAccountFlows.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -83,6 +85,7 @@
                 B20000000000000000000001,
                 B20000000000000000000003,
                 B20000000000000000000005,
+                B20000000000000000000006,
                 B20000000000000000000004,
 			);
 			path = App;
@@ -191,6 +194,7 @@
                 A20000000000000000000001,
                 A20000000000000000000003,
                 A20000000000000000000005,
+                A20000000000000000000006,
                 A20000000000000000000004,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

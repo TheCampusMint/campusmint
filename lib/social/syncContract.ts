@@ -33,3 +33,16 @@ export function parseSocialMutation(input: Record<string,unknown>) {
   // Actor IDs, permissions, attachment URLs and arbitrary metadata are never accepted.
   return {p_action:action,p_target:input.target??null,p_data:data};
 }
+
+export function parseSocialDetails(query: URLSearchParams) {
+  const resource=query.get('resource'),target=query.get('target'),after=query.get('after'),search=query.get('query')?.trim()??'';
+  if (!resource || !['post','people','profile','following','blocked','saved','note','attendance'].includes(resource)) return null;
+  if ((['post','profile','attendance'].includes(resource)&&!target)||(target&&!isAccountId(target))||(after&&!isAccountId(after))||search.length>80) return null;
+  return {p_resource:resource,p_target:target,p_query:search,p_after:after};
+}
+const privacyFields=['accountType','bio','major','graduationYear','classes','clubs','interests','hometown','instagram','linkedin','portfolioUrl','personalWebsite'];
+export function parsePrivacyPatch(input: Record<string,unknown>) {
+  const entries=Object.entries(input);
+  if (!entries.length || entries.some(([key,value])=>!privacyFields.includes(key)||typeof value!=='string'||!(key==='accountType'?['public','private']:['everyone','students_only','friends_only','private']).includes(value))) return null;
+  return Object.fromEntries(entries) as Record<string,string>;
+}

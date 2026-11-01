@@ -9,6 +9,8 @@ import * as policy from "../lib/content/mintUploadPolicy.ts";
 import * as tickets from "../lib/content/mintUploadTicket.ts";
 import * as mediaPolicy from "../lib/content/mediaPolicy.ts";
 import { publishMint } from "../lib/content/publishMint.ts";
+import * as projection from "../lib/social/profileProjection.ts";
+import * as ranking from "../lib/social/mintFeedRanking.ts";
 import * as polls from "../lib/content/polls.ts";
 
 const userId = "85a07f98-0a8e-41f9-825c-847c094f33da";
@@ -78,12 +80,15 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
       return { data: { ...content.poll_definition, options: content.poll_definition.options.map((option) => ({ ...option, voteCount: 0 })), totalVotes: 0, selectedOptionId: null }, error: null };
     },
     from(table) {
+      assert.ok(!['content_comments','content_private_appreciations','content_public_endorsements','mint_pins'].includes(table), 'RPC-only tables must not be read directly');
       rows[table] ??= [];
-      let mode = "select", value, one = false;
+      let mode = "select", value, one = false, selection = "";
+      const commentFilters = [];
       const filters = [];
       const query = {
-        select() { return query; },
-        eq(key, expected) { filters.push((row) => row[key] === expected); return query; },
+        select(columns = "") { selection = columns; return query; },
+        eq(key, expected) { if(key.startsWith('content_comments.')) commentFilters.push(row=>row[key.split('.')[1]]===expected); else filters.push((row) => row[key] === expected); return query; },
+        not(key, operator, value) { assert.equal(key,'content_comments.author_id'); assert.equal(operator,'in');const excluded=value.slice(1,-1).split(',');commentFilters.push(row=>!excluded.includes(row.author_id));return query; },
         is(key, expected) { filters.push((row) => (row[key] ?? null) === expected); return query; },
         in(key, expected) { filters.push((row) => expected.includes(row[key])); return query; },
         order() { return query; }, limit() { return query; }, or(expression) {
@@ -95,6 +100,7 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
         delete() { mode = "delete"; return query; },
         then(resolve) {
           let result = rows[table].filter((row) => filters.every((filter) => filter(row)));
+          if (selection.includes('content_comments(count)')) result=result.map(row=>({...row,content_comments:[{count:(rows.content_comments??[]).filter(c=>c.content_id===row.id&&commentFilters.every(filter=>filter(c))).length}]}));
           if (mode === "insert") {
             result = (Array.isArray(value) ? value : [value]).map((item) => ({ id: randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), status: "active", ...item }));
             rows[table].push(...result);
@@ -119,6 +125,8 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
     } },
   };
   const bindings = {
+    "@/lib/social/profileProjection": projection,
+    "@/lib/social/mintFeedRanking": ranking,
     "@/lib/security/requestBody": requestBody,
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
     "@/data/universities": { configuredUniversityIds: ["tamu", "harvard"], universities: { tamu: { accessibleCampuses: ["tamu"] }, harvard: { accessibleCampuses: ["harvard"] } } },

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import * as requestBody from "../lib/security/requestBody.ts";
 import ts from "typescript";
+import * as projection from "../lib/social/profileProjection.ts";
 import { normalizeProfileUpdate, persistProfile, profileValuesFromRow } from "../lib/auth/profilePersistence.ts";
 import { getCampusAthleticsProfile, getCampusProgramCatalog } from "../data/sports/campus.ts";
 import { validateUsername } from "../lib/social/usernames.ts";
@@ -34,6 +35,7 @@ function database(resolve, authError = null) {
 
 function loadRoute(name, db) {
   const modules = {
+    "@/lib/social/profileProjection": projection,
     "@/lib/security/requestBody": requestBody,
     "@/data/sports/campus": { getCampusAthleticsProfile, getCampusProgramCatalog },
     "next/server": { NextResponse: { json: Response.json } },

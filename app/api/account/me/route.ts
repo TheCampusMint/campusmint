@@ -1,8 +1,11 @@
+import { databasePrivacyField } from "@/lib/social/profileProjection";
 import { NextResponse } from "next/server";
 
 import { configuredUniversityIds, type UniversityId } from "@/data/universities";
 import { userRoleOptions, type UserRole } from "@/data/userRoles";
 import { isStudentSmsVerificationRequired } from "@/lib/auth/studentSmsPolicy";
+import { assessStudentEmail } from "@/lib/auth/studentEmail";
+import { getCampusAthleticsProfile, getCampusProgramCatalog } from "@/data/sports/campus";
 import { profileValuesFromRow } from "@/lib/auth/profilePersistence";
 import { createSupabaseServerClient, hasSupabasePublicConfig } from "@/lib/supabase/server";
 import { accountCapabilityValues, type AccountCapability } from "@/types/accountCapabilities";
@@ -129,10 +132,17 @@ export async function GET() {
         controlStatus: application.control_status,
       } : null,
     } : null;
-    if (!identity || !profile) return response({ ok: true, configured: true, authenticated: true, accountType, capabilities, onboardingComplete: false, user: null, creator: dualCreator, studentSmsVerificationRequired: smsRequired, studentPhoneVerified, canUseCampusTester });
+    if (!identity || !profile) {
+      const assessment = assessStudentEmail(user.email ?? "");
+      const campus = assessment.ok ? assessment.resolved.identity.knownUniversityId : null;
+      const athletics = campus ? getCampusAthleticsProfile(campus) : null;
+      return response({ ok: true, configured: true, authenticated: true, accountType, capabilities, authUserId: user.id,
+        studentSetup: { universityId: campus, sports: athletics ? getCampusProgramCatalog(athletics).map(program => ({ id: program.sport, label: program.label })) : [] },
+        onboardingComplete: false, user: null, creator: dualCreator, studentSmsVerificationRequired: smsRequired, studentPhoneVerified, canUseCampusTester });
+    }
     const universityId = configuredUniversityIds.includes(identity.university_id as UniversityId) ? identity.university_id as UniversityId : "tamu";
     const role = userRoleOptions.some((option) => option.id === identity.role) ? identity.role as UserRole : "student";
-    const mapPrivacy = (key: keyof ProfilePrivacySettings) => privacy?.[key === "portfolioUrl" ? "portfolio_url" : key === "personalWebsite" ? "personal_website" : key] ?? defaultPrivacy[key];
+    const mapPrivacy = (key: keyof ProfilePrivacySettings) => privacy?.[databasePrivacyField(key)] ?? defaultPrivacy[key];
     const campusUser: CampusMintUser = {
       account: {
         id: user.id, accountType: "student", capabilities, universityId, knownUniversityId: universityId,
@@ -154,7 +164,7 @@ export async function GET() {
         instagram: mapPrivacy("instagram"), linkedin: mapPrivacy("linkedin"), portfolioUrl: mapPrivacy("portfolioUrl"),
         personalWebsite: mapPrivacy("personalWebsite"),
       },
-      socialSettings: { accountType: "private", discoveryScope: "university" },
+      socialSettings: { accountType: profile.social_account_type === "public" ? "public" : "private", discoveryScope: "university" },
     };
     return response({ ok: true, configured: true, authenticated: true, accountType, capabilities, onboardingComplete: !smsRequired || studentPhoneVerified, user: campusUser, creator: dualCreator, studentSmsVerificationRequired: smsRequired, studentPhoneVerified, canUseCampusTester });
   } catch {

@@ -1,3 +1,5 @@
+import SwiftUI
+import UIKit
 import Foundation
 import CoreTransferable
 import UniformTypeIdentifiers
@@ -69,4 +71,33 @@ enum CampusMediaPreparation {
         } catch { try? FileManager.default.removeItem(at: target); throw error }
     }
     private static func fileSize(_ url: URL) throws -> Int { try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0 }
+}
+
+struct CampusCapture { let url: URL; let video: Bool }
+struct CampusCamera: UIViewControllerRepresentable {
+    let completion: (CampusCapture?) -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController(); picker.sourceType = .camera
+        picker.mediaTypes = [UTType.image.identifier, UTType.movie.identifier]
+        picker.videoQuality = .typeHigh; picker.delegate = context.coordinator
+        return picker
+    }
+    func updateUIViewController(_ controller: UIImagePickerController, context: Context) {}
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let completion: (CampusCapture?) -> Void
+        init(completion: @escaping (CampusCapture?) -> Void) { self.completion = completion }
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { completion(nil) }
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            let video = info[.mediaURL] as? URL
+            let target = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension(video == nil ? "jpg" : "mov")
+            do {
+                if let video { try FileManager.default.copyItem(at: video, to: target) }
+                else if let image = info[.originalImage] as? UIImage, let data = image.jpegData(compressionQuality: 0.98) { try data.write(to: target, options: .completeFileProtection) }
+                else { completion(nil); return }
+                try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: target.path)
+                completion(CampusCapture(url: target, video: video != nil))
+            } catch { try? FileManager.default.removeItem(at: target); completion(nil) }
+        }
+    }
 }

@@ -1,12 +1,19 @@
 import Foundation
 
 public enum CampusResource: String, Sendable {
-    case sports = "/api/sports", clubs = "/api/clubs", nearby = "/api/discovery/nearby", marketplace = "/api/marketplace"
+    case events = "/api/events"
+    case composerContext = "/api/mintz/context"
+    case sports = "/api/sports", clubs = "/api/clubs", nearby = "/api/discovery/nearby", marketplace = "/api/marketplace", marketplaceMessages = "/api/marketplace/messages"
 }
-public struct ClubsResponse: Decodable, Sendable { public let clubs: [CampusClub] }
+public struct ClubsResponse: Decodable, Sendable { public let clubs: [CampusClub]; public let people: [ClubPerson]? }
 public struct CampusClub: Decodable, Sendable, Identifiable {
     public let id: String; public let name: String; public let handle: String; public let summary: String; public let visibility: String
     public let memberCount: Int; public let role: String?; public let invited: Bool
+    public let editable: Bool?; public let ownerId: UUID?; public let photo: String?; public let tags: [String]?; public let members: [ClubPerson]?
+    public var canManage: Bool { role == "leader" || role == "officer" }
+    public func canRemove(_ person: ClubPerson, actor: UUID) -> Bool {
+        canManage && person.id != actor && person.role != "leader" && (person.role != "officer" || role == "leader")
+    }
     public let description: String?; public let location: String?; public let schedule: String?; public let website: String?
 }
 public struct SportsResponse: Decodable, Sendable {
@@ -70,9 +77,18 @@ public struct NearbyPlace: Decodable, Sendable, Identifiable {
     public let website: String?; public let image: String?; public let source: String; public let sourceUrl: String
     public let startsAt: String?; public let rating: Double?; public let ratingCount: Int?
     public let imageCredit: String?; public let imageCreditUrl: String?
+    public let googlePlaceId: String?; public let attributions: [PlaceAttribution]?
 }
 public struct MarketplaceResponse: Decodable, Sendable { public let listings: [CampusListing] }
 public struct CampusListing: Decodable, Sendable, Identifiable {
     public let id: String; public let title: String; public let brand: String; public let condition: String
     public let askingPrice: Double; public let pickupArea: String; public let sellerId: String; public let status: String
+}
+
+public struct EventsResponse: Decodable, Sendable { public let events: [CampusEvent] }
+public struct CampusEvent: Decodable, Sendable, Identifiable {
+    public let id: UUID; public let title: String; public let description: String
+    public let eventStartAt: String; public let eventEndAt: String?; public let location: String; public let address: String?
+    public let source: Source?
+    public struct Source: Decodable, Sendable { public let sourceTitle: String; public let sourceUrl: String; public let officialImageUrl: String? }
 }

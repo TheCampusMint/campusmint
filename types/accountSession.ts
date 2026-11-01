@@ -44,6 +44,8 @@ export type AccountSessionResponse =
       configured: true;
       authenticated: true;
       accountType: "student";
+      authUserId?: string;
+      studentSetup?: { universityId: string | null; sports: { id: string; label: string }[] };
       capabilities: AccountCapability[];
       canUseCampusTester?: boolean;
       studentSmsVerificationRequired: boolean;

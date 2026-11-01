@@ -462,3 +462,66 @@ test('private-account outreach permits only its actual recipient to reply; empty
  await assert.rejects(social(stranger,'follow',owner,{enabled:true}),{code:'42501'});
  await db.exec(`update public.profiles set social_account_type='public' where user_id='${owner}'`);
 });
+
+async function detail(actor,resource,target=null,query='',after=null) {
+ const sql=`select public.read_social_details('${actor}','${resource}',${target?`'${target}'`:'null'},'${query.replaceAll("'","''")}',${after?`'${after}'`:'null'}) as value`;
+ return (await asRole('service_role',null,sql)).rows[0].value;
+}
+test('bounded native social reads preserve post access, identity, blocks and literal search',async()=>{
+ await db.exec(`delete from public.profile_blocks; delete from public.friendships; update public.mints set privacy='private' where content_id='${post}';`);
+ await assert.rejects(detail(stranger,'post',post),{code:'42501'});
+ await social(owner,'save',post,{enabled:true});
+ assert.equal((await detail(owner,'post',post)).saved,true);
+ await db.exec(`insert into public.content_comments(id,content_id,author_id,body,status) values
+  ('c1000000-1111-4111-8111-111111111111','${post}','${owner}','Visible','active'),
+  ('c2000000-1111-4111-8111-111111111111','${post}','${stranger}','Other','active'),
+  ('c3000000-1111-4111-8111-111111111111','${post}','${owner}','Deleted','deleted');`);
+ const before=(await detail(owner,'post',post)).commentCount;
+ assert.equal(before,Number((await db.query(`select count(*) from public.content_comments where content_id='${post}' and status='active'`)).rows[0].count));
+ await social(owner,'block',stranger,{enabled:true});
+ const blocked=(await detail(owner,'post',post)).commentCount;
+ const otherCount=Number((await db.query(`select count(*) from public.content_comments where content_id='${post}' and author_id='${stranger}' and status='active'`)).rows[0].count);
+ assert.equal(blocked,before-otherCount);
+ await social(owner,'block',stranger,{enabled:false});
+ await db.exec(`delete from public.content_comments where id in ('c1000000-1111-4111-8111-111111111111','c2000000-1111-4111-8111-111111111111','c3000000-1111-4111-8111-111111111111');`);
+
+ assert.deepEqual((await detail(stranger,'saved')).items,[]);
+ assert.deepEqual((await detail(owner,'saved')).items,[{id:post}]);
+ assert.equal((await detail(owner,'people',null,'%')).items.length,0,'wildcards are literal');
+ assert.equal((await detail(owner,'people',null,'rls.other')).items[0].id,stranger);
+ await social(stranger,'block',owner,{enabled:true});
+ assert.equal((await detail(owner,'people',null,'rls.other')).items.length,0);
+ await assert.rejects(detail(owner,'profile',stranger),{code:'42501'});
+ assert.equal((await detail(owner,'blocked')).items.length,0,'cannot discover who blocked you');
+ assert.equal((await detail(stranger,'blocked')).items[0].id,owner);
+ await social(stranger,'block',owner,{enabled:false});
+ await db.exec(`update public.profile_identities set verified_student=false where user_id='${administrator}'`);
+ await assert.rejects(detail(administrator,'people'),{code:'42501'});
+ await db.exec(`update public.profile_identities set verified_student=true where user_id='${administrator}'`);
+ for(const role of ['anon','authenticated']) await assert.rejects(asRole(role,owner,`select public.read_social_details('${owner}','people')`),{code:'42501'});
+});
+test('native directory pagination is bounded, stable and field-private',async()=>{
+ await db.exec(`update public.profiles set bio='Hidden biography',major='Private major',social_account_type='public' where user_id='${stranger}'; update public.profile_privacy_settings set bio='private',major='friends_only' where user_id='${stranger}';`);
+ const profile=(await detail(owner,'profile',stranger)).items[0];
+ assert.equal(profile.bio,null);assert.equal(profile.major,null);assert.equal(profile.canMessage,true);
+ assert.equal(JSON.stringify(profile).includes('Hidden biography'),false);
+ await db.exec(`insert into auth.users(id) select ('b0000000-1111-4111-8111-'||lpad(n::text,12,'0'))::uuid from generate_series(1,55)n;
+ insert into public.profile_identities(user_id,university_id,role,verified_student,account_type) select id,'tamu','student',true,'student' from auth.users where id::text like 'b0000000%';
+ insert into public.profiles(user_id,first_name,last_name,display_name,username) select id,'Page','','Page','page.'||right(id::text,12) from auth.users where id::text like 'b0000000%';`);
+ const first=await detail(owner,'people',null,'page.');assert.equal(first.items.length,50);assert.equal(first.hasMore,true);
+ const second=await detail(owner,'people',null,'page.',first.items.at(-1).id);assert.equal(second.items.length,5);assert.equal(second.hasMore,false);
+ assert.equal(new Set([...first.items,...second.items].map(x=>x.id)).size,55);
+});
+test('privacy saves are server-only, atomic, account-owned and enforced by content reads',async()=>{
+ await assert.rejects(asRole('service_role',null,`select public.update_profile_privacy('${owner}',null)`),{code:'22023'});
+ const patch=async(actor,value)=>(await asRole('service_role',null,`select public.update_profile_privacy('${actor}','${JSON.stringify(value)}') as value`)).rows[0].value;
+ await db.exec(`update public.mints set privacy='public' where content_id='${post}'; update public.profiles set social_account_type='public' where user_id='${owner}';`);
+ assert.equal((await detail(stranger,'post',post)).saved,false);
+ assert.equal((await patch(owner,{accountType:'private',bio:'private',classes:'private'})).ok,true);
+ await assert.rejects(detail(stranger,'post',post),{code:'42501'});
+ assert.equal((await db.query(`select social_account_type from public.profiles where user_id='${stranger}'`)).rows[0].social_account_type,'public');
+ for(const invalid of [{user_id:stranger},{role:'admin'},{bio:'world'},{accountType:null},{accountType:'public',bad:'private'}]) await assert.rejects(patch(owner,invalid),{code:'22023'});
+ assert.equal((await db.query(`select social_account_type from public.profiles where user_id='${owner}'`)).rows[0].social_account_type,'private','invalid patch rolls back all fields');
+ for(const role of ['anon','authenticated']) await assert.rejects(asRole(role,owner,`select public.update_profile_privacy('${owner}','{"accountType":"public"}')`),{code:'42501'});
+ await patch(owner,{accountType:'public'});
+});

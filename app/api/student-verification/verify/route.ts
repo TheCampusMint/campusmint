@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   }
   const input = body as Record<string, unknown>;
   const signIn = input.mode === "sign_in";
-  if (input.client === "ios" && !signIn) return json({ ok: false, reason: "invalid_request", message: "Create your account on the website first." }, 400);
+  if (input.client === "ios" && !signIn && (input.mode !== "sign_up" || input.accountType !== "student")) return json({ ok: false, reason: "invalid_request", message: "Choose Student signup." }, 400);
   const signupAccountType = isSignupAccountType(input.accountType) ? input.accountType : null;
   if (typeof input.email !== "string" || typeof input.code !== "string" || !/^\d{6}$/.test(input.code) || (!signIn && !signupAccountType)) return json({ ok: false, reason: "invalid_request", message: "Enter the six-digit verification code." }, 400);
   if (!hasSupabasePublicConfig() || !hasSupabaseServerConfig()) {
@@ -60,6 +60,11 @@ export async function POST(request: Request) {
     await supabase.auth.signOut();
     return json({ ok: false, reason: "invalid_request", message: "This account uses a different sign-in type." }, 400);
   }
+  // Recheck institution eligibility before assigning any account claim or native session.
+  if (signupAccountType === "student" && !assessStudentEmail(email).ok) {
+    await supabase.auth.signOut();
+    return json({ ok: false, reason: "invalid_request", message: "This student email is not eligible." }, 400);
+  }
   if (!metadataType) {
     const admin = createSupabaseAdminClient();
     const { error: claimError } = await admin.auth.admin.updateUserById(data.user.id, {
@@ -76,6 +81,10 @@ export async function POST(request: Request) {
     if (!assessment.ok) {
       await supabase.auth.signOut();
       return json({ ok: false, reason: "invalid_request", message: "This student email is not eligible." }, 400);
+    }
+    if (input.client === "ios" && data.session) {
+      try { await recordNativeSession(supabase, data.session); }
+      catch { await supabase.auth.signOut(); return json({ ok: false, reason: "auth_unavailable", message: "Native signup is temporarily unavailable." }, 503); }
     }
     const now = new Date().toISOString();
     return json({ ok: true, ...nativeSession, userId: data.user.id, email, accountType: "student", verifiedStudent: {

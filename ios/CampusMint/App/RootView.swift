@@ -8,6 +8,8 @@ struct RootView: View {
         Group {
             if model.isRestoring {
                 ProgressView("Campus Mint")
+            } else if model.pendingStudent != nil {
+                NativeStudentSetupView()
             } else if model.account == nil {
                 AccountEntryView()
             } else {
@@ -32,8 +34,10 @@ struct AccountEntryView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.campusPalette) private var palette
     @State private var signingIn = false
+    @State private var signingUp = false
     var body: some View {
         if signingIn { SignInView(onBack: { signingIn = false }) }
+        else if signingUp { SignInView(onBack: { signingUp = false }, signup: true) }
         else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -44,7 +48,9 @@ struct AccountEntryView: View {
                             .foregroundStyle(palette.accentContrast).background(palette.accent, in: Capsule())
                     }.padding(.top, 28).padding(.bottom, 16)
                     ForEach([("Student", "Eligible university email"), ("Brand", "Business identity and Channel"), ("Creator", "Application and review")], id: \.0) { entry in
-                        if let website = model.website {
+                        if entry.0 == "Student" {
+                            Button { signingUp = true } label: { VStack(alignment: .leading, spacing: 8) { Text("Student").font(CampusFont.bold(18)); Text("Eligible university email").font(CampusFont.regular(12)).foregroundStyle(palette.secondary) }.frame(maxWidth: .infinity, alignment: .leading).padding(20).background(palette.surface, in: RoundedRectangle(cornerRadius: 28)) }.padding(.bottom, 12)
+                        } else if let website = model.website {
                             Link(destination: website) {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text(entry.0).font(CampusFont.bold(18)).foregroundStyle(palette.text)
@@ -65,6 +71,7 @@ struct SignInView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.campusPalette) private var palette
     let onBack: () -> Void
+    var signup = false
     @State private var email = ""
     @State private var code = ""
     @State private var codeSent = false
@@ -82,7 +89,7 @@ struct SignInView: View {
                 } label: { CampusLeaf(back: true).frame(width: 24, height: 24).frame(width: 44, height: 44).contentShape(Rectangle()) }
                 .accessibilityLabel("Back").disabled(working).padding(.bottom, 28)
                 Text("THE CAMPUS MINT").font(CampusFont.black(10, relativeTo: .caption2)).tracking(1.8).foregroundStyle(palette.accent)
-                Text(codeSent ? "Check your email" : "Welcome back")
+                Text(codeSent ? "Check your email" : signup ? "Join Campus Mint" : "Welcome back")
                     .font(CampusFont.black(36, relativeTo: .largeTitle)).tracking(-1.62).padding(.top, 12)
                     .accessibilityAddTraits(.isHeader)
                 Text(codeSent ? "Code sent to \(email)." : "Your account email")
@@ -101,7 +108,7 @@ struct SignInView: View {
                         .background(palette.surface, in: RoundedRectangle(cornerRadius: 16)).onSubmit { submit() }
                 }
                 Button { submit() } label: {
-                    Text(working ? (codeSent ? "Signing in…" : "Sending…") : (codeSent ? "Sign in" : "Email me a sign-in code"))
+                    Text(working ? (codeSent ? "Verifying…" : "Sending…") : (codeSent ? (signup ? "Continue" : "Sign in") : "Email me a code"))
                         .font(CampusFont.black(16)).frame(maxWidth: .infinity).padding(.vertical, 16)
                         .foregroundStyle(palette.accentContrast).background(palette.accent, in: Capsule())
                 }.disabled(working || (codeSent ? code.count != 6 : !email.contains("@"))).opacity(working ? 0.5 : 1).padding(.top, 16)
@@ -117,8 +124,8 @@ struct SignInView: View {
             working = true; error = nil
             defer { working = false }
             do {
-                if codeSent { try await model.signIn(email: email, code: code) }
-                else { try await model.requestCode(email); codeSent = true; field = .code }
+                if codeSent { if signup { try await model.verifyStudentSignup(email: email, code: code) } else { try await model.signIn(email: email, code: code) } }
+                else { if signup { try await model.requestStudentSignup(email) } else { try await model.requestCode(email) }; codeSent = true; field = .code }
             } catch { self.error = error.localizedDescription }
         }
     }
@@ -141,7 +148,12 @@ struct FeedView: View {
 
 struct MintPostView: View {
     @Environment(\.campusPalette) private var palette
+    @EnvironmentObject private var model: AppModel
     @State private var showingComments = false
+    @State private var showingAuthor = false
+    @State private var visibleCommentCount: Int?
+    @State private var canComment = true
+    @State private var contextDestination: NativeContextDestination?
     let post: MintPost
     let author: CampusUser?
     private var time: String {
@@ -154,14 +166,21 @@ struct MintPostView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                CampusAvatar(name: author?.profile.displayName ?? "Campus member")
+                Button { showingAuthor = true } label: { CampusAvatar(name: author?.profile.displayName ?? "Campus member") }.disabled(author == nil || author?.id == model.account?.id)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(author.map { "@" + $0.profile.username } ?? "Campus member").font(CampusFont.black(14))
                     Text([campusIdentities[author?.account.universityId ?? ""]?.name, time].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(CampusFont.regular(12, relativeTo: .caption)).foregroundStyle(palette.secondary)
                 }
                 Spacer(minLength: 0)
+                if let id = UUID(uuidString: post.id), post.authorId != model.account?.id { NativeNotInterested(post: id) }
             }.padding(12)
+            if let event = post.eventData {
+                Button { if let value = event.eventId, let id = UUID(uuidString: value) { contextDestination = .init(kind: .event(id)) } } label: { Label(event.title, systemImage: "calendar").font(CampusFont.bold(12)).foregroundStyle(palette.personal).padding(12) }.disabled(event.eventId.flatMap(UUID.init(uuidString:)) == nil)
+            }
+            ForEach(post.taggedOrganizations ?? []) { club in
+                Button { if let id = UUID(uuidString: club.id) { contextDestination = .init(kind: .club(id)) } } label: { Label(club.name, systemImage: "person.3").font(CampusFont.bold(12)).foregroundStyle(palette.discovery).padding(12) }
+            }
             if !post.caption.isEmpty { Text(post.caption).font(CampusFont.regular(14)).lineSpacing(5).textSelection(.enabled).padding(.horizontal, 12).padding(.vertical, 8) }
             ForEach(post.media) { media in
                 if let url = media.secureURL {
@@ -175,23 +194,28 @@ struct MintPostView: View {
             if let poll = post.poll, let id = UUID(uuidString: post.id) { CampusPollView(postID: id, poll: poll).padding(12) }
             HStack(spacing: 16) {
                 if let views = post.viewCount { Text("\(views) views") }
-                if let comments = post.commentCount { Text("\(comments) comments") }
+                if let comments = visibleCommentCount { Text("\(comments) comments") }
             }.font(CampusFont.regular(11, relativeTo: .caption2)).foregroundStyle(palette.secondary).padding(.horizontal, 12).padding(.top, 32)
             HStack(spacing: 4) {
                 Button { showingComments = true } label: {
-                    HStack(spacing: 6) { Image(systemName: "bubble"); if let count = post.commentCount { Text("\(count)").font(CampusFont.bold(12)) } }.frame(minWidth: 44, minHeight: 44)
-                }.accessibilityLabel("Open comments")
+                    HStack(spacing: 6) { Image(systemName: "bubble"); if let count = visibleCommentCount { Text("\(count)").font(CampusFont.bold(12)) } }.frame(minWidth: 44, minHeight: 44)
+                }.accessibilityLabel((!canComment || post.commentsEnabled == false) ? "Comments are off" : "Open comments").disabled(!canComment || post.commentsEnabled == false)
                 if let url = campusWebURL("https://www.thecampusmint.com/mint/\(post.id)") {
-                    ShareLink(item: url) { Label("Share", systemImage: "square.and.arrow.up").font(CampusFont.bold(12)).frame(minHeight: 44) }.accessibilityLabel("Share Mint")
+                    if let id = UUID(uuidString: post.id) { NativeMintShare(post: id, url: url) }
                 }
-                Spacer()
+                Spacer(minLength: 0)
+                if let id = UUID(uuidString: post.id) { NativePostActions(postID: id, commentCount: $visibleCommentCount, canComment: $canComment) }
             }.foregroundStyle(palette.accent).padding(.horizontal, 12).padding(.bottom, 12)
         }.background(palette.surface, in: RoundedRectangle(cornerRadius: 24))
+            .sheet(item: $contextDestination) { destination in NativeNotificationDestination(destination: destination.kind, name: "Campus Mint").presentationBackground(palette.background) }
+            .sheet(isPresented: $showingAuthor) { NativeProfileLoader(id: post.authorId).presentationBackground(palette.background) }
             .sheet(isPresented: $showingComments) { if let id = UUID(uuidString: post.id) { CommentsView(postID: id).presentationBackground(palette.background).presentationCornerRadius(32) } }
     }
 }
 
 struct ProfileView: View {
+    @State private var editing = false
+    @State private var showingSaved = false
     @EnvironmentObject private var model: AppModel
     @Environment(\.campusPalette) private var palette
     var body: some View {
@@ -212,11 +236,12 @@ struct ProfileView: View {
                             if let bio = user.profile.bio, !bio.isEmpty { Text(bio).font(CampusFont.regular(14)) }
                             if let major = user.profile.major, !major.isEmpty { Text(major).font(CampusFont.regular(12)).foregroundStyle(palette.secondary) }
                             HStack {
-                                if let website = model.website { Link("Edit profile on website", destination: website).font(CampusFont.bold(12)).padding(.horizontal, 14).frame(minHeight: 44).foregroundStyle(palette.accent).background(palette.accentSoft, in: Capsule()) }
+                                Button("Edit profile") { editing = true }.font(CampusFont.bold(12)).padding(.horizontal, 14).frame(minHeight: 44).foregroundStyle(palette.accent).background(palette.accentSoft, in: Capsule())
                                 Spacer()
                                 Button("Log out") { Task { await model.signOut() } }.font(CampusFont.bold(12)).foregroundStyle(palette.urgent).frame(minHeight: 44)
                             }
                         }.padding(20).frame(maxWidth: .infinity, alignment: .leading).background(palette.surface, in: RoundedRectangle(cornerRadius: 28))
+                        Button("Saved posts") { showingSaved = true }.font(CampusFont.bold(14)).foregroundStyle(palette.accent).frame(minHeight: 44)
                         Text("Mintz").font(CampusFont.bold(14)).foregroundStyle(palette.accent).padding(.horizontal, 16)
                         LazyVStack(spacing: 0) {
                             ForEach(model.posts.filter { $0.authorId == user.id }) { post in MintPostView(post: post, author: user) }
@@ -225,5 +250,7 @@ struct ProfileView: View {
                 }
             }
         }.background(palette.background).buttonStyle(CampusPressStyle())
+            .sheet(isPresented: $showingSaved) { NativeSavedPosts().presentationBackground(palette.background) }
+            .sheet(isPresented: $editing) { if let user = model.account { NativeProfileEditor(user: user).presentationBackground(palette.background) } }
     }
 }

@@ -233,3 +233,67 @@ func nativePollVotesUseCanonicalSessionAndServerResults() async throws {
     try expect(request.httpBody == body && request.value(forHTTPHeaderField: "Authorization") == "Bearer test-access")
     try expect(request.value(forHTTPHeaderField: "X-App-Attest-Assertion") == "vote-proof")
 }
+
+
+func nativeCampusWritesBindOwnerMethodAndExactBody() async throws {
+    let network = MockTransport([.init(status: 200, json: accountJSON()), .init(status: 200, json: "{\"ok\":true}")])
+    let api = try CampusAPI(baseURL: URL(string: "https://example.com")!, vault: MemoryVault(token()), transport: network)
+    _ = try await api.restore()
+    let body = Data("{\"firstName\":\"A\",\"lastName\":\"\"}".utf8)
+    try await expectThrows(CampusError.signedOut) { try await api.mutateCampus(.profile, body: body, owner: otherID) }
+    try expect(await network.requests.count == 1)
+    _ = try await api.mutateCampus(.profile, body: body, owner: accountID, additionalHeaders: ["X-App-Attest-Assertion": "proof", "Authorization": "evil"])
+    let requests = await network.requests
+    try expect(requests[1].url?.path == "/api/account/profile" && requests[1].httpMethod == "PATCH" && requests[1].httpBody == body)
+    try expect(requests[1].value(forHTTPHeaderField: "Authorization") == "Bearer test-access")
+    try expect(requests[1].value(forHTTPHeaderField: "X-App-Attest-Assertion") == "proof")
+    try expect(CampusWrite.club.path == "/api/clubs" && CampusWrite.club.method == "POST")
+    try expect(CampusWrite.listingStatus.path == "/api/marketplace" && CampusWrite.listingStatus.method == "PATCH")
+    try expect(CampusWrite.marketplaceMessage.path == "/api/marketplace/messages")
+}
+
+func nativeDetailsAndPlacesStayBoundedAndOwnerScoped() async throws {
+    let network = MockTransport([.init(status: 200, json: accountJSON()), .init(status: 200, json: "{\"items\":[],\"hasMore\":false}"), .init(status: 200, json: "{\"photo\":null}")])
+    let api = try CampusAPI(baseURL: URL(string: "https://example.com")!, vault: MemoryVault(token()), transport: network)
+    _ = try await api.restore()
+    try await expectThrows(.configuration) { () async throws -> SocialDirectory in try await api.socialDetail(.profile) }
+    try await expectThrows(.configuration) { () async throws -> SocialDirectory in try await api.socialDetail(.people, search: String(repeating: "a", count: 81)) }
+    try await expectThrows(.configuration) { () async throws -> PlacePhotoResponse in try await api.placeResource(id: "../admin", view: .photo(0)) }
+    try await expectThrows(.configuration) { () async throws -> PlacePhotoResponse in try await api.placeResource(id: "abc", view: .photo(5)) }
+    try await expectThrows(.configuration) { try await api.feed(ids: []) }
+    try await expectThrows(.signedOut) { try await api.mutateSocialEncoded(Data("{}".utf8), owner: UUID()) }
+    try await expectThrows(.signedOut) { try await api.publishEncoded(Data("{}".utf8), owner: otherID) }
+    try await expectThrows(.signedOut) { try await api.prepareUploadEncoded(Data("{}".utf8), owner: otherID) }
+    try expect(await network.requests.count == 1)
+    let _: SocialDirectory = try await api.socialDetail(.people, search: "a&target=another", after: accountID)
+    let _: PlacePhotoResponse = try await api.placeResource(id: "safe_place-id", view: .photo(2))
+    let requests = await network.requests
+    let parts = try require(URLComponents(url: requests[1].url!, resolvingAgainstBaseURL: false))
+    try expect(parts.queryItems?.first(where: { $0.name == "query" })?.value == "a&target=another")
+    try expect(parts.queryItems?.contains(where: { $0.name == "target" }) == false)
+    try expect(requests[2].url?.path == "/api/places/safe_place-id/photo")
+    try expect(requests[2].value(forHTTPHeaderField: "Authorization") != nil)
+}
+
+func studentSignupIsExplicitResumableAndIdentityBound() async throws {
+    let incomplete = "{\"ok\":true,\"authenticated\":true,\"accountType\":\"student\",\"onboardingComplete\":false,\"user\":null,\"authUserId\":\"\(accountID)\",\"studentSetup\":{\"universityId\":\"tamu\",\"sports\":[{\"id\":\"football\",\"label\":\"Football\"}]}}"
+    let vault = MemoryVault(token())
+    let network = MockTransport([.init(status: 200, json: incomplete), .init(status: 200, json: "{\"ok\":true}"), .init(status: 200, json: accountJSON())])
+    let api = try CampusAPI(baseURL: URL(string: "https://example.com")!, vault: vault, transport: network)
+    let restored = try await api.restore(); try expect(restored?.authUserId == accountID && restored?.studentSetup?.sports.first?.id == "football")
+    let signup = try StudentSignup(firstName: " Ada ", lastName: "", username: "Ada.Student", sports: ["football"])
+    let body = try JSONEncoder().encode(signup)
+    let result = try await api.completeStudentSignupEncoded(body, owner: accountID, additionalHeaders: ["X-App-Attest-Assertion": "exact-proof"])
+    try expect(result.user?.id == accountID)
+    let requests = await network.requests; try expect(requests[1].httpBody == body && requests[1].url?.path == "/api/account/complete")
+    let object = try require(JSONSerialization.jsonObject(with: body) as? [String: Any]); try expect(object["firstName"] as? String == "Ada" && object["lastName"] as? String == "" && object["userId"] == nil)
+    let requestNetwork = MockTransport([.init(status: 200, json: "{\"ok\":true}")])
+    let requestAPI = try CampusAPI(baseURL: URL(string: "https://example.com")!, vault: MemoryVault(), transport: requestNetwork)
+    try await requestAPI.requestStudentSignupCode(email: "ada@tamu.edu")
+    let sent = try require(await requestNetwork.requests.first?.httpBody)
+    let data = try require(JSONSerialization.jsonObject(with: sent) as? [String: String]); try expect(data["mode"] == "sign_up" && data["accountType"] == "student")
+    let wrongVault = MemoryVault(token())
+    let wrongNetwork = MockTransport([.init(status: 200, json: incomplete.replacingOccurrences(of: accountID.uuidString, with: otherID.uuidString))])
+    let wrong = try CampusAPI(baseURL: URL(string: "https://example.com")!, vault: wrongVault, transport: wrongNetwork)
+    try await expectThrows(.identityMismatch) { try await wrong.restore() }; try expect(await wrongVault.load() == nil)
+}

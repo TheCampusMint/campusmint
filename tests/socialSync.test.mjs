@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseSocialMutation,parseSocialRead} from '../lib/social/syncContract.ts';
+import {parseSocialMutation,parseSocialRead,parseSocialDetails,parsePrivacyPatch} from '../lib/social/syncContract.ts';
 import {mapServerNotification} from '../lib/notifications/serverNotifications.ts';
 const id='12345678-1234-4123-8123-123456789012';
 test('social mutations retain only validated fields, never an actor or attachment URL',()=>{
@@ -69,4 +69,14 @@ test('a failed refresh does not permanently prevent retries',async()=>{
  let reads=0;const queue=createRefreshQueue(async()=>{if(++reads===1)throw new Error('offline');});
  await assert.rejects(queue.request(),/offline/);
  await queue.request();assert.equal(reads,2);
+});
+
+test('native social detail requests and privacy updates reject authority injection and malformed targets',()=>{
+ for(const resource of ['post','profile','attendance']) assert.equal(parseSocialDetails(new URLSearchParams({resource})),null);
+ assert.equal(parseSocialDetails(new URLSearchParams({resource:'people',query:'a'.repeat(81)})),null);
+ assert.equal(parseSocialDetails(new URLSearchParams({resource:'people',after:'bad'})),null);
+ const parsed=parseSocialDetails(new URLSearchParams({resource:'people',p_actor:id,query:' Ada '}));
+ assert.deepEqual(parsed,{p_resource:'people',p_target:null,p_query:'Ada',p_after:null});
+ for(const patch of [{},{userId:id},{accountType:'admin'},{bio:null},{classes:'public'},{bio:'private',role:'student'}])assert.equal(parsePrivacyPatch(patch),null);
+ assert.deepEqual(parsePrivacyPatch({accountType:'private',bio:'friends_only'}),{accountType:'private',bio:'friends_only'});
 });

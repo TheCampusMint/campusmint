@@ -36,6 +36,8 @@ final class AppModel: ObservableObject {
     let socialChanges = SocialInvalidationHub()
     @Published var posts: [MintPost] = []
     @Published var authors: [UUID: CampusUser] = [:]
+    @Published var canUseCampusTester = false
+    @Published var pendingStudent: AccountResponse?
     @Published var isRestoring = true
     @Published var busy = false
     @Published var message: String?
@@ -115,11 +117,29 @@ final class AppModel: ObservableObject {
         await refreshFeed()
     }
 
+    func requestStudentSignup(_ email: String) async throws {
+        guard let api else { throw CampusError.configuration }; configuration = try await api.configuration()
+        try await api.requestStudentSignupCode(email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
+    func verifyStudentSignup(email: String, code: String) async throws {
+        guard let api else { throw CampusError.configuration }; try accept(try await api.verifyStudentSignup(email: email, code: code)); await refreshFeed()
+    }
+    func finishStudentSignup(_ profile: StudentSignup) async throws {
+        guard let api, let owner = pendingStudent?.authUserId, let configuration else { throw CampusError.signedOut }
+        if configuration.appAttestRequired && !configuration.appAttestEnabled { throw CampusError.featureUnavailable }
+        let data = try JSONEncoder().encode(profile)
+        let headers = configuration.appAttestEnabled ? try await appAttest.headers(api: api, userID: owner, method: "POST", path: "/api/account/complete", body: data) : [:]
+        guard pendingStudent?.authUserId == owner else { throw CampusError.signedOut }
+        try accept(try await api.completeStudentSignupEncoded(data, owner: owner, additionalHeaders: headers)); await refreshFeed()
+    }
+
     private func accept(_ result: AccountResponse) throws {
+        canUseCampusTester = result.canUseCampusTester == true
+        if result.accountType == "student", result.onboardingComplete == false, result.user == nil, result.authUserId != nil, result.studentSetup != nil { pendingStudent = result; account = nil; return }
         guard result.onboardingComplete == true, let user = result.user, user.account.verifiedStudent else {
             throw CampusError.unsupportedAccount
         }
-        account = user
+        pendingStudent = nil; account = user
     }
 
     func refreshFeed() async {
@@ -138,7 +158,7 @@ final class AppModel: ObservableObject {
     func publish(draft: ComposerDraft, owner: UUID) async throws {
         guard let api, canPublish, let configuration else { throw CampusError.featureUnavailable }
         guard account?.id == owner else { throw CampusError.signedOut }
-        let post = try TextPostRequest(caption: draft.caption, requestID: draft.requestID, privacy: draft.privacy, expiresAt: draft.expiresAt, poll: draft.poll, media: draft.media)
+        let post = try TextPostRequest(caption: draft.caption, requestID: draft.requestID, privacy: draft.privacy, expiresAt: draft.expiresAt, poll: draft.poll, media: draft.media, context: draft.context, mentions: draft.mentions ?? [])
         func headers(_ body: Data) async throws -> [String: String] {
             guard account?.id == owner else { throw CampusError.signedOut }
             if configuration.appAttestRequired && !configuration.appAttestEnabled { throw CampusError.featureUnavailable }
@@ -151,7 +171,7 @@ final class AppModel: ObservableObject {
                 let prepare = try JSONEncoder().encode(PrepareUploadRequest(post: post, files: draft.media))
                 let signed = try await headers(prepare)
                 guard account?.id == owner else { throw CampusError.signedOut }
-                let response = try await api.prepareUploadEncoded(prepare, additionalHeaders: signed)
+                let response = try await api.prepareUploadEncoded(prepare, additionalHeaders: signed, owner: owner)
                 if response.mint != nil { await refreshFeed(); return }
                 guard let upload = response.upload, !upload.ticket.isEmpty, upload.files.count == draft.media.count else { throw CampusError.invalidResponse }
                 for (index, media) in draft.media.enumerated() {
@@ -163,7 +183,7 @@ final class AppModel: ObservableObject {
             }
             let signed = try await headers(body)
             guard account?.id == owner else { throw CampusError.signedOut }
-            try await api.publishEncoded(body, additionalHeaders: signed)
+            try await api.publishEncoded(body, additionalHeaders: signed, owner: owner)
         } catch { clearAccountIfSessionEnded(error); throw error }
         await refreshFeed()
     }
@@ -219,6 +239,19 @@ final class AppModel: ObservableObject {
         clearAccountIfSessionEnded(error)
     }
 
+    func writeCampus(_ endpoint: CampusWrite, body: Data, owner: UUID) async throws -> CampusWriteResult {
+        guard let api, account?.id == owner, let configuration else { throw CampusError.signedOut }
+        if configuration.appAttestRequired && !configuration.appAttestEnabled { throw CampusError.featureUnavailable }
+        let headers = configuration.appAttestEnabled ? try await appAttest.headers(api: api, userID: owner, method: endpoint.method, path: endpoint.path, body: body) : [:]
+        guard account?.id == owner else { throw CampusError.signedOut }
+        do {
+            let result = try await api.mutateCampus(endpoint, body: body, owner: owner, additionalHeaders: headers)
+            guard account?.id == owner else { throw CampusError.signedOut }
+            socialChanges.invalidate()
+            return result
+        } catch { if account?.id == owner { clearAccountIfSessionEnded(error) }; throw error }
+    }
+
     func mutateSocial(_ mutation: SocialMutation) async throws {
         guard let api, let account, let configuration else { throw CampusError.signedOut }
         let body = try JSONEncoder().encode(mutation)
@@ -228,7 +261,7 @@ final class AppModel: ObservableObject {
             headers = try await appAttest.headers(api: api, userID: account.id, method: "POST", path: "/api/social", body: body)
         }
         do {
-            try await api.mutateSocialEncoded(body, additionalHeaders: headers)
+            try await api.mutateSocialEncoded(body, additionalHeaders: headers, owner: account.id)
             guard self.account?.id == account.id else { throw CampusError.signedOut }
             socialChanges.invalidate()
         }
@@ -241,7 +274,7 @@ final class AppModel: ObservableObject {
     private func clearAccountIfSessionEnded(_ error: Error) {
         switch error {
         case CampusError.signedOut, CampusError.invalidSession, CampusError.identityMismatch:
-            account = nil; posts = []; authors = [:]
+            account = nil; canUseCampusTester = false; pendingStudent = nil; posts = []; authors = [:]
         default: break
         }
     }
@@ -250,7 +283,7 @@ final class AppModel: ObservableObject {
         guard let api else { return }
         busy = true
         defer { busy = false }
-        account = nil; posts = []; authors = [:]; message = nil
+        account = nil; canUseCampusTester = false; pendingStudent = nil; posts = []; authors = [:]; message = nil
         do { try await api.signOut() } catch { message = error.localizedDescription }
     }
 }

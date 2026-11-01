@@ -1,3 +1,6 @@
+import { rankVisibleNormalMintzWithMetadata } from "@/lib/social/mintFeedRanking";
+import type { OrganizationMembership } from "@/types/organization";
+import { databasePrivacyField, projectFeedAuthor } from "@/lib/social/profileProjection";
 import { readJsonBody, readSmallFormData } from "@/lib/security/requestBody";
 import { NextResponse } from "next/server";
 
@@ -226,7 +229,7 @@ function validatePayload(value: unknown): { value: ValidatedPublishPayload | nul
 }
 
 function mapPrivacy(row: Record<string, unknown> | null, key: keyof ProfilePrivacySettings) {
-  const databaseKey = key === "portfolioUrl" ? "portfolio_url" : key === "personalWebsite" ? "personal_website" : key;
+  const databaseKey = databasePrivacyField(key);
   return (row?.[databaseKey] as ProfilePrivacySettings[typeof key] | undefined) ?? defaultPrivacy[key];
 }
 
@@ -312,11 +315,12 @@ async function signedMediaUrls(admin: ReturnType<typeof createSupabaseAdminClien
 async function loadMintFeed(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   viewerId: string,
-  onlyContentId: string | null = null,
+  onlyContentId: string | string[] | null = null,
   previewUniversityId: UniversityId | null = null,
+  ranked = false,
 ): Promise<{ mintz: Mint[]; authors: CampusMintUser[] }> {
   const { data: viewerIdentity, error: viewerError } = await admin.from("profile_identities")
-    .select("user_id,university_id")
+    .select("user_id,university_id,verified_student")
     .eq("user_id", viewerId)
     .maybeSingle();
   if (viewerError || !viewerIdentity) throw viewerError ?? new Error("Verified profile identity is missing.");
@@ -328,7 +332,8 @@ async function loadMintFeed(
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
     .order("created_at", { ascending: false })
     .limit(100);
-  if (onlyContentId) contentQuery = contentQuery.eq("id", onlyContentId);
+  if (Array.isArray(onlyContentId)) contentQuery = contentQuery.in("id", onlyContentId);
+  else if (onlyContentId) contentQuery = contentQuery.eq("id", onlyContentId);
   if (previewUniversityId) contentQuery = contentQuery.in("university_id", universities[previewUniversityId].accessibleCampuses);
   const { data: contentRows, error: contentError } = await contentQuery;
   if (contentError) throw contentError;
@@ -399,7 +404,7 @@ async function loadMintFeed(
   visibleRows = visibleRows.filter((row) => visibleIds.has(row.id));
   const visibleMedia = (mediaResult.data ?? []).filter((row) => visibleIds.has(row.content_id));
   const mediaUrls = await signedMediaUrls(admin, visibleMedia);
-  const authorIds = [...new Set(visibleRows.map((row) => row.author_id))];
+  const authorIds = [...new Set([...visibleRows.map((row) => row.author_id), ...(ranked ? [viewerId] : [])])];
   const [profilesResult, identitiesResult, privacyResult, capabilityResult] = await Promise.all([
     admin.from("profiles").select("*").in("user_id", authorIds),
     admin.from("profile_identities").select("*").in("user_id", authorIds),
@@ -419,16 +424,7 @@ async function loadMintFeed(
     if (!identity) return [];
     const fieldPrivacy = privacy.get(profile.user_id) ?? null;
     const author = mapAuthor(profile, identity, fieldPrivacy, capabilities.get(profile.user_id) ?? []);
-    if (previewUniversityId) {
-      author.account.capabilities = author.account.capabilities?.filter((capability) => capability === "creator");
-      // Only public profile details accompany a campus preview response.
-      for (const field of ["bio", "major", "graduationYear", "hometown", "instagram", "linkedin", "portfolioUrl", "personalWebsite"] as const) {
-        if (author.privacy[field] !== "everyone") author.profile[field] = null;
-      }
-      author.profile.academicArea = author.profile.major;
-      if (author.privacy.interests !== "everyone") author.profile.interests = [];
-    }
-    return [author];
+    return [projectFeedAuthor(author, { id: viewerId, verifiedStudent: viewerIdentity.verified_student === true, connected: connectedIds.has(author.account.id), preview: Boolean(previewUniversityId) })];
   });
   const authorById = new Map(authors.map((author) => [author.account.id, author]));
   const locations = new Map((locationResult.data ?? []).map((row) => [row.id, row]));
@@ -521,6 +517,20 @@ async function loadMintFeed(
       isDevelopment: false,
     }];
   });
+  if (ranked) {
+    const viewer = authorById.get(viewerId);
+    if (!viewer) throw new Error("Viewer profile unavailable.");
+    const preferences = await admin.from("feed_preferences").select("mint_id,author_id,topics,weight,reason,updated_at").eq("user_id",viewerId).order("updated_at",{ascending:false}).limit(500);
+    if (preferences.error) throw preferences.error;
+    const rankedMintz = rankVisibleNormalMintzWithMetadata(mintz, {
+      viewer, users: authors, friendships: [], blocks: [], currentTime: Date.now(),
+      follows: (followResult.data ?? []).map(row => ({ id: `${row.follower_id}:${row.following_id}`, followerId: row.follower_id, followingId: row.following_id, createdAt: "" })),
+      organizationMemberships: (membershipResult.data ?? []).map(row => ({ id: row.organization_id, organizationId: row.organization_id, userId: viewerId, status: row.status as OrganizationMembership["status"], requestedAt: null, decidedAt: null, decidedByUserId: null, createdAt: "", updatedAt: "" })),
+      preferences: (preferences.data ?? []).map(row => ({ mintId: row.mint_id, authorId: row.author_id, topics: row.topics, weight: row.weight, reason: row.reason, updatedAt: row.updated_at })),
+      explorationSeed: `${viewerId}:${Math.floor(Date.now()/3600000)}`,
+    }).map(item => item.mint);
+    return { mintz: rankedMintz, authors };
+  }
   return { mintz, authors };
 }
 
@@ -571,7 +581,11 @@ export async function GET(request: Request) {
   if (userError || !user) return json<MintFeedResponse>({ ok: false, message: "Sign in to view Mintz." }, 401);
   try {
     const admin = createSupabaseAdminClient();
-    const requestedCampus = new URL(request.url).searchParams.get("universityId");
+    const searchParams = new URL(request.url).searchParams;
+    const requestedCampus = searchParams.get("universityId");
+    const rawIds = searchParams.get("ids");
+    const ids = rawIds === null ? null : rawIds.split(",");
+    if (ids && (!ids.length || ids.length > 50 || ids.some(id => !uuidPattern.test(id)))) return json<MintFeedResponse>({ ok: false, message: "Invalid post selection." }, 400);
     if (requestedCampus !== null && !configuredUniversityIds.includes(requestedCampus as UniversityId)) {
       return json<MintFeedResponse>({ ok: false, message: "Unknown campus context." }, 400);
     }
@@ -581,7 +595,7 @@ export async function GET(request: Request) {
       if (error) throw error;
       if (!tester) return json<MintFeedResponse>({ ok: false, message: "Campus test access is required." }, 403);
     }
-    const result = await loadMintFeed(admin, user.id, null, requestedCampus as UniversityId | null);
+    const result = await loadMintFeed(admin, user.id, ids, requestedCampus as UniversityId | null, !ids && searchParams.get("ranked") === "1");
     return json<MintFeedResponse>({ ok: true, ...result });
   } catch (error) {
     logFailure("feed load failed", error);

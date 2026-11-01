@@ -18,6 +18,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>CampusMintServerURL</key>
 	<string>$(CAMPUS_MINT_SERVER_URL)</string>
+	<key>NSCameraUsageDescription</key><string>Take photos and videos to attach to your Campus Mint posts.</string>
+<key>NSMicrophoneUsageDescription</key><string>Record audio with videos you choose to capture.</string>
+<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Find food, events and student listings within ten miles while you browse.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>

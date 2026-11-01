@@ -236,18 +236,32 @@ export function useProfiles() {
     return { ok: true, error: null } as const;
   }
 
-  function updateCurrentPrivacy(patch: Partial<ProfilePrivacySettings>) {
-    setUsers((currentUsers) => currentUsers.map((user) =>
-      user.account.id === currentUser.account.id
-        ? { ...user, privacy: { ...user.privacy, ...patch } }
-        : user));
+  async function persistPrivacy(patch: Record<string, string>) {
+    if (currentUser.account.isDevelopment) return { ok: true } as const;
+    try {
+      const response = await fetch("/api/account/privacy", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+      const result = await response.json();
+      if (!response.ok || !result.ok) return { ok: false, error: result.message ?? "Couldn’t save privacy settings." } as const;
+      return { ok: true } as const;
+    } catch { return { ok: false, error: "Couldn’t save privacy settings. Try again." } as const; }
   }
 
-  function updateCurrentSocialSettings(patch: Partial<ProfileSocialSettings>) {
+  async function updateCurrentPrivacy(patch: Partial<ProfilePrivacySettings>) {
+    const result = await persistPrivacy(patch);
+    if (!result.ok) return result;
     setUsers((currentUsers) => currentUsers.map((user) =>
-      user.account.id === currentUser.account.id
-        ? { ...user, socialSettings: { ...user.socialSettings, ...patch } }
-        : user));
+      user.account.id === currentUser.account.id ? { ...user, privacy: { ...user.privacy, ...patch } } : user));
+    return result;
+  }
+
+  async function updateCurrentSocialSettings(patch: Partial<ProfileSocialSettings>) {
+    if (patch.accountType) {
+      const result = await persistPrivacy({ accountType: patch.accountType });
+      if (!result.ok) return result;
+    }
+    setUsers((currentUsers) => currentUsers.map((user) =>
+      user.account.id === currentUser.account.id ? { ...user, socialSettings: { ...user.socialSettings, ...patch } } : user));
+    return { ok: true } as const;
   }
 
   function getFriendshipStatus(targetUserId: string) {

@@ -99,8 +99,15 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
 
   useModalLayer(dialogRef, requestClose);
 
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
+  async function savePrivacy(save: () => Promise<{ ok: boolean; error?: string }>) {
+    if (savingPrivacy) return;
+    setSavingPrivacy(true);
+    try { const result = await save(); if (!result.ok) setNotice(result.error ?? "Couldn’t save privacy settings."); }
+    finally { setSavingPrivacy(false); }
+  }
   function updatePrivacy(field: ProfilePrivacyField, value: string) {
-    profiles.updateCurrentPrivacy({ [field]: value as ProfileVisibility });
+    void savePrivacy(() => profiles.updateCurrentPrivacy({ [field]: value as ProfileVisibility }));
   }
 
   useEffect(() => () => {
@@ -218,13 +225,13 @@ export function SettingsPanel({ viewer, theme, profiles, preferenceState, onOpen
       <div>
         <h3 className="text-lg font-black text-slate-950">Privacy</h3>
 
-        <div className="mt-5 divide-y divide-slate-100 rounded-2xl px-4">
-          <SelectRow label="Account" value={viewer.socialSettings.accountType} onChange={(value) => profiles.updateCurrentSocialSettings({ accountType: value as "public" | "private" })}><option value="public">Public</option><option value="private">Private</option></SelectRow>
+        <fieldset disabled={savingPrivacy} className="mt-5 divide-y divide-slate-100 rounded-2xl px-4">
+          <SelectRow label="Account" value={viewer.socialSettings.accountType} onChange={(value) => void savePrivacy(() => profiles.updateCurrentSocialSettings({ accountType: value as "public" | "private" }))}><option value="public">Public</option><option value="private">Private</option></SelectRow>
           <SelectRow label="Profile visibility" value={viewer.privacy.bio} onChange={(value) => updatePrivacy("bio", value)}>{visibilityOptions()}</SelectRow>
           <SelectRow label="Classes visibility" value={viewer.privacy.classes} onChange={(value) => updatePrivacy("classes", value)}>{visibilityOptions()}</SelectRow>
           <SelectRow label="Club visibility" value={viewer.privacy.clubs} onChange={(value) => updatePrivacy("clubs", value)}>{visibilityOptions()}</SelectRow>
           <SelectRow label="Major visibility" value={viewer.privacy.major} onChange={(value) => updatePrivacy("major", value)}>{visibilityOptions()}</SelectRow>
-        </div>
+        </fieldset>
       </div>
     );
 

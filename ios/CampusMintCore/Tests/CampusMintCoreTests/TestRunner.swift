@@ -56,6 +56,14 @@ func expectThrows<Value>(_ expected: CampusError, _ body: () async throws -> Val
         try await realtimeRevokedSessionStopsConnection()
         try await invalidationsCoalesceAndEndWithAccount()
         try await socialRefreshReconcilesLoadedHistory()
-        print("32 native security and contract checks passed.")
+        try clubActionsKeepIdentityAndRolesServerOwned()
+        try marketplaceValidationKeepsRetryIdentityAndLocationConsent()
+        try nativeProfileEditsPreserveIdentityAndEmptyLastName()
+        try await nativeCampusWritesBindOwnerMethodAndExactBody()
+        try composerContextPreservesDraftsAndServerAuthority()
+        try await nativeDetailsAndPlacesStayBoundedAndOwnerScoped()
+        try await studentSignupIsExplicitResumableAndIdentityBound()
+        try notificationDestinationsOnlyUseKnownTypedTargets()
+        print("40 native security and contract checks passed.")
     }
 }
