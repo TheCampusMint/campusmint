@@ -135,6 +135,7 @@ struct FeedView: View {
                 if !model.posts.isEmpty { Text("You're all caught up").font(CampusFont.bold(14)).frame(maxWidth: .infinity).padding(.vertical, 64) }
             }.padding(.horizontal, 10).padding(.top, 4)
         }.refreshable { await model.refreshFeed() }.scrollDismissesKeyboard(.interactively)
+            .task { for await _ in model.socialChanges.updates() { if Task.isCancelled { break }; await model.refreshFeed() } }
     }
 }
 

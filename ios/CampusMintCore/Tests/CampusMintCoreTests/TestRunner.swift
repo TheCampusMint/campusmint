@@ -49,6 +49,13 @@ func expectThrows<Value>(_ expected: CampusError, _ body: () async throws -> Val
         try prepareAndPublishUseTheSamePayloadAndRetryIdentity()
         try await uploadsUseScopedStorageCapabilitiesAndKeepExactPublishBytes()
         try await nativePollVotesUseCanonicalSessionAndServerResults()
-        print("25 native security and contract checks passed.")
+        try realtimeOnlyConnectsToSecureProjectOrigins()
+        try realtimeFiltersForeignAccountsAndPrivateTables()
+        try await realtimeCancellationClosesPendingReceive()
+        try await realtimeMissedHeartbeatForcesReconnect()
+        try await realtimeRevokedSessionStopsConnection()
+        try await invalidationsCoalesceAndEndWithAccount()
+        try await socialRefreshReconcilesLoadedHistory()
+        print("32 native security and contract checks passed.")
     }
 }

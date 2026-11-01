@@ -8,25 +8,29 @@ final class SocialPageModel<Row: SocialRow>: ObservableObject {
     @Published var error: String?
     @Published var loading = false
     @Published var hasMore = false
-    private var generation = UUID()
+    private var pendingRefresh = false
+    private var loadedPages = 1
 
     func load(api: CampusAPI?, resource: String, target: UUID? = nil, older: Bool = false) async {
-        guard let api, !loading else { return }
-        let token = UUID(); generation = token; loading = true
-        defer { if generation == token { loading = false } }
-        do {
-            let cursor = older ? rows.last.map { SocialCursor(date: $0.pageDate, id: $0.id) } : nil
-            let page: SocialPage<Row> = try await api.socialPage(resource, target: target, before: cursor)
-            guard !Task.isCancelled, generation == token else { return }
-            if older {
-                let previousIDs = Set(rows.map(\.id)); rows += page.items.filter { !previousIDs.contains($0.id) }
-            } else { rows = page.items }
-            hasMore = page.hasMore; error = nil
-        } catch {
-            guard !Task.isCancelled, generation == token else { return }
-            // Never retain a private thread after a failed authorization check.
-            rows = []; self.error = error.localizedDescription
-        }
+        guard let api else { return }
+        if loading { if !older { pendingRefresh = true }; return }
+        loading = true
+        defer { loading = false; pendingRefresh = false }
+        var append = older
+        repeat {
+            pendingRefresh = false
+            do {
+                let snapshot: SocialPageSnapshot<Row> = try await SocialPageSnapshot.load(
+                    previous: rows, loadedPages: loadedPages, older: append
+                ) { cursor in try await api.socialPage(resource, target: target, before: cursor) }
+                try Task.checkCancellation()
+                rows = snapshot.rows; hasMore = snapshot.hasMore; loadedPages = snapshot.loadedPages; error = nil
+            } catch {
+                guard !Task.isCancelled else { return }
+                rows = []; hasMore = false; loadedPages = 1; self.error = error.localizedDescription
+            }
+            append = false
+        } while pendingRefresh && !Task.isCancelled
     }
 }
 
@@ -76,7 +80,7 @@ struct MessagesView: View {
                 if inbox.hasMore { Button("Older conversations") { Task { await inbox.load(api:model.api,resource:"conversations",older:true) } }.disabled(inbox.loading) }
             }.listStyle(.plain).scrollContentBackground(.hidden).listRowSeparator(.hidden)
             }.padding(.top, 8).background(palette.background).toolbar(.hidden, for: .navigationBar)
-                .task { await refresh() }.refreshable { await refresh() }
+                .task { for await _ in model.socialChanges.updates() { if Task.isCancelled { break }; await refresh() } }.refreshable { await refresh() }
         }
     }
     private func refresh() async { await inbox.load(api: model.api, resource: "conversations") }
@@ -126,7 +130,7 @@ struct MessageThreadView: View {
                     .accessibilityLabel("Send message").disabled(sending || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 if sending { ProgressView() }
             }.padding()
-        }.background(palette.background).toolbar(.visible, for: .navigationBar).navigationTitle(name).navigationBarTitleDisplayMode(.inline).task { await refresh() }
+        }.background(palette.background).toolbar(.visible, for: .navigationBar).navigationTitle(name).navigationBarTitleDisplayMode(.inline).task { for await _ in model.socialChanges.updates() { if Task.isCancelled { break }; await refresh() } }
             .onChange(of: reply?.id) { _, _ in requestID = UUID() }
     }
     private func refresh() async {
@@ -195,7 +199,7 @@ struct CommentsView: View {
                         .accessibilityLabel("Post comment").disabled(sending || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }.padding()
             }.background(palette.background).toolbar(.hidden, for: .navigationBar)
-                .task { await refresh() }.onChange(of: reply?.id) { _, _ in requestID = UUID() }
+                .task { for await _ in model.socialChanges.updates() { if Task.isCancelled { break }; await refresh() } }.onChange(of: reply?.id) { _, _ in requestID = UUID() }
         }
     }
     private func refresh() async { await comments.load(api: model.api, resource: "comments", target: postID) }
@@ -234,7 +238,7 @@ struct NotificationsView: View {
                 if page.hasMore { Button("Older notifications") { Task { await page.load(api:model.api,resource:"notifications",older:true) } }.disabled(page.loading) }
             }.listStyle(.plain).scrollContentBackground(.hidden)
             }.background(palette.background).toolbar(.hidden, for: .navigationBar)
-                .task { await refresh() }.refreshable { await refresh() }
+                .task { for await _ in model.socialChanges.updates() { if Task.isCancelled { break }; await refresh() } }.refreshable { await refresh() }
         }
     }
     private func refresh() async { await page.load(api: model.api, resource: "notifications") }

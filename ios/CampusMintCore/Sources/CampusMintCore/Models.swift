@@ -97,6 +97,7 @@ public struct MintPoll: Decodable, Sendable {
 
 public struct NativeConfig: Decodable, Sendable {
     public let storageURL: String?
+    public let realtime: SocialRealtimeConfiguration?
     public let apiVersion: Int
     public let appleLinkingEnabled: Bool
     public let appAttestEnabled: Bool

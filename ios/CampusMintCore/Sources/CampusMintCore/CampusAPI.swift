@@ -170,6 +170,38 @@ public actor CampusAPI {
         guard result.ok else { throw CampusError.invalidResponse }
     }
 
+    /// The token never leaves the networking layer or enters observable UI state.
+    public func observeSocialChanges(owner: UUID, configuration: SocialRealtimeConfiguration,
+                                     changed: @escaping @Sendable () async -> Void) async throws {
+        let generation = sessionGeneration
+        let url = try configuration.socketURL()
+        var delay: Double = 1
+        while !Task.isCancelled {
+            let started = Date()
+            do {
+                _ = try await realtimeToken(owner: owner, generation: generation)
+                try Task.checkCancellation()
+                try await SocialRealtimeConnection.run(socket: NativeSocialSocket(url: url), owner: owner,
+                    token: { try await self.realtimeToken(owner: owner, generation: generation) }, changed: changed)
+            } catch {
+                try Task.checkCancellation()
+                switch error {
+                case CampusError.signedOut, CampusError.invalidSession, CampusError.identityMismatch: throw error
+                default: break // Authorized HTTP fallback continues while the socket reconnects.
+                }
+            }
+            if Date().timeIntervalSince(started) > 60 { delay = 1 }
+            try await Task.sleep(for: .seconds(delay + Double.random(in: 0...0.5)))
+            delay = min(delay * 2, 30)
+        }
+    }
+
+    private func realtimeToken(owner: UUID, generation: UUID) async throws -> String {
+        let active = try await activeSession()
+        guard generation == sessionGeneration, active.userId == owner else { throw CampusError.signedOut }
+        return active.accessToken
+    }
+
     public func signOut() async throws {
         var failure: Error?
         do { let _: OK = try await authenticated("/api/account/logout", method: "POST", data: Data("{}".utf8)) }

@@ -1,6 +1,6 @@
 # BUILD-2026-10 — production completion workload
 
-Started October 8, 2026; resumed October 9. Baseline `cfc51de` is deployed. The website remains supported alongside SwiftUI. This register is a delivery checklist, not a declaration that planned features work.
+Started October 8, 2026; resumed through October 31. Latest released baseline before SOCIAL-03 is `7e440a0` (October 13). The website remains supported alongside SwiftUI. This register is a delivery checklist, not a declaration that planned features work.
 
 | # | Requested work | Baseline / next gate |
 |---|---|---|
@@ -69,3 +69,7 @@ The user approved the social-sync migration explicitly. Applied successfully Oct
 - No additional production database changes were made. Live read-only inventory confirms likes/endorsements/pins/notes remain unavailable through direct service table SELECT; their approved RPC is the access boundary. Follows/blocks have existing server SELECT access. Do not work around those boundaries with broad grants.
 - Next client work: bounded/selective interaction reads, then production appreciation/endorsement/pins/shares/follows/blocks/attendance hooks. Existing account `state` aggregation is not a scalable general-purpose read. None of these remaining client connections is claimed complete by this checkpoint.
 - SOCIAL-01 was saved in local commit `d092558`. Neither checkpoint has been pushed or deployed to the public website; only the specifically approved social-sync database migration is live. Real two-account/device end-to-end validation remains outstanding.
+
+## SOCIAL-03 — October 31 continuation
+
+The October 13 native parity/posting release included SOCIAL-01/02 app code; their old undeployed notes above are historical. Native foreground realtime, reconnect/fallback, account-scoped invalidation and history reconciliation are implemented and validated in `2026-10-31-native-sync.md`. The new user-owned functional checklist is `2026-10-31-iphone-functional-checklist.md`. This is an incremental checkpoint, not completion of all 25 items.

@@ -17,6 +17,10 @@ struct CampusMintApp: App {
                     if scenePhase != .active { Color(.systemBackground).ignoresSafeArea() }
                 }
                 .task { await model.restore() }
+                .task(id: scenePhase == .active ? model.account?.id : nil) {
+                    guard scenePhase == .active else { return }
+                    await model.runSocialSync()
+                }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { Task { await model.refreshAccountIfSignedIn() } }
                 }
@@ -26,7 +30,10 @@ struct CampusMintApp: App {
 
 @MainActor
 final class AppModel: ObservableObject {
-    @Published var account: CampusUser?
+    @Published var account: CampusUser? {
+        didSet { if oldValue?.id != account?.id { socialChanges.finish() } }
+    }
+    let socialChanges = SocialInvalidationHub()
     @Published var posts: [MintPost] = []
     @Published var authors: [UUID: CampusUser] = [:]
     @Published var isRestoring = true
@@ -173,6 +180,45 @@ final class AppModel: ObservableObject {
         catch { clearAccountIfSessionEnded(error); throw error }
     }
 
+    func runSocialSync() async {
+        guard let owner = account?.id, let api else { return }
+        socialChanges.invalidate()
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { [weak self] in
+                while !Task.isCancelled {
+                    do { try await Task.sleep(for: .seconds(30)) } catch { return }
+                    await self?.invalidateSocial(owner: owner)
+                }
+            }
+            group.addTask { [weak self] in
+                while !Task.isCancelled {
+                    do {
+                        let config = try await api.configuration()
+                        if let realtime = config.realtime {
+                            try await api.observeSocialChanges(owner: owner, configuration: realtime) { [weak self] in
+                                await self?.invalidateSocial(owner: owner)
+                            }
+                        }
+                    } catch {
+                        if !Task.isCancelled { await self?.handleSocialSyncFailure(error, owner: owner) }
+                    }
+                    do { try await Task.sleep(for: .seconds(30)) } catch { return }
+                }
+            }
+            await group.waitForAll()
+        }
+    }
+
+    private func invalidateSocial(owner: UUID) {
+        guard account?.id == owner, !Task.isCancelled else { return }
+        socialChanges.invalidate()
+    }
+
+    private func handleSocialSyncFailure(_ error: Error, owner: UUID) {
+        guard account?.id == owner else { return }
+        clearAccountIfSessionEnded(error)
+    }
+
     func mutateSocial(_ mutation: SocialMutation) async throws {
         guard let api, let account, let configuration else { throw CampusError.signedOut }
         let body = try JSONEncoder().encode(mutation)
@@ -181,8 +227,15 @@ final class AppModel: ObservableObject {
         if configuration.appAttestEnabled {
             headers = try await appAttest.headers(api: api, userID: account.id, method: "POST", path: "/api/social", body: body)
         }
-        do { try await api.mutateSocialEncoded(body, additionalHeaders: headers) }
-        catch { clearAccountIfSessionEnded(error); throw error }
+        do {
+            try await api.mutateSocialEncoded(body, additionalHeaders: headers)
+            guard self.account?.id == account.id else { throw CampusError.signedOut }
+            socialChanges.invalidate()
+        }
+        catch {
+            if self.account?.id == account.id { clearAccountIfSessionEnded(error) }
+            throw error
+        }
     }
 
     private func clearAccountIfSessionEnded(_ error: Error) {
