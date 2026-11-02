@@ -23,6 +23,7 @@ export type MintFeedResponse =
       ok: true;
       mintz: Mint[];
       authors: PersistedMintAuthor[];
+      nextCursor?: string | null;
     }
   | {
       ok: false;

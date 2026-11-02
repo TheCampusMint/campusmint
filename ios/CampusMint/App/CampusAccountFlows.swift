@@ -529,7 +529,7 @@ struct NativePersonProfile: View {
                             if displayed.canMessage { Button("Message") { message = true }.frame(minHeight: 44) }
                             Button("Block", role: .destructive) { Task { await act("block", enabled: true) } }.frame(minHeight: 44)
                         }.font(CampusFont.bold(14)).foregroundStyle(palette.accent)
-                        ForEach(model.posts.filter { $0.authorId == person.id }) { post in MintPostView(post: post, author: model.authors[person.id]) }
+                        NativeProfilePosts(authorID: person.id)
                     } else if blocked { Button("Unblock") { Task { await act("block", enabled: false) } }.frame(minHeight: 44).foregroundStyle(palette.accent) }
                     if busy { ProgressView() }; if let error { Text(error).foregroundStyle(palette.urgent) }
                 }.padding(20).frame(maxWidth: .infinity, alignment: .leading).disabled(busy)
@@ -585,9 +585,9 @@ struct NativePostActions: View {
         guard !busy, state != nil else { await load(); return }; busy = true; error = nil; defer { busy = false }
         do {
             try await model.mutateSocial(.init(action: action, target: postID, enabled: enabled)); await load()
-            if enabled && ["appreciate", "endorse"].contains(action), let owner = model.account?.id {
-                let signal = try FeedPreferenceWrite(post: postID, weight: action == "appreciate" ? 2 : 3)
-                _ = try await model.writeCampus(.preference, body: JSONEncoder().encode(signal), owner: owner)
+            if ["appreciate", "endorse"].contains(action), let state {
+                model.recordPostInteraction(post: postID, appreciated: state.appreciated, endorsed: state.endorsed)
+                await model.flushReading()
             }
             if action == "appreciate" && enabled { withAnimation(.spring(response: 0.25)) { burst = true }; UIImpactFeedbackGenerator(style: .light).impactOccurred(); try? await Task.sleep(for: .milliseconds(200)); withAnimation { burst = false } }
         } catch { self.error = error.localizedDescription }
@@ -984,5 +984,96 @@ struct NativeCreatorApplication: View {
             _ = try await model.writeCampus(.creatorApplication, body: JSONEncoder().encode(draft.validated()), owner: owner)
             await model.refreshAccountIfSignedIn(); dismiss()
         } catch { self.error = error.localizedDescription }
+    }
+}
+
+
+private struct CampusReadingKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    var campusReadingActive: Bool { get { self[CampusReadingKey.self] } set { self[CampusReadingKey.self] = newValue } }
+}
+struct NativeReadingObserver: ViewModifier {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.campusReadingActive) private var surfaceActive
+    @Environment(\.scenePhase) private var scene
+    let post: MintPost
+    let enabled: Bool
+    @State private var visible = false
+    private var active: Bool { enabled && surfaceActive && visible && scene == .active }
+    func body(content: Content) -> some View {
+        content.background {
+            GeometryReader { geometry in
+                Color.clear.onChange(of: geometry.frame(in: .global), initial: true) { _, frame in
+                    let bounds = UIScreen.main.bounds
+                    let intersection = frame.intersection(bounds)
+                    visible = !intersection.isNull && intersection.height >= min(frame.height, bounds.height) * 0.5
+                        && intersection.width >= min(frame.width, bounds.width) * 0.5
+                }
+            }
+        }.onDisappear { visible = false }
+        .task(id: active) {
+            guard active else { return }
+            let clock = ContinuousClock()
+            while !Task.isCancelled {
+                let started = clock.now
+                do { try await Task.sleep(for: .seconds(1)); try Task.checkCancellation() } catch { return }
+                let elapsed = started.duration(to: clock.now).components
+                let seconds = Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
+                // Suspension or a stalled scheduler is not meaningful dwell.
+                if seconds <= 2 { model.recordReading(post: post, seconds: seconds) }
+            }
+        }
+    }
+}
+
+struct NativeProfilePosts: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.campusPalette) private var palette
+    let authorID: UUID
+    @State private var posts: [MintPost] = []
+    @State private var authors: [UUID: CampusUser] = [:]
+    @State private var cursor: String?
+    @State private var loadedMore = false
+    @State private var loading = false
+    @State private var generation = UUID()
+    @State private var error: String?
+    var body: some View {
+        LazyVStack(alignment: .leading, spacing: 12) {
+            ForEach(posts) { post in MintPostView(post: post, author: authors[post.authorId]) }
+            if loading { ProgressView().frame(maxWidth: .infinity) }
+            if let error { CampusFailure(message: error) { Task { await load() } } }
+            if cursor != nil { Button("More posts") { Task { await load(more: true) } }.frame(maxWidth: .infinity, minHeight: 44).disabled(loading) }
+            if posts.isEmpty && !loading && error == nil && cursor == nil { Text("No posts yet").foregroundStyle(palette.secondary).frame(maxWidth: .infinity, minHeight: 80) }
+        }.task(id: authorID) {
+            for await _ in model.socialChanges.updates() { if Task.isCancelled { break }; await load(reconcile: true) }
+        }
+    }
+    private func load(more: Bool = false, reconcile: Bool = false) async {
+        guard let api = model.api, let owner = model.account?.id else { return }
+        if loading && (more || reconcile) { return }
+        let ticket = UUID(); generation = ticket; loading = true; error = nil
+        let previous = posts, previousCursor = cursor
+        defer { if generation == ticket { loading = false } }
+        do {
+            let page = try await api.feedPage(author: authorID, cursor: more ? cursor : nil, owner: owner)
+            var updated = page.mintz, people = page.authors
+            if reconcile {
+                let fresh = Set(updated.map(\.id)), older = previous.filter { !fresh.contains($0.id) }.compactMap { UUID(uuidString: $0.id) }
+                for index in stride(from: 0, to: older.count, by: 50) {
+                    try Task.checkCancellation()
+                    let checked = try await api.feed(ids: Array(older[index..<min(index+50,older.count)]))
+                    updated += checked.mintz.filter { $0.authorId == authorID }; people += checked.authors
+                }
+            }
+            guard generation == ticket, model.account?.id == owner, !Task.isCancelled else { return }
+            let existing = Set(posts.map(\.id)); posts = more ? posts + updated.filter { !existing.contains($0.id) } : updated
+            if !more { authors = [:] }; for author in people { authors[author.id] = author }
+            cursor = reconcile && loadedMore ? previousCursor : page.nextCursor
+            if more { loadedMore = true } else if !reconcile { loadedMore = false }
+        } catch {
+            guard generation == ticket, !Task.isCancelled else { return }
+            self.error = error.localizedDescription
+            if !more { posts = []; authors = [:]; cursor = nil }
+        }
     }
 }

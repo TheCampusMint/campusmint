@@ -21,7 +21,7 @@ struct CampusShell: View {
                 Group {
                     switch tab {
                     case .messages: MessagesView()
-                    case .mint: FeedView()
+                    case .mint: FeedView().environment(\.campusReadingActive, panel == nil && !composing)
                     case .sports: CampusSportsView()
                     case .groups: CampusClubsView()
                     }

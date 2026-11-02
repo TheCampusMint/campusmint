@@ -66,6 +66,10 @@ func expectThrows<Value>(_ expected: CampusError, _ body: () async throws -> Val
         try notificationDestinationsOnlyUseKnownTypedTargets()
         try draftCommentPreferenceSurvivesRetryAndLegacyDrafts()
         try creatorApplicationCannotClaimIdentityOrApproval()
-        print("42 native security and contract checks passed.")
+        try readingSignalsIgnoreIncidentalExposureAndBoundMemory()
+        try readingSignalsEncodeOnlyBoundedPositiveFeedback()
+        try await nativeFeedPagesBindScopeAndRejectMalformedCursors()
+        try readingAndAppreciationCombineWithoutNegativeSkipSignals()
+        print("46 native security and contract checks passed.")
     }
 }

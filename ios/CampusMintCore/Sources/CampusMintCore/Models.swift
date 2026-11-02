@@ -69,6 +69,7 @@ public struct MintFeedResponse: Decodable, Sendable {
     public let ok: Bool
     public let mintz: [MintPost]
     public let authors: [CampusUser]
+    public let nextCursor: String?
 }
 
 public struct MintPost: Decodable, Sendable, Identifiable {

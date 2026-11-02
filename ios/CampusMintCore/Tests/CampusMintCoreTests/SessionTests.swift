@@ -297,3 +297,18 @@ func studentSignupIsExplicitResumableAndIdentityBound() async throws {
     let wrong = try CampusAPI(baseURL: URL(string: "https://example.com")!, vault: wrongVault, transport: wrongNetwork)
     try await expectThrows(.identityMismatch) { try await wrong.restore() }; try expect(await wrongVault.load() == nil)
 }
+
+
+func nativeFeedPagesBindScopeAndRejectMalformedCursors() async throws {
+    let network=MockTransport([.init(status:200,json:accountJSON()),.init(status:200,json:"{\"ok\":true,\"mintz\":[],\"authors\":[],\"nextCursor\":null}")])
+    let api=try CampusAPI(baseURL:URL(string:"https://example.com")!,vault:MemoryVault(token()),transport:network)
+    _ = try await api.restore()
+    try await expectThrows(CampusError.signedOut) { try await api.feedPage(owner:otherID) }
+    try await expectThrows(CampusError.configuration) { try await api.feedPage(cursor:"bad?author=other",owner:accountID) }
+    _ = try await api.feedPage(author:otherID,owner:accountID)
+    let requests=await network.requests; try expect(requests.count==2)
+    let items=URLComponents(url:requests[1].url!,resolvingAgainstBaseURL:false)?.queryItems ?? []
+    try expect(items.contains(.init(name:"author",value:otherID.uuidString)))
+    try expect(items.contains(.init(name:"paged",value:"1")))
+    try expect(!items.contains(where:{$0.name=="ranked" || $0.name=="owner"}))
+}

@@ -125,9 +125,22 @@ public actor CampusAPI {
         return response
     }
 
-    public func feed(ids: [UUID]? = nil) async throws -> MintFeedResponse {
+    public func feed(ids: [UUID]? = nil, ranked: Bool = false) async throws -> MintFeedResponse {
         if let ids { guard !ids.isEmpty, ids.count <= 50 else { throw CampusError.configuration } }
-        return try await authenticated("/api/mintz", method: "GET", data: nil, query: ids.map { [.init(name: "ids", value: $0.map { $0.uuidString }.joined(separator: ","))] } ?? [.init(name: "ranked", value: "1")])
+        var query: [URLQueryItem] = ids.map { [.init(name: "ids", value: $0.map { $0.uuidString }.joined(separator: ","))] } ?? []
+        if ids == nil || ranked { query.append(.init(name: "ranked", value: "1")) }
+        return try await authenticated("/api/mintz", method: "GET", data: nil, query: query)
+    }
+
+    public func feedPage(author: UUID? = nil, cursor: String? = nil, owner: UUID) async throws -> MintFeedResponse {
+        var query: [URLQueryItem] = [.init(name: "paged", value: "1")]
+        if let author { query.append(.init(name: "author", value: author.uuidString)) }
+        else { query.append(.init(name: "ranked", value: "1")) }
+        if let cursor {
+            guard cursor.range(of: "^[A-Za-z0-9_-]{40,600}$", options: .regularExpression) != nil else { throw CampusError.configuration }
+            query.append(.init(name: "cursor", value: cursor))
+        }
+        return try await authenticated("/api/mintz", method: "GET", data: nil, query: query, expectedOwner: owner)
     }
 
     /// Fixed API resources only; authorization and session generation checks stay centralized.

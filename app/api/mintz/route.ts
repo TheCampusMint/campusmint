@@ -1,3 +1,4 @@
+import { decodeFeedCursor, encodeFeedCursor, type FeedPosition } from "@/lib/social/feedCursor";
 import { rankVisibleNormalMintzWithMetadata } from "@/lib/social/mintFeedRanking";
 import type { OrganizationMembership } from "@/types/organization";
 import { databasePrivacyField, projectFeedAuthor } from "@/lib/social/profileProjection";
@@ -318,7 +319,8 @@ async function loadMintFeed(
   onlyContentId: string | string[] | null = null,
   previewUniversityId: UniversityId | null = null,
   ranked = false,
-): Promise<{ mintz: Mint[]; authors: CampusMintUser[] }> {
+  page: { author: string | null; before: FeedPosition | null; scope: string } | null = null,
+): Promise<{ mintz: Mint[]; authors: CampusMintUser[]; nextCursor?: string | null }> {
   const { data: viewerIdentity, error: viewerError } = await admin.from("profile_identities")
     .select("user_id,university_id,verified_student")
     .eq("user_id", viewerId)
@@ -330,15 +332,20 @@ async function loadMintFeed(
     .eq("kind", "mint")
     .eq("status", "active")
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-    .order("created_at", { ascending: false })
+    .order("created_at", { ascending: false }).order("id", { ascending: false })
     .limit(100);
   if (Array.isArray(onlyContentId)) contentQuery = contentQuery.in("id", onlyContentId);
   else if (onlyContentId) contentQuery = contentQuery.eq("id", onlyContentId);
   if (previewUniversityId) contentQuery = contentQuery.in("university_id", universities[previewUniversityId].accessibleCampuses);
+  if (page?.author) contentQuery = contentQuery.eq("author_id", page.author);
+  if (page?.before) contentQuery = contentQuery.or(`created_at.lt.${page.before.createdAt},and(created_at.eq.${page.before.createdAt},id.lt.${page.before.id})`);
   const { data: contentRows, error: contentError } = await contentQuery;
   if (contentError) throw contentError;
+  const last = contentRows?.at(-1);
+  const pagination = page ? { nextCursor: contentRows?.length === 100 && last
+    ? encodeFeedCursor({ createdAt: last.created_at, id: last.id }, page.scope, process.env.SUPABASE_SERVICE_ROLE_KEY!) : null } : {};
   const contentIds = (contentRows ?? []).map((row) => row.id);
-  if (contentIds.length === 0) return { mintz: [], authors: [] };
+  if (contentIds.length === 0) return { mintz: [], authors: [], ...pagination };
   const emptyRelationId = "00000000-0000-0000-0000-000000000000";
   const locationIds = (contentRows ?? []).flatMap((row) => row.location_id ? [row.location_id] : []);
   const eventDetailsIds = (contentRows ?? []).flatMap((row) => row.event_details_id ? [row.event_details_id] : []);
@@ -523,15 +530,16 @@ async function loadMintFeed(
     const preferences = await admin.from("feed_preferences").select("mint_id,author_id,topics,weight,reason,updated_at").eq("user_id",viewerId).order("updated_at",{ascending:false}).limit(500);
     if (preferences.error) throw preferences.error;
     const rankedMintz = rankVisibleNormalMintzWithMetadata(mintz, {
-      viewer, users: authors, friendships: [], blocks: [], currentTime: Date.now(),
+      viewer, users: authors, blocks: [], currentTime: Date.now(),
+      friendships: (friendshipResult.data ?? []).map(row => ({ id: `${row.requester_id}:${row.addressee_id}`, requesterId: row.requester_id, addresseeId: row.addressee_id, status: "friends" as const, createdAt: "", updatedAt: "" })),
       follows: (followResult.data ?? []).map(row => ({ id: `${row.follower_id}:${row.following_id}`, followerId: row.follower_id, followingId: row.following_id, createdAt: "" })),
       organizationMemberships: (membershipResult.data ?? []).map(row => ({ id: row.organization_id, organizationId: row.organization_id, userId: viewerId, status: row.status as OrganizationMembership["status"], requestedAt: null, decidedAt: null, decidedByUserId: null, createdAt: "", updatedAt: "" })),
       preferences: (preferences.data ?? []).map(row => ({ mintId: row.mint_id, authorId: row.author_id, topics: row.topics, weight: row.weight, reason: row.reason, updatedAt: row.updated_at })),
       explorationSeed: `${viewerId}:${Math.floor(Date.now()/3600000)}`,
     }).map(item => item.mint);
-    return { mintz: rankedMintz, authors };
+    return { mintz: rankedMintz, authors, ...pagination };
   }
-  return { mintz, authors };
+  return { mintz, authors, ...pagination };
 }
 
 async function removeUploadedMedia(admin: ReturnType<typeof createSupabaseAdminClient>, paths: string[]) {
@@ -595,7 +603,19 @@ export async function GET(request: Request) {
       if (error) throw error;
       if (!tester) return json<MintFeedResponse>({ ok: false, message: "Campus test access is required." }, 403);
     }
-    const result = await loadMintFeed(admin, user.id, ids, requestedCampus as UniversityId | null, !ids && searchParams.get("ranked") === "1");
+    const author = searchParams.get("author"), cursor = searchParams.get("cursor");
+    const paged = searchParams.get("paged") === "1";
+    if ((author !== null && !uuidPattern.test(author)) || ((author !== null || cursor !== null) && !paged) || (paged && ids)) {
+      return json<MintFeedResponse>({ ok: false, message: "Invalid feed request." }, 400);
+    }
+    const ranked = !author && searchParams.get("ranked") === "1";
+    const scope = JSON.stringify([user.id, author, requestedCampus, ranked]);
+    let before: FeedPosition | null = null;
+    if (cursor !== null) {
+      try { before = decodeFeedCursor(cursor, scope, process.env.SUPABASE_SERVICE_ROLE_KEY!); }
+      catch { return json<MintFeedResponse>({ ok: false, message: "Refresh to load this feed again." }, 400); }
+    }
+    const result = await loadMintFeed(admin, user.id, ids, requestedCampus as UniversityId | null, ranked, paged ? { author, before, scope } : null);
     return json<MintFeedResponse>({ ok: true, ...result });
   } catch (error) {
     logFailure("feed load failed", error);

@@ -31,9 +31,19 @@ struct CampusMintApp: App {
 @MainActor
 final class AppModel: ObservableObject {
     @Published var account: CampusUser? {
-        didSet { if oldValue?.id != account?.id { socialChanges.finish() } }
+        didSet { if oldValue?.id != account?.id {
+            socialChanges.finish(); feedGeneration = UUID(); feedLearning = FeedLearning()
+            nextFeedCursor = nil; feedHasLoadedMore = false; posts = []; authors = [:]; feedLoading = false; feedError = nil
+        } }
     }
     let socialChanges = SocialInvalidationHub()
+    @Published var feedLoading = false
+    @Published var nextFeedCursor: String?
+    @Published var feedError: String?
+    private var feedHasLoadedMore = false
+    private var feedGeneration = UUID()
+    private var feedLearning = FeedLearning()
+    private var learningWriteOwner: UUID?
     @Published var posts: [MintPost] = []
     @Published var authors: [UUID: CampusUser] = [:]
     @Published var canUseCampusTester = false
@@ -151,17 +161,72 @@ final class AppModel: ObservableObject {
         pendingStudent = nil; account = user
     }
 
-    func refreshFeed() async {
+    func refreshFeed(reconcile: Bool = false) async {
         guard let api, let expected = account?.id else { return }
+        if reconcile && feedLoading { return }
+        let ticket = UUID(); feedGeneration = ticket; feedLoading = true; feedError = nil
+        let previous = posts, previousCursor = nextFeedCursor
+        defer { if feedGeneration == ticket { feedLoading = false } }
         do {
-            let result = try await api.feed()
-            guard account?.id == expected else { return }
-            posts = result.mintz
-            authors = Dictionary(result.authors.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let result = try await api.feedPage(owner: expected)
+            var refreshed = result.mintz, refreshedAuthors = result.authors
+            if reconcile {
+                let freshIDs = Set(refreshed.map(\.id))
+                let older = previous.filter { !freshIDs.contains($0.id) }.compactMap { UUID(uuidString: $0.id) }
+                // Reauthorize loaded history as well as new posts; a privacy change
+                // must remove an older card instead of leaving a stale local copy.
+                for index in stride(from: 0, to: older.count, by: 50) {
+                    guard account?.id == expected, feedGeneration == ticket else { return }
+                    let page = try await api.feed(ids: Array(older[index..<min(index+50, older.count)]), ranked: true)
+                    refreshed += page.mintz; refreshedAuthors += page.authors
+                }
+            }
+            guard account?.id == expected, feedGeneration == ticket, !Task.isCancelled else { return }
+            posts = refreshed; authors = Dictionary(refreshedAuthors.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            nextFeedCursor = reconcile && feedHasLoadedMore ? previousCursor : result.nextCursor
+            if !reconcile { feedHasLoadedMore = false }
         } catch {
-            clearAccountIfSessionEnded(error)
-            message = error.localizedDescription
+            guard account?.id == expected, feedGeneration == ticket, !Task.isCancelled else { return }
+            clearAccountIfSessionEnded(error); feedError = error.localizedDescription
+            if reconcile { posts = []; authors = [:]; nextFeedCursor = nil }
         }
+    }
+
+    func loadMoreFeed() async {
+        guard let api, let owner = account?.id, let cursor = nextFeedCursor, !feedLoading else { return }
+        let ticket = feedGeneration; feedLoading = true; feedError = nil
+        defer { if ticket == feedGeneration { feedLoading = false } }
+        do {
+            let page = try await api.feedPage(cursor: cursor, owner: owner)
+            guard account?.id == owner, ticket == feedGeneration, !Task.isCancelled else { return }
+            let existing = Set(posts.map(\.id)); posts += page.mintz.filter { !existing.contains($0.id) }
+            for author in page.authors { authors[author.id] = author }
+            nextFeedCursor = page.nextCursor; feedHasLoadedMore = true
+        } catch {
+            guard ticket == feedGeneration, account?.id == owner else { return }
+            clearAccountIfSessionEnded(error); feedError = error.localizedDescription
+        }
+    }
+
+    func recordReading(post: MintPost, seconds: Double) {
+        guard let owner = account?.id, post.authorId != owner, let id = UUID(uuidString: post.id) else { return }
+        feedLearning.observe(post: id, seconds: seconds)
+    }
+    func recordPostInteraction(post: UUID, appreciated: Bool, endorsed: Bool) {
+        guard let owner = account?.id else { return }
+        if posts.first(where: { UUID(uuidString: $0.id) == post })?.authorId == owner { return }
+        feedLearning.interaction(post: post, appreciated: appreciated, endorsed: endorsed)
+    }
+    func flushReading() async {
+        guard let owner = account?.id, learningWriteOwner == nil else { return }
+        let batch = feedLearning.batch; guard !batch.isEmpty else { return }
+        learningWriteOwner = owner
+        defer { learningWriteOwner = nil }
+        do {
+            let body = try JSONEncoder().encode(FeedLearningWrite(batch))
+            _ = try await writeCampus(.preference, body: body, owner: owner, invalidate: false)
+            guard account?.id == owner else { return }; feedLearning.acknowledge(batch)
+        } catch { /* Keep the bounded batch for the next foreground retry. */ }
     }
 
     func publish(draft: ComposerDraft, owner: UUID) async throws {
@@ -216,6 +281,12 @@ final class AppModel: ObservableObject {
             group.addTask { [weak self] in
                 while !Task.isCancelled {
                     do { try await Task.sleep(for: .seconds(30)) } catch { return }
+                    await self?.flushReading()
+                }
+            }
+            group.addTask { [weak self] in
+                while !Task.isCancelled {
+                    do { try await Task.sleep(for: .seconds(30)) } catch { return }
                     await self?.invalidateSocial(owner: owner)
                 }
             }
@@ -248,7 +319,7 @@ final class AppModel: ObservableObject {
         clearAccountIfSessionEnded(error)
     }
 
-    func writeCampus(_ endpoint: CampusWrite, body: Data, owner: UUID) async throws -> CampusWriteResult {
+    func writeCampus(_ endpoint: CampusWrite, body: Data, owner: UUID, invalidate: Bool = true) async throws -> CampusWriteResult {
         guard let api, account?.id == owner, let configuration else { throw CampusError.signedOut }
         if configuration.appAttestRequired && !configuration.appAttestEnabled { throw CampusError.featureUnavailable }
         let headers = configuration.appAttestEnabled ? try await appAttest.headers(api: api, userID: owner, method: endpoint.method, path: endpoint.path, body: body) : [:]
@@ -256,7 +327,7 @@ final class AppModel: ObservableObject {
         do {
             let result = try await api.mutateCampus(endpoint, body: body, owner: owner, additionalHeaders: headers)
             guard account?.id == owner else { throw CampusError.signedOut }
-            socialChanges.invalidate()
+            if invalidate { socialChanges.invalidate() }
             return result
         } catch { if account?.id == owner { clearAccountIfSessionEnded(error) }; throw error }
     }

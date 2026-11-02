@@ -137,12 +137,15 @@ struct FeedView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if model.posts.isEmpty { Text("No posts yet").font(CampusFont.regular(14)).foregroundStyle(palette.secondary).frame(maxWidth: .infinity).padding(.top, 80) }
-                ForEach(model.posts) { post in MintPostView(post: post, author: model.authors[post.authorId]) }
-                if !model.posts.isEmpty { Text("You're all caught up").font(CampusFont.bold(14)).frame(maxWidth: .infinity).padding(.vertical, 64) }
+                if model.posts.isEmpty && !model.feedLoading && model.feedError == nil && model.nextFeedCursor == nil { Text("No posts yet").font(CampusFont.regular(14)).foregroundStyle(palette.secondary).frame(maxWidth: .infinity).padding(.top, 80) }
+                ForEach(model.posts) { post in MintPostView(post: post, author: model.authors[post.authorId], learnsFromReading: true) }
+                if model.feedLoading { ProgressView().frame(maxWidth: .infinity).padding() }
+                if let error = model.feedError { CampusFailure(message: error) { Task { await model.refreshFeed() } } }
+                if model.nextFeedCursor != nil { Button("More posts") { Task { await model.loadMoreFeed() } }.frame(maxWidth: .infinity, minHeight: 44).disabled(model.feedLoading) }
+                if !model.posts.isEmpty && model.nextFeedCursor == nil && !model.feedLoading && model.feedError == nil { Text("You're all caught up").font(CampusFont.bold(14)).frame(maxWidth: .infinity).padding(.vertical, 64) }
             }.padding(.horizontal, 10).padding(.top, 4)
         }.refreshable { await model.refreshFeed() }.scrollDismissesKeyboard(.interactively)
-            .task { for await _ in model.socialChanges.updates() { if Task.isCancelled { break }; await model.refreshFeed() } }
+            .task { for await _ in model.socialChanges.updates() { if Task.isCancelled { break }; await model.refreshFeed(reconcile: true) } }
     }
 }
 
@@ -156,6 +159,7 @@ struct MintPostView: View {
     @State private var contextDestination: NativeContextDestination?
     let post: MintPost
     let author: CampusUser?
+    var learnsFromReading = false
     private var time: String {
         guard let date = campusDate(post.createdAt) else { return "" }
         let days = Int(Date().timeIntervalSince(date) / 86400)
@@ -207,6 +211,7 @@ struct MintPostView: View {
                 if let id = UUID(uuidString: post.id) { NativePostActions(postID: id, commentCount: $visibleCommentCount, canComment: $canComment) }
             }.foregroundStyle(palette.accent).padding(.horizontal, 12).padding(.bottom, 12)
         }.background(palette.surface, in: RoundedRectangle(cornerRadius: 24))
+            .modifier(NativeReadingObserver(post: post, enabled: learnsFromReading && !showingComments && !showingAuthor && contextDestination == nil))
             .sheet(item: $contextDestination) { destination in NativeNotificationDestination(destination: destination.kind, name: "Campus Mint").presentationBackground(palette.background) }
             .sheet(isPresented: $showingAuthor) { NativeProfileLoader(id: post.authorId).presentationBackground(palette.background) }
             .sheet(isPresented: $showingComments) { if let id = UUID(uuidString: post.id) { CommentsView(postID: id).presentationBackground(palette.background).presentationCornerRadius(32) } }
@@ -243,9 +248,7 @@ struct ProfileView: View {
                         }.padding(20).frame(maxWidth: .infinity, alignment: .leading).background(palette.surface, in: RoundedRectangle(cornerRadius: 28))
                         Button("Saved posts") { showingSaved = true }.font(CampusFont.bold(14)).foregroundStyle(palette.accent).frame(minHeight: 44)
                         Text("Mintz").font(CampusFont.bold(14)).foregroundStyle(palette.accent).padding(.horizontal, 16)
-                        LazyVStack(spacing: 0) {
-                            ForEach(model.posts.filter { $0.authorId == user.id }) { post in MintPostView(post: post, author: user) }
-                        }
+                        NativeProfilePosts(authorID: user.id)
                     }.padding(16)
                 }
             }

@@ -78,3 +78,7 @@ The October 13 native parity/posting release included SOCIAL-01/02 app code; the
 ## NATIVE-PARITY-04 — November 1 continuation
 
 See `2026-11-01-native-functional-parity.md` for implemented native account/social/composer/Club/marketplace/discovery work, the approved and applied server-only migration, test evidence, and explicitly unfinished parity. User-owned device checks are in `2026-11-01-iphone-functional-checklist.md`. This supersedes the older native handoff notes for the features actually implemented; it does not close the 25-item launch program.
+
+## NATIVE-PARITY-06 — November 2 continuation
+
+See `2026-11-02-native-feed-history.md` for author history, bounded native pagination, encrypted account-scoped cursors, accepted-friendship ranking and foreground reading signals. Full parity and launch readiness remain open; the current user checklist is `2026-11-02-iphone-feed-checklist.md`.

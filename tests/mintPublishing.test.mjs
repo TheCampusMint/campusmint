@@ -9,6 +9,7 @@ import * as policy from "../lib/content/mintUploadPolicy.ts";
 import * as tickets from "../lib/content/mintUploadTicket.ts";
 import * as mediaPolicy from "../lib/content/mediaPolicy.ts";
 import { publishMint } from "../lib/content/publishMint.ts";
+import * as cursors from "../lib/social/feedCursor.ts";
 import * as projection from "../lib/social/profileProjection.ts";
 import * as ranking from "../lib/social/mintFeedRanking.ts";
 import * as polls from "../lib/content/polls.ts";
@@ -85,13 +86,19 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
       let mode = "select", value, one = false, selection = "";
       const commentFilters = [];
       const filters = [];
+      const orders = []; let maximum = Infinity;
       const query = {
         select(columns = "") { selection = columns; return query; },
         eq(key, expected) { if(key.startsWith('content_comments.')) commentFilters.push(row=>row[key.split('.')[1]]===expected); else filters.push((row) => row[key] === expected); return query; },
         not(key, operator, value) { assert.equal(key,'content_comments.author_id'); assert.equal(operator,'in');const excluded=value.slice(1,-1).split(',');commentFilters.push(row=>!excluded.includes(row.author_id));return query; },
         is(key, expected) { filters.push((row) => (row[key] ?? null) === expected); return query; },
         in(key, expected) { filters.push((row) => expected.includes(row[key])); return query; },
-        order() { return query; }, limit() { return query; }, or(expression) {
+        order(key, options = {}) { orders.push([key, options.ascending !== false]); return query; }, limit(count) { maximum = count; return query; }, or(expression) {
+          if(table === "social_content" && expression.startsWith("created_at.lt.")) {
+            const match = /^created_at.lt.([^,]+),and\(created_at.eq.([^,]+),id.lt.([a-f0-9-]+)\)$/.exec(expression);
+            assert.ok(match); assert.equal(match[1],match[2]);
+            filters.push(row=>row.created_at < match[1] || row.created_at === match[1] && row.id < match[3]);
+          }
           if (table === "organizations" && expression.startsWith("user_created.eq.true")) filters.push(row => row.user_created === true || (["university_verified","community_verified"].includes(row.official_status) && ["official","community_verified"].includes(row.confidence_level)));
           return query;
         },
@@ -100,6 +107,8 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
         delete() { mode = "delete"; return query; },
         then(resolve) {
           let result = rows[table].filter((row) => filters.every((filter) => filter(row)));
+          result.sort((a,b)=>{for(const [key,asc] of orders){if(a[key]<b[key])return asc?-1:1;if(a[key]>b[key])return asc?1:-1;}return 0;});
+          result = result.slice(0, maximum);
           if (selection.includes('content_comments(count)')) result=result.map(row=>({...row,content_comments:[{count:(rows.content_comments??[]).filter(c=>c.content_id===row.id&&commentFilters.every(filter=>filter(c))).length}]}));
           if (mode === "insert") {
             result = (Array.isArray(value) ? value : [value]).map((item) => ({ id: randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), status: "active", ...item }));
@@ -125,6 +134,7 @@ function routeHarness({ authenticated = true, verified = true, malformedStorage 
     } },
   };
   const bindings = {
+    "@/lib/social/feedCursor": cursors,
     "@/lib/social/profileProjection": projection,
     "@/lib/social/mintFeedRanking": ranking,
     "@/lib/security/requestBody": requestBody,
@@ -351,6 +361,17 @@ test("feed filters private author content before calling the poll RPC and restor
   assert.equal(result.ok, true);
   assert.equal(result.mintz.length, 3);
   assert.deepEqual(app.pollReads, [pollId]);
+  result = await (await app.getFeed("?ranked=1")).json();
+  assert.equal(result.mintz.length, 3, "ranking must preserve access granted by accepted friendship");
+  app.rows.mints.find(m=>m.content_id===textId).privacy="connections";
+  result=await (await app.getFeed(`?ranked=1&ids=${textId}`)).json();
+  assert.equal(result.mintz.length,1,"reconciled history retains connections-only posts");
+  app.rows.feed_preferences=[{user_id:userId,mint_id:textId,author_id:authorId,topics:[],weight:0,reason:"relevance",updated_at:new Date().toISOString()}];
+  result=await (await app.getFeed(`?ranked=1&ids=${textId}`)).json();
+  assert.equal(result.mintz.length,0,"reconciled history must honor explicit dismissal");
+  app.rows.friendships=[];
+  result=await (await app.getFeed("?ranked=1")).json();
+  assert.equal(result.mintz.length,1,"removing friendship must revoke ranked private content");
 });
 
 test("a poll becoming inaccessible during feed loading hides only that post", async () => {
@@ -363,4 +384,43 @@ test("a poll becoming inaccessible during feed loading hides only that post", as
   assert.equal(result.ok, true);
   assert.equal(result.mintz.length, 1);
   assert.equal(result.mintz[0].caption, "Still visible");
+});
+
+
+test("profile pagination reads history beyond the main feed and preserves tied timestamps", async () => {
+ process.env.SUPABASE_SERVICE_ROLE_KEY = secret;
+ const app = routeHarness(); const author = randomUUID();
+ app.rows.profile_identities.push({user_id:author,university_id:"tamu",account_type:"student",verified_student:true});
+ app.rows.profiles.push({user_id:author,first_name:"History",last_name:"",username:"history",social_account_type:"public"});
+ const posts = Array.from({length:205},(_,i)=>({id:`${i.toString(16).padStart(8,"0")}-1111-4111-8111-111111111111`,author_id:author,kind:"mint",status:"active",caption:"History",created_at:"2026-11-02T12:00:00.123456+00:00",university_id:"tamu",organization_audience:"public"}));
+ app.rows.social_content = posts;
+ app.rows.mints = posts.map(p=>({content_id:p.id,privacy:"public",archived_at:null}));
+ const first = await (await app.getFeed(`?paged=1&author=${author}`)).json();
+ assert.equal(first.mintz.length,100); assert.ok(first.nextCursor);
+ const second = await (await app.getFeed(`?paged=1&author=${author}&cursor=${first.nextCursor}`)).json();
+ const third = await (await app.getFeed(`?paged=1&author=${author}&cursor=${second.nextCursor}`)).json();
+ assert.equal(second.mintz.length,100); assert.equal(third.mintz.length,5); assert.equal(third.nextCursor,null);
+ assert.equal(new Set([...first.mintz,...second.mintz,...third.mintz].map(p=>p.id)).size,205);
+ assert.equal((await app.getFeed(`?paged=1&cursor=${first.nextCursor}`)).status,400);
+ assert.equal((await app.getFeed(`?author=${author}`)).status,400);
+ assert.equal((await app.getFeed(`?paged=1&ids=${posts[0].id}`)).status,400);
+ assert.equal((await app.getFeed('?paged=1&author=invalid')).status,400);
+});
+
+test("empty private scan pages can advance without disclosing rows and every page rechecks visibility", async () => {
+ process.env.SUPABASE_SERVICE_ROLE_KEY = secret;
+ const app=routeHarness(), author=randomUUID();
+ app.rows.profiles.push({user_id:author,first_name:"Hidden",username:"hidden",social_account_type:"private"});
+ app.rows.profile_identities.push({user_id:author,university_id:"tamu",verified_student:true,account_type:"student"});
+ const rows=Array.from({length:101},(_,i)=>({id:`${i.toString(16).padStart(8,"0")}-2222-4222-8222-222222222222`,author_id:author,kind:"mint",status:"active",caption:"Never reveal",created_at:"2026-11-02T00:00:00Z",organization_audience:"public"}));
+ app.rows.social_content=rows; app.rows.mints=rows.map(p=>({content_id:p.id,privacy:"public"}));
+ const response=await app.getFeed(`?paged=1&author=${author}`); const first=await response.json();
+ assert.deepEqual(first.mintz,[]); assert.deepEqual(first.authors,[]); assert.ok(first.nextCursor);
+ assert.equal(response.headers.get("Cache-Control"),"private, no-store");
+ const second=await (await app.getFeed(`?paged=1&author=${author}&cursor=${first.nextCursor}`)).json();
+ assert.deepEqual(second.mintz,[]); assert.equal(second.nextCursor,null);
+ app.rows.profiles.find(p=>p.user_id===author).social_account_type="public";
+ const visible=await (await app.getFeed(`?paged=1&author=${author}`)).json(); assert.equal(visible.mintz.length,100);
+ app.rows.profile_blocks=[{blocker_id:author,blocked_id:userId}];
+ const blocked=await (await app.getFeed(`?paged=1&author=${author}&cursor=${visible.nextCursor}`)).json(); assert.deepEqual(blocked.mintz,[]);
 });
